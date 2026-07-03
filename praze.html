@@ -389,8 +389,65 @@ div.num{display:grid;place-items:center}
 .cal-day.has.today{border-color:var(--lime);color:var(--lime)}
 .cal-blank{aspect-ratio:1}
 
+/* ---------------- set-type badges (working / warmup / drop / failure) ---------------- */
+button.set-i{position:relative}
+button.set-i::after{content:"";position:absolute;inset:-8px;border-radius:12px}  /* bigger tap target */
+button.set-i:active{background:rgba(205,255,0,.12)}
+.set-i.st-warmup{color:var(--dim);border-style:dashed}
+.set-i.st-drop,.set-i.st-failure{color:var(--lime);border-color:rgba(205,255,0,.5)}
+.set-row.warmup .set-v{color:var(--muted)}
+
+/* ---------------- plate calculator ---------------- */
+.slab-row{display:flex;align-items:center;justify-content:space-between}
+.plate-btn{
+  width:32px;height:32px;margin:-10px 0 -8px;border-radius:9px;
+  display:grid;place-items:center;color:var(--dim);border:1px solid var(--line);
+}
+.plate-btn:active{color:var(--lime);border-color:rgba(205,255,0,.5)}
+.plate-btn svg{width:16px;height:16px}
+.sleeve{display:flex;align-items:center;gap:4px;padding:22px 4px 18px;min-height:110px;overflow-x:auto}
+.bar-shaft{flex:1;height:9px;min-width:36px;background:var(--panel-2);border:1px solid var(--line-hard);border-radius:5px 0 0 5px}
+.bar-collar{width:11px;height:26px;flex:none;background:var(--panel-2);border:1px solid var(--line-hard);border-radius:3px}
+.plate{
+  width:17px;flex:none;background:var(--panel-2);border:1px solid var(--line-hard);
+  border-radius:5px;display:flex;align-items:center;justify-content:center;
+}
+.plate span{writing-mode:vertical-rl;transform:rotate(180deg);font:700 9.5px Inter;color:var(--muted);padding:3px 0}
+.bar-tip{width:24px;height:9px;flex:none;background:var(--panel-2);border:1px solid var(--line-hard);border-radius:0 5px 5px 0}
+.plate-total{font-family:"Archivo Black",Inter,sans-serif;font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+.plate-total .u{font-size:13px;color:var(--muted);font-family:Inter,sans-serif;font-weight:700;letter-spacing:.06em}
+
+/* ---------------- chart interactivity (toggle + tap-a-dot tooltip) ---------------- */
+.chart-seg{height:42px;margin:0 4px 12px}
+.chart-dot{cursor:pointer}
+.chart-dot:focus{outline:none}
+.chart-dot:focus-visible{stroke:var(--lime);stroke-width:2}
+.chart-tip{
+  position:absolute;z-index:6;pointer-events:none;white-space:nowrap;
+  background:#16170f;border:1px solid rgba(205,255,0,.45);border-radius:10px;
+  padding:7px 11px;box-shadow:0 8px 22px -10px rgba(0,0,0,.75);
+}
+.chart-tip .tip-main{font:700 13px Inter;color:var(--bone);font-variant-numeric:tabular-nums}
+.chart-tip .tip-sub{font:600 10.5px Inter;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+
+/* ---------------- finish celebration ---------------- */
+.confetti{position:fixed;inset:0;z-index:80;pointer-events:none}
+.check-draw{width:42px;height:42px;flex:none}
+/* Draw-in only runs with the .celebrate class (added right after Finish,
+   never under reduced motion) — the static summary shows the full check. */
+.summary-card.celebrate .check-draw circle{stroke-dasharray:145;stroke-dashoffset:145;animation:pzDraw .55s ease .1s forwards}
+.summary-card.celebrate .check-draw path{stroke-dasharray:36;stroke-dashoffset:36;animation:pzDraw .4s ease .55s forwards}
+@keyframes pzDraw{to{stroke-dashoffset:0}}
+.pr-card{
+  display:flex;align-items:center;gap:10px;margin-top:8px;padding:11px 12px;
+  border:1px solid rgba(205,255,0,.45);border-radius:12px;background:rgba(205,255,0,.07);
+  font-variant-numeric:tabular-nums;
+}
+.pr-card-main{flex:1;min-width:0}
+.pr-card-name{font:700 13.5px/1.3 Inter}
+
 /* ---------------- charts ---------------- */
-.chart-wrap{padding:16px 10px 10px}
+.chart-wrap{position:relative;padding:16px 10px 10px}
 .chart-wrap svg{width:100%;height:auto}
 
 /* ---------------- rest timer bar ---------------- */
@@ -567,18 +624,20 @@ body.rest-on .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
 <script>
 'use strict';
 /* ================================================================
-   PRAZE — app logic (v3)
+   PRAZE — app logic (v3.1)
    ----------------------------------------------------------------
    Data model (persisted to IndexedDB "praze" → store "kv" → key "state";
    falls back to localStorage, then to memory-only):
 
    state = {
-     v: 3,
+     v: 3.1,
      workouts: [                       one session per date
        { id, date: "YYYY-MM-DD",
          startedAt: epoch-ms | null,   set when the first set is logged (today only)
          endedAt:   epoch-ms | null,   set by Finish Workout; cleared if resumed
-         exercises: [ { id, name, sets: [ { w, r } ] } ] }
+         exercises: [ { id, name,
+           sets: [ { w, r, t } ] } ]   t: "working"|"warmup"|"drop"|"failure"
+       }
      ],
      templates: [ { id, name, exercises: ["name", ...], lastUsed: "YYYY-MM-DD"|null } ],
      bodyweight: [ { date: "YYYY-MM-DD", kg } ],             one entry per date
@@ -586,7 +645,8 @@ body.rest-on .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
        "wide-grip lat pulldown": { muscle: "Back"|""(auto), notes: "", rest: seconds|null }
      },
      milestonesSeen: ["w10", ...],      badges already celebrated (no re-toasting)
-     settings: { unit: "kg"|"lb", restDur: s, restSound: bool, weeklyGoal: n, oled: bool }
+     settings: { unit: "kg"|"lb", restDur: s, restSound: bool, weeklyGoal: n, oled: bool,
+                 barKg: n, barLb: n }   plate-calculator bar weight, one per unit system
    }
 
    Weights are ALWAYS stored in kg. The unit setting only changes what
@@ -595,7 +655,7 @@ body.rest-on .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
    calls save() then re-renders the current view. No framework.
    ================================================================ */
 
-const APP_VERSION = '3.0.0';
+const APP_VERSION = '3.1.0';
 const LS_KEY   = 'praze.v1';     // legacy localStorage blob (migrated on first run)
 const DB_NAME  = 'praze';
 const DB_STORE = 'kv';
@@ -648,6 +708,14 @@ const bwStep   = () => unit() === 'lb' ? 0.2 : 0.1;
 /* ---------------- formulas (defined once, reused everywhere) ---------------- */
 /* Estimated 1RM — Epley. reps=1 returns the weight itself. */
 const e1rm = (w, r) => r > 0 ? w * (1 + r / 30) : w;
+
+/* Set types. Warm-ups are EXCLUDED from top sets, PRs, e1RM bests and
+   working volume; drop and failure sets count as working effort. */
+const SET_TYPES = ['working', 'warmup', 'drop', 'failure'];
+const SET_GLYPH = { warmup: 'W', drop: 'D', failure: '+' };   // working shows the set number
+const isWarmup  = s => s.t === 'warmup';
+/* Compact suffix for inline set lists ("60×10ʷ" = warm-up). */
+const setMark   = s => s.t === 'warmup' ? 'ʷ' : s.t === 'drop' ? 'ᵈ' : s.t === 'failure' ? '⁺' : '';
 
 /* ---------------- muscles ---------------- */
 const MUSCLES = ['Back','Chest','Shoulders','Biceps','Triceps','Quads','Hamstrings','Glutes','Calves','Core'];
@@ -704,12 +772,13 @@ const MILESTONES = [
   { id: 't50',   t: 'tonnes',   n: 50,   b: '50t',  lab: '50 tonnes'    },
   { id: 't100',  t: 'tonnes',   n: 100,  b: '100t', lab: '100 tonnes'   }
 ];
-/* Lifetime totals. A "workout" = a session with at least one logged set. */
+/* Lifetime totals. A "workout" = a session with at least one logged set.
+   Sets count everything you did; tonnage is working volume only. */
 function lifetimeTotals(st) {
   let workouts = 0, sets = 0, kg = 0;
   for (const w of st.workouts) {
     let any = false;
-    for (const ex of w.exercises) for (const s of ex.sets) { sets++; kg += s.w * s.r; any = true; }
+    for (const ex of w.exercises) for (const s of ex.sets) { sets++; if (!isWarmup(s)) kg += s.w * s.r; any = true; }
     if (any) workouts++;
   }
   return { workouts, sets, kg, tonnes: kg / 1000 };
@@ -719,7 +788,8 @@ const milestoneHit = (def, tot) =>
 
 /* ---------------- seed data ---------------- */
 function defaultSettings() {
-  return { unit: 'kg', restDur: 90, restSound: true, weeklyGoal: 4, oled: false };
+  return { unit: 'kg', restDur: 90, restSound: true, weeklyGoal: 4, oled: false,
+           barKg: 20, barLb: 45 };
 }
 
 /* The preloaded 4-day split. All of it is editable in Templates. */
@@ -737,16 +807,18 @@ function seedTemplates() {
 }
 
 function seedState() {
-  return { v: 3, workouts: [], templates: seedTemplates(), bodyweight: [],
+  return { v: 3.1, workouts: [], templates: seedTemplates(), bodyweight: [],
            exMeta: {}, milestonesSeen: [], settings: defaultSettings() };
 }
 
 /* Coerce imported / stored data into a safe shape. Drops anything malformed.
-   Also the one-time v1→v2→v3 migration path — old blobs come out as v3. */
+   Also the one-time v1→v2→v3→v3.1 migration path — old blobs come out as
+   v3.1; pre-3.1 sets simply gain t:"working", so nothing shifts retroactively. */
 function normalize(data) {
   const out = seedState();
   out.templates = [];
   const epoch = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
+  const barW  = (v, dflt) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? Math.min(200, Math.round(n * 100) / 100) : dflt; };
   if (data && Array.isArray(data.workouts)) {
     out.workouts = data.workouts
       .filter(w => w && typeof w.date === 'string')
@@ -761,7 +833,8 @@ function normalize(data) {
             id: e.id || uid(),
             name: String(e.name),
             sets: (Array.isArray(e.sets) ? e.sets : [])
-              .map(s => ({ w: Number(s.w) || 0, r: Math.max(0, Math.round(Number(s.r) || 0)) }))
+              .map(s => ({ w: Number(s.w) || 0, r: Math.max(0, Math.round(Number(s.r) || 0)),
+                           t: SET_TYPES.includes(s.t) ? s.t : 'working' }))
               .filter(s => s.r > 0 || s.w > 0)
           }))
       }));
@@ -799,9 +872,11 @@ function normalize(data) {
     restDur: Math.min(3600, Math.max(5, Math.round(Number(s.restDur) || 90))),
     restSound: s.restSound !== false,
     weeklyGoal: Math.min(14, Math.max(1, Math.round(Number(s.weeklyGoal) || 4))),
-    oled: s.oled === true
+    oled: s.oled === true,
+    barKg: barW(s.barKg, 20),
+    barLb: barW(s.barLb, 45)
   };
-  const ver = data ? Number(data.v || 1) : 3;
+  const ver = data ? Number(data.v || 1) : 3.1;
   /* v1 -> v2: if the templates are exactly the untouched v1 seeds,
      swap in the new 4-day split. Anything the user edited is left alone. */
   if (data && ver < 2) upgradeV1Templates(out);
@@ -815,7 +890,7 @@ function normalize(data) {
       ? data.milestonesSeen.filter(x => typeof x === 'string' && MILESTONES.some(d => d.id === x))
       : [];
   }
-  out.v = 3;
+  out.v = 3.1;
   return out;
 }
 
@@ -953,7 +1028,8 @@ function weekBounds() {
   return [start, end];
 }
 
-/* Dashboard numbers: sessions with at least one logged set this week + volume (kg). */
+/* Dashboard numbers: sessions with at least one logged set this week +
+   working volume (kg) — warm-ups don't inflate the number. */
 function weekStats() {
   const [start, end] = weekBounds();
   let sessions = 0, volume = 0;
@@ -961,7 +1037,7 @@ function weekStats() {
     const d = parseDay(w.date);
     if (d < start || d >= end) continue;
     let logged = false;
-    for (const ex of w.exercises) for (const s of ex.sets) { volume += s.w * s.r; logged = true; }
+    for (const ex of w.exercises) for (const s of ex.sets) { if (!isWarmup(s)) volume += s.w * s.r; logged = true; }
     if (logged) sessions++;
   }
   return { sessions, volume, start, end };
@@ -996,19 +1072,28 @@ function knownExercises() {
     .map(v => v.name);
 }
 
-/* Heaviest set per session for one exercise (ties broken by reps). Values in kg. */
-function topSetSeries(name) {
+/* Per-session bests for one exercise, warm-ups excluded: the top set by
+   weight (ties → reps) and the set with the best estimated 1RM. kg. */
+function exSeries(name) {
   const key = name.toLowerCase().trim();
   const pts = [];
   for (const w of sortedWorkouts()) {
     const ex = w.exercises.find(e => e.name.toLowerCase().trim() === key);
-    if (!ex || !ex.sets.length) continue;
-    let top = ex.sets[0];
-    for (const s of ex.sets) if (s.w > top.w || (s.w === top.w && s.r > top.r)) top = s;
-    pts.push({ d: w.date, v: top.w, r: top.r });
+    if (!ex) continue;
+    let top = null, bestSet = null, bestV = 0;
+    for (const s of ex.sets) {
+      if (isWarmup(s)) continue;
+      if (!top || s.w > top.w || (s.w === top.w && s.r > top.r)) top = s;
+      const v = e1rm(s.w, s.r);
+      if (!bestSet || v > bestV) { bestSet = s; bestV = v; }
+    }
+    if (!top) continue;
+    pts.push({ d: w.date, top, e: { v: bestV, s: bestSet } });
   }
   return pts;
 }
+/* Heaviest working set per session (ties broken by reps). Values in kg. */
+const topSetSeries = name => exSeries(name).map(p => ({ d: p.d, v: p.top.w, r: p.top.r }));
 
 /* Most recent set of an exercise on or before a date — powers prefill + "repeat last". */
 function lastSetAnywhere(name, uptoDate) {
@@ -1054,7 +1139,7 @@ function prInfo(name) {
     const ex = w.exercises.find(e => e.name.toLowerCase().trim() === key);
     if (!ex) continue;
     for (const s of ex.sets) {
-      if (s.w <= 0) continue;
+      if (isWarmup(s) || s.w <= 0) continue;
       if (!best || s.w > best.w || (s.w === best.w && s.r > best.r)) {
         if (best && s.w > best.w) prev = { w: best.w, r: best.r, date: best.date };
         best = { w: s.w, r: s.r, date: w.date };
@@ -1064,42 +1149,49 @@ function prInfo(name) {
   return best ? { best, prev } : null;
 }
 
-/* Heaviest weight ever logged for an exercise — the bar a new set must
-   clear to count as a PR. Call BEFORE pushing the new set. */
+/* Heaviest working weight ever logged for an exercise — the bar a new set
+   must clear to count as a PR. Call BEFORE pushing the new set. */
 function maxWeightEver(name) {
   const key = name.toLowerCase().trim();
   let m = 0;
   for (const w of state.workouts) {
     const ex = w.exercises.find(e => e.name.toLowerCase().trim() === key);
-    if (ex) for (const s of ex.sets) if (s.w > m) m = s.w;
+    if (ex) for (const s of ex.sets) if (!isWarmup(s) && s.w > m) m = s.w;
   }
   return m;
 }
 
-/* ---------------- workout summary math ---------------- */
+/* ---------------- workout summary math ----------------
+   sets counts everything logged; reps, volume and topW are working
+   effort only (warm-ups excluded, drop/failure included). */
 function sessionTotals(w) {
   let sets = 0, reps = 0, volume = 0, topW = 0, exercises = 0;
   for (const ex of w.exercises) {
     if (ex.sets.length) exercises++;
-    for (const s of ex.sets) { sets++; reps += s.r; volume += s.w * s.r; if (s.w > topW) topW = s.w; }
+    for (const s of ex.sets) {
+      sets++;
+      if (isWarmup(s)) continue;
+      reps += s.r; volume += s.w * s.r; if (s.w > topW) topW = s.w;
+    }
   }
   return { sets, reps, volume, topW, exercises };
 }
 
-/* PRs set in this session: per exercise, its session top vs everything earlier. */
+/* PRs set in this session: per exercise, its top working set vs every
+   earlier working set. Warm-ups neither set nor block a PR. */
 function sessionPRs(w) {
   const out = [];
   for (const ex of w.exercises) {
-    if (!ex.sets.length) continue;
-    let top = ex.sets[0];
-    for (const s of ex.sets) if (s.w > top.w || (s.w === top.w && s.r > top.r)) top = s;
-    if (top.w <= 0) continue;
+    let top = null;
+    for (const s of ex.sets)
+      if (!isWarmup(s) && (!top || s.w > top.w || (s.w === top.w && s.r > top.r))) top = s;
+    if (!top || top.w <= 0) continue;
     const key = ex.name.toLowerCase().trim();
     let prior = 0;
     for (const o of state.workouts) {
       if (o.date >= w.date) continue;
       const oe = o.exercises.find(e => e.name.toLowerCase().trim() === key);
-      if (oe) for (const s of oe.sets) if (s.w > prior) prior = s.w;
+      if (oe) for (const s of oe.sets) if (!isWarmup(s) && s.w > prior) prior = s.w;
     }
     if (prior > 0 && top.w > prior) out.push({ name: ex.name, w: top.w, r: top.r, prev: prior });
   }
@@ -1143,7 +1235,7 @@ function weeklySeries() {
       const d = parseDay(w.date);
       if (d < s || d >= e) continue;
       sess++;
-      for (const ex of w.exercises) for (const st of ex.sets) vol += st.w * st.r;
+      for (const ex of w.exercises) for (const st of ex.sets) if (!isWarmup(st)) vol += st.w * st.r;
     }
     out.push({ start: dayToStr(s), vol, sess });
   }
@@ -1161,7 +1253,7 @@ function muscleShare(days) {
     if (parseDay(w.date) < cutoff) continue;
     for (const ex of w.exercises) {
       let v = 0;
-      for (const s of ex.sets) v += s.w * s.r;
+      for (const s of ex.sets) if (!isWarmup(s)) v += s.w * s.r;
       if (!v) continue;
       const m = muscleOf(ex.name) || 'Other';
       acc[m] = (acc[m] || 0) + v;
@@ -1195,9 +1287,13 @@ function checkMilestones() {
 
 /* ---------------- SVG line chart ----------------
    points: [{ d: "YYYY-MM-DD", v: Number }] sorted ascending, values already
-   in DISPLAY units. Returns an SVG string — lime line, soft glow, area fill. */
+   in DISPLAY units. Returns an SVG string — lime line, soft glow, area fill.
+   Straight segments only: the line never implies a value between sessions
+   that wasn't actually lifted. opts.interactive adds an invisible hit
+   circle per point carrying data-tip/data-sub for the tap tooltip. */
 let chartSeq = 0;
-function chartSVG(points) {
+function chartSVG(points, opts) {
+  opts = opts || {};
   if (!points.length) return '<div class="hint pad">Not enough data yet. Log a few sessions first.</div>';
 
   const W = 360, H = 190, P = { t: 12, r: 12, b: 26, l: 40 };
@@ -1232,11 +1328,16 @@ function chartSVG(points) {
   const base = P.t + ih;
   const area = line + ` L${xAt(n - 1).toFixed(1)} ${base} L${xAt(0).toFixed(1)} ${base} Z`;
 
-  let dots = '';
+  let dots = '', hits = '';
   points.forEach((p, i) => {
     const last = i === n - 1;
     if (last) dots += `<circle cx="${xAt(i)}" cy="${yAt(p.v)}" r="8" fill="rgba(205,255,0,.16)"/>`;
     dots += `<circle cx="${xAt(i)}" cy="${yAt(p.v)}" r="${last ? 4 : 3}" fill="#cdff00"/>`;
+    if (opts.interactive && p.tip) {
+      hits += `<circle class="chart-dot" cx="${xAt(i)}" cy="${yAt(p.v)}" r="12" fill="transparent"
+        data-tip="${esc(p.tip)}" data-sub="${esc(p.sub || '')}" tabindex="0" role="button"
+        aria-label="${esc(p.tip + (p.sub ? ', ' + p.sub : ''))}"/>`;
+    }
   });
 
   const g = 'pz-grad-' + (++chartSeq);
@@ -1249,7 +1350,7 @@ function chartSVG(points) {
     <path d="${area}" fill="url(#${g})"/>
     <path d="${line}" fill="none" stroke="#cdff00" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
           style="filter:drop-shadow(0 0 6px rgba(205,255,0,.45))"/>
-    ${dots}${xlab}
+    ${dots}${xlab}${hits}
   </svg>`;
 }
 
@@ -1313,7 +1414,10 @@ const ui = {
   editSet: null,                 // { exId, i } while a set is being edited inline
   bwDate: todayStr(), bwEditing: null,   // bwEditing = original date of the entry being edited
   calY: null, calM: null,        // calendar month being viewed
-  exName: null, exBack: 'today'  // exercise-history drill-in target + where Back returns
+  exName: null, exBack: 'today', // exercise-history drill-in target + where Back returns
+  chartMode: 'top',              // progress/history chart metric: 'top' | 'e1rm'
+  plateTarget: 0,                // display-units target the plate sheet was opened with
+  celebrate: null                // workout id to celebrate on next renderToday
 };
 
 const I = {
@@ -1324,7 +1428,8 @@ const I = {
   down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
   up:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
   pen:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>',
-  flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>'
+  flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+  disc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.8"/></svg>'
 };
 
 /* ---------------- motion / haptics ---------------- */
@@ -1640,6 +1745,156 @@ function finishRest() {
   setTimeout(() => { if (rest.state === 'done') hideRest(); }, 5000);
 }
 
+/* ================================================================
+   Plate calculator — which plates to load PER SIDE, honest about
+   remainders: it rounds DOWN to the closest loadable weight and says so
+   rather than pretending the target was hit.
+   ================================================================ */
+const PLATE_SETS = { kg: [25, 20, 15, 10, 5, 2.5, 1.25], lb: [45, 35, 25, 10, 5, 2.5] };
+const barWeight = () => unit() === 'lb' ? state.settings.barLb : state.settings.barKg;
+
+/* Greedy load in quarter-unit integer steps (denominations are canonical,
+   so greedy is optimal and floats can't drift). Never exceeds the target. */
+function platesFor(target, bar, denoms) {
+  const per = (target - bar) / 2;
+  if (per < -1e-9) return { plates: [], total: bar, belowBar: true };
+  let remQ = Math.floor(per * 4 + 1e-6);        // quarter units
+  const out = [];
+  for (const p of denoms) {
+    const q = Math.round(p * 4);
+    while (remQ >= q) { out.push(p); remQ -= q; }
+  }
+  const total = bar + 2 * out.reduce((a, b) => a + b, 0);
+  return { plates: out, total, belowBar: false };
+}
+
+function openPlates(targetDisp) {
+  ui.plateTarget = Math.max(0, Math.round((Number(targetDisp) || 0) * 100) / 100);
+  openSheet(`
+    <div class="sheet-title">Plate math</div>
+    <div id="plate-body"></div>`);
+  renderPlateBody();
+}
+
+function renderPlateBody() {
+  const el = $('#plate-body');
+  if (!el) return;
+  const u = unit(), target = ui.plateTarget, bar = barWeight();
+  const denoms = PLATE_SETS[u];
+  const res = platesFor(target, bar, denoms);
+  const plateH = p => Math.round(34 + 62 * (p / denoms[0]));
+
+  let result;
+  if (!target) {
+    result = `<div class="sheet-note" style="margin-top:14px">Type a target weight in the set first, then come back.</div>`;
+  } else if (res.belowBar) {
+    result = `<div class="sheet-note" style="margin-top:14px">${trimNum(target)} ${u} sits below the ${trimNum(bar)} ${u} bar — it's an empty-bar day.</div>`;
+  } else {
+    const diff = Math.round((target - res.total) * 100) / 100;
+    result = `
+      <div class="sleeve" role="img" aria-label="${res.plates.length ? 'Load per side: ' + res.plates.map(trimNum).join(', ') + ' ' + u : 'Empty bar'}">
+        <div class="bar-shaft"></div><div class="bar-collar"></div>
+        ${res.plates.map(p => `<div class="plate" style="height:${plateH(p)}px"><span>${trimNum(p)}</span></div>`).join('')}
+        <div class="bar-tip"></div>
+      </div>
+      <div class="sheet-note" style="margin-top:0">${res.plates.length
+        ? 'Per side: <b style="color:var(--bone)">' + res.plates.map(trimNum).join(' + ') + '</b> ' + u
+        : 'No plates — just the bar.'}</div>
+      ${diff > 0
+        ? `<div class="plate-total" style="margin-top:12px">${trimNum(res.total)} <span class="u">${u} · closest</span></div>
+           <div class="sheet-note">Standard plates can't hit ${trimNum(target)} ${u} exactly — this lands ${trimNum(diff)} ${u} under, never over.</div>`
+        : `<div class="sheet-note">Loads exactly to target.</div>`}`;
+  }
+
+  el.innerHTML = `
+    <div class="slab" style="margin-top:4px">Target</div>
+    <div class="plate-total">${trimNum(target)} <span class="u">${u}</span></div>
+    <div class="slab" style="margin-top:16px">Bar weight · ${u}</div>
+    <div class="step-row sm">
+      <button data-action="bar-step" data-d="${u === 'lb' ? -5 : -2.5}" aria-label="Decrease bar weight">&minus;</button>
+      <div class="num" aria-live="polite">${trimNum(bar)}</div>
+      <button data-action="bar-step" data-d="${u === 'lb' ? 5 : 2.5}" aria-label="Increase bar weight">+</button>
+    </div>
+    ${result}`;
+}
+
+/* ================================================================
+   Finish celebration — confetti (lime + bone), a check that draws in,
+   and stats counting up. All of it skipped under prefers-reduced-motion:
+   the summary then renders exactly as the static card it always was.
+   No new sound — the finish reuses the existing rest-timer beep().
+   ================================================================ */
+function confettiBurst() {
+  if (reducedMotion.matches) return;
+  const c = document.createElement('canvas');
+  c.className = 'confetti';
+  c.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(c);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = innerWidth, H = innerHeight;
+  c.width = W * dpr; c.height = H * dpr;
+  const ctx = c.getContext('2d');
+  if (!ctx) { c.remove(); return; }
+  ctx.scale(dpr, dpr);
+  const colors = ['#cdff00', '#f2efe6', '#cdff00', 'rgba(205,255,0,.65)', 'rgba(242,239,230,.7)'];
+  const parts = [];
+  for (let i = 0; i < 90; i++) {
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.7;   // mostly upward fan
+    const sp = 6 + Math.random() * 9;
+    parts.push({
+      x: W / 2, y: H * 0.4,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      s: 3 + Math.random() * 4.5,
+      rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.35,
+      col: colors[i % colors.length]
+    });
+  }
+  const t0 = performance.now(), LIFE = 1700;
+  (function frame(now) {
+    const age = now - t0;
+    ctx.clearRect(0, 0, W, H);
+    if (age >= LIFE || !c.isConnected) { c.remove(); return; }
+    const fade = Math.max(0, 1 - age / LIFE);
+    for (const p of parts) {
+      p.vy += 0.33; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+      if (p.y > H + 20) continue;
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.col;
+      ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.62);
+      ctx.restore();
+    }
+    requestAnimationFrame(frame);
+  })(t0);
+}
+
+/* Eases 0→1 (cubic out) and hands progress to a formatter every frame. */
+function animateCount(el, fmt, dur = 950) {
+  if (!el) return;
+  const t0 = performance.now();
+  (function tick(now) {
+    const t = Math.min(1, (now - t0) / dur);
+    el.textContent = fmt(t === 1 ? 1 : 1 - Math.pow(1 - t, 3));
+    if (t < 1) requestAnimationFrame(tick);
+  })(t0);
+}
+
+/* Runs after renderToday() has put the celebrate-mode summary in the DOM. */
+function runCelebration(w) {
+  if (reducedMotion.matches) return;   // the static summary IS the fallback
+  confettiBurst();
+  const tot = sessionTotals(w);
+  const prCount = sessionPRs(w).length;
+  const durMs = w.startedAt && w.endedAt && w.endedAt > w.startedAt ? w.endedAt - w.startedAt : 0;
+  const cell = k => $('#view-today .summary-card .cnt[data-k="' + k + '"]');
+  if (durMs) animateCount(cell('dur'), p => fmtDur(durMs * p));
+  animateCount(cell('sets'), p => Math.round(tot.sets * p));
+  animateCount(cell('vol'), p => fmtInt(toDisp(tot.volume) * p));
+  animateCount(cell('prs'), p => Math.round(prCount * p));
+}
+
 /* ---------------- view: Today ---------------- */
 function renderToday() {
   const date = ui.sessionDate;
@@ -1706,7 +1961,7 @@ function renderToday() {
     ${isToday ? '' : '<button class="chip today-jump" data-action="date-today">Jump to today</button>'}`;
 
   const active = w && hasLoggedSets(w);
-  if (active && w.endedAt) html += summaryCard(w);
+  if (active && w.endedAt) html += summaryCard(w, ui.celebrate === w.id);
 
   if (!w || !w.exercises.length) {
     // Empty session: offer templates as one-tap starts.
@@ -1719,7 +1974,15 @@ function renderToday() {
         </div>` : ''}
     </div>`;
   } else {
-    html += w.exercises.map(ex => exerciseCard(ex, date)).join('');
+    /* One-time discoverability hint for set-type tagging: shown under the
+       first card with sets, and only until the user has ever tagged one. */
+    const neverTagged = !state.workouts.some(x => x.exercises.some(e => e.sets.some(s => s.t && s.t !== 'working')));
+    let hinted = false;
+    html += w.exercises.map(ex => {
+      const showHint = neverTagged && !hinted && ex.sets.length > 0;
+      if (showHint) hinted = true;
+      return exerciseCard(ex, date, showHint);
+    }).join('');
   }
 
   html += `<button class="btn ghost" style="margin-top:12px" data-action="open-add-exercise">${I.plus} Add exercise</button>`;
@@ -1731,6 +1994,7 @@ function renderToday() {
 
   $('#view-today').innerHTML = html;
   ui.justLogged = null;
+  ui.celebrate = null;   // the moment plays once; later renders stay static
 }
 
 /* The template that's waited longest — never-used ones first. */
@@ -1744,28 +2008,32 @@ function suggestedTemplate() {
   })[0];
 }
 
-/* Finish-workout summary — rendered while the session stays finished. */
-function summaryCard(w) {
+/* Finish-workout summary — rendered while the session stays finished.
+   celebrate=true (only right after Finish is tapped, and never under
+   reduced motion) adds the draw-in check + count-up hooks; every later
+   render is the same card, static. */
+function summaryCard(w, celebrate) {
   const tot = sessionTotals(w);
   const dur = w.startedAt && w.endedAt && w.endedAt > w.startedAt ? fmtDur(w.endedAt - w.startedAt) : null;
   const prs = sessionPRs(w);
 
   let cells = '';
-  if (dur) cells += `<div><div class="stat-num">${dur}</div><div class="stat-lab">Duration</div></div>`;
+  if (dur) cells += `<div><div class="stat-num cnt" data-k="dur">${dur}</div><div class="stat-lab">Duration</div></div>`;
   cells += `
     <div><div class="stat-num">${tot.exercises}</div><div class="stat-lab">Exercises</div></div>
-    <div><div class="stat-num">${tot.sets}</div><div class="stat-lab">Sets</div></div>
-    <div><div class="stat-num">${fmtInt(toDisp(tot.volume))}</div><div class="stat-lab">${unit()} volume</div></div>`;
+    <div><div class="stat-num cnt" data-k="sets">${tot.sets}</div><div class="stat-lab">Sets</div></div>
+    <div><div class="stat-num cnt" data-k="vol">${fmtInt(toDisp(tot.volume))}</div><div class="stat-lab">${unit()} work volume</div></div>
+    <div><div class="stat-num cnt" data-k="prs">${prs.length}</div><div class="stat-lab">New PRs</div></div>`;
 
-  let prHtml = '';
-  if (prs.length) {
-    prHtml = '<div style="margin-top:12px">' + prs.map(p => `
-      <div class="sum-pr">
-        <span class="pr-tag">PR</span>
-        <span class="who">${esc(p.name)}</span>
-        <span style="color:var(--lime)">${dispW(p.w)} ${unit()} × ${p.r}</span>
-      </div>`).join('') + '</div>';
-  }
+  const prHtml = prs.map(p => `
+    <div class="pr-card">
+      <span class="pr-tag">PR</span>
+      <div class="pr-card-main">
+        <div class="pr-card-name">${esc(p.name)}</div>
+        <div class="hint">was ${dispW(p.prev)} ${unit()} · e1RM now ${dispW(e1rm(p.w, p.r))} ${unit()}</div>
+      </div>
+      <div class="pr-top">${dispW(p.w)} ${unit()} × ${p.r}</div>
+    </div>`).join('');
 
   let deltaHtml = '';
   const cmp = comparableSession(w);
@@ -1779,27 +2047,36 @@ function summaryCard(w) {
   }
 
   return `
-  <div class="card summary-card" style="margin-top:12px">
-    <div class="sum-title">Workout <span class="lime">complete</span></div>
+  <div class="card summary-card${celebrate && !reducedMotion.matches ? ' celebrate' : ''}" style="margin-top:12px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <svg class="check-draw" viewBox="0 0 52 52" aria-hidden="true">
+        <circle cx="26" cy="26" r="23" fill="none" stroke="rgba(205,255,0,.4)" stroke-width="2.5"/>
+        <path d="M15.5 27l7.5 7.5 14-15" fill="none" stroke="#cdff00" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="sum-title">Workout <span class="lime">complete</span></div>
+    </div>
     <div class="sum-grid">${cells}</div>
-    ${prHtml}${deltaHtml}
+    ${prHtml ? `<div style="margin-top:12px">${prHtml}</div>` : ''}${deltaHtml}
     <div class="hint" style="margin-top:12px">Log another set to reopen this session.</div>
   </div>`;
 }
 
-function exerciseCard(ex, date) {
+function exerciseCard(ex, date, typeHint) {
   const prev = prevSessionSets(ex.name, date);
   const hint = prev
-    ? 'Last time · ' + prev.sets.slice(0, 4).map(s => dispW(s.w) + '×' + s.r).join(' · ') + (prev.sets.length > 4 ? ' …' : '')
+    ? 'Last time · ' + prev.sets.slice(0, 4).map(s => dispW(s.w) + '×' + s.r + setMark(s)).join(' · ') + (prev.sets.length > 4 ? ' …' : '')
     : '';
   const pre = lastSetAnywhere(ex.name, date);   // prefill inputs with the most recent set
 
+  /* The badge cycles the set type; the row body still opens inline edit. */
   const rows = ex.sets.map((s, i) => {
     if (ui.editSet && ui.editSet.exId === ex.id && ui.editSet.i === i) return setEditRow(s, i);
+    const ty = SET_TYPES.includes(s.t) ? s.t : 'working';
     return `
-    <div class="set-row${ui.justLogged === ex.id + ':' + i ? ' new' : ''}">
+    <div class="set-row${ui.justLogged === ex.id + ':' + i ? ' new' : ''}${ty === 'warmup' ? ' warmup' : ''}">
+      <button class="set-i st-${ty}" data-action="cycle-set-type" data-i="${i}"
+              aria-label="Set ${i + 1} type: ${ty === 'working' ? 'working' : ty === 'warmup' ? 'warm-up' : ty === 'drop' ? 'drop set' : 'to failure'}. Tap to change">${SET_GLYPH[ty] || i + 1}</button>
       <button class="set-main" data-action="edit-set" data-i="${i}" aria-label="Edit set ${i + 1}">
-        <span class="set-i">${i + 1}</span>
         <span class="set-v">${dispW(s.w)} ${unit()} <span class="x">×</span> ${s.r}</span>
       </button>
       <button class="set-del" data-action="del-set" data-i="${i}" aria-label="Delete set ${i + 1}">${I.x}</button>
@@ -1816,9 +2093,12 @@ function exerciseCard(ex, date) {
       <button class="ex-del" data-action="del-exercise" aria-label="Remove ${esc(ex.name)}">${I.x}</button>
     </div>
     <div class="sets">${rows || '<div class="hint pad">No sets yet. First one below.</div>'}</div>
+    ${typeHint ? '<div class="hint" style="padding:6px 2px 0;font-size:11px">Tap a set badge to mark warm-up (W), drop (D) or failure (+). Warm-ups stay out of PRs and volume.</div>' : ''}
     <div class="log-grid">
       <div>
-        <div class="slab">Weight · ${unit()}</div>
+        <div class="slab slab-row">Weight · ${unit()}
+          <button class="plate-btn" data-action="open-plates" aria-label="Plate calculator">${I.disc}</button>
+        </div>
         <div class="step-row">
           <button data-action="step" data-d="${-wStep()}" aria-label="Minus ${wStep()} ${unit()}">&minus;</button>
           <input class="num w" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" value="${pre ? dispW(pre.w) : ''}">
@@ -1847,7 +2127,9 @@ function setEditRow(s, i) {
   <div class="set-row editing">
     <div class="log-grid" style="margin-top:0">
       <div>
-        <div class="slab">Weight · ${unit()}</div>
+        <div class="slab slab-row">Weight · ${unit()}
+          <button class="plate-btn" data-action="open-plates" aria-label="Plate calculator">${I.disc}</button>
+        </div>
         <div class="step-row sm">
           <button data-action="step" data-d="${-wStep()}" aria-label="Minus ${wStep()} ${unit()}">&minus;</button>
           <input class="num ew" type="number" inputmode="decimal" step="0.5" min="0" value="${dispW(s.w)}">
@@ -1910,7 +2192,7 @@ function renderCalendar() {
     const d = parseDay(w.date);
     if (d.getFullYear() === y && d.getMonth() === m) {
       monthSessions++;
-      for (const ex of w.exercises) for (const s of ex.sets) monthVol += s.w * s.r;
+      for (const ex of w.exercises) for (const s of ex.sets) if (!isWarmup(s)) monthVol += s.w * s.r;
     }
   }
 
@@ -1940,6 +2222,34 @@ function renderCalendar() {
     <div class="hint" style="margin-top:12px;text-align:center">Tap a lit day to open that session.</div>`;
 }
 
+/* Shared exercise chart card (Progress + history drill-in): a top-set /
+   estimated-1RM toggle over the interactive line chart. Every dot carries
+   the exact set behind it for the tap tooltip. */
+function exChartHTML(name) {
+  const spts = exSeries(name);
+  if (!spts.length) return `<div class="card chart-wrap">${chartSVG([])}</div>`;
+  const mode = ui.chartMode;
+  const cpts = spts.map(p => {
+    const s = mode === 'e1rm' ? p.e.s : p.top;
+    const v = mode === 'e1rm' ? p.e.v : p.top.w;
+    return {
+      d: p.d,
+      v: Math.round(toDisp(v) * 10) / 10,
+      tip: dispW(s.w) + ' ' + unit() + ' × ' + s.r,
+      sub: fmtShort(p.d) + ' · e1RM ' + dispW(e1rm(s.w, s.r)) + ' ' + unit()
+    };
+  });
+  return `
+    <div class="card chart-wrap">
+      <div class="seg chart-seg" role="group" aria-label="Chart metric">
+        <button data-action="chart-mode" data-m="top" class="${mode === 'top' ? 'on' : ''}" aria-pressed="${mode === 'top'}">Top set</button>
+        <button data-action="chart-mode" data-m="e1rm" class="${mode === 'e1rm' ? 'on' : ''}" aria-pressed="${mode === 'e1rm'}">Est. 1RM</button>
+      </div>
+      ${chartSVG(cpts, { interactive: true })}
+      <div class="hint" style="padding:4px 6px 6px;font-size:11px">Tap a dot for the exact set behind it.</div>
+    </div>`;
+}
+
 /* ---------------- view: Progress ---------------- */
 function renderProgress() {
   const names = knownExercises().filter(n => topSetSeries(n).length);
@@ -1958,6 +2268,7 @@ function renderProgress() {
   let best = pts[0];
   for (const p of pts) if (p.v > best.v || (p.v === best.v && p.r > best.r)) best = p;
   const last = pts[pts.length - 1];
+  const chart = exChartHTML(ui.progressEx);
 
   html += `
     <div class="select-wrap">
@@ -1975,7 +2286,7 @@ function renderProgress() {
       <div class="card"><div class="stat-num">${dispW(last.v)}</div><div class="stat-lab">Last × ${last.r}</div></div>
       <div class="card"><div class="stat-num">${pts.length}</div><div class="stat-lab">Sessions</div></div>
     </div>
-    <div class="card chart-wrap">${chartSVG(pts.map(p => ({ d: p.d, v: toDisp(p.v) })))}</div>
+    ${chart}
 
     <div class="eyebrow">Recent top sets</div>
     <div class="card">
@@ -2127,18 +2438,21 @@ function renderExHistory() {
     html += `
     <div class="eyebrow">Last session <span class="spacer"></span><span class="mini">${fmtShort(latest.date)}</span></div>
     <div class="card">
-      ${latest.sets.map((s, i) => `
+      ${latest.sets.map((s, i) => {
+        const ty = SET_TYPES.includes(s.t) ? s.t : 'working';
+        return `
         <div class="list-row">
-          <span class="set-i">${i + 1}</span>
-          <span class="list-val">${dispW(s.w)} ${unit()} <span style="color:var(--dim)">×</span> ${s.r}</span>
-        </div>`).join('')}
+          <span class="set-i st-${ty}" role="img" aria-label="Set ${i + 1}${ty === 'working' ? '' : ', ' + ty}">${SET_GLYPH[ty] || i + 1}</span>
+          <span class="list-val"${ty === 'warmup' ? ' style="color:var(--muted)"' : ''}>${dispW(s.w)} ${unit()} <span style="color:var(--dim)">×</span> ${s.r}</span>
+        </div>`;
+      }).join('')}
     </div>`;
   }
 
   if (pts.length) {
     html += `
-    <div class="eyebrow">Top set · ${unit()}</div>
-    <div class="card chart-wrap">${chartSVG(pts.map(p => ({ d: p.d, v: toDisp(p.v) })))}</div>
+    <div class="eyebrow">Trend · ${unit()}</div>
+    ${exChartHTML(name)}
 
     <div class="eyebrow">All sessions</div>
     <div class="card">
@@ -2148,7 +2462,7 @@ function renderExHistory() {
         return `
         <div class="list-row">
           <span class="list-date">${fmtShort(w.date)}</span>
-          <span class="list-val" style="font-size:13.5px">${ex.sets.map(s => dispW(s.w) + '×' + s.r).join(' · ')}</span>
+          <span class="list-val" style="font-size:13.5px">${ex.sets.map(s => dispW(s.w) + '×' + s.r + setMark(s)).join(' · ')}</span>
         </div>`;
       }).join('')}
     </div>`;
@@ -2453,7 +2767,7 @@ document.addEventListener('click', e => {
       const prior = maxWeightEver(ex.name);        // PR bar, measured before the push
       if (!w.startedAt && ui.sessionDate === todayStr()) w.startedAt = Date.now();
       w.endedAt = null;                            // logging into a finished session reopens it
-      ex.sets.push({ w: wt, r: reps });
+      ex.sets.push({ w: wt, r: reps, t: 'working' });
       ui.justLogged = ex.id + ':' + (ex.sets.length - 1);
       ui.editSet = null;
       save();
@@ -2474,7 +2788,7 @@ document.addEventListener('click', e => {
       if (!lastSet) { toast('No previous set for this yet'); break; }
       if (!w.startedAt && ui.sessionDate === todayStr()) w.startedAt = Date.now();
       w.endedAt = null;
-      ex.sets.push({ w: lastSet.w, r: lastSet.r });
+      ex.sets.push({ w: lastSet.w, r: lastSet.r, t: 'working' });
       ui.justLogged = ex.id + ':' + (ex.sets.length - 1);
       ui.editSet = null;
       save();
@@ -2509,11 +2823,52 @@ document.addEventListener('click', e => {
       hideRest();
       save();
       buzz([80, 60, 180]);
+      ensureAudio();       // inside the tap, so the finish chime is allowed
       checkMilestones();
+      ui.celebrate = w.id;
       renderToday();
+      if (!reducedMotion.matches && state.settings.restSound) beep();   // reuse the rest-timer chime
+      runCelebration(w);
       toast('Workout logged. Built, not born.');
       break;
     }
+
+    /* ---- set type cycling (working → warmup → drop → failure) ---- */
+    case 'cycle-set-type': {
+      if (!ex) break;
+      const s = ex.sets[Number(t.dataset.i)];
+      if (!s) break;
+      const next = SET_TYPES[(SET_TYPES.indexOf(SET_TYPES.includes(s.t) ? s.t : 'working') + 1) % SET_TYPES.length];
+      s.t = next;
+      save();
+      renderToday();
+      toast('Set ' + (Number(t.dataset.i) + 1) + ' · ' + (
+        next === 'working' ? 'working set' :
+        next === 'warmup'  ? 'warm-up — out of PRs & volume' :
+        next === 'drop'    ? 'drop set' : 'to failure'));
+      break;
+    }
+
+    /* ---- plate calculator ---- */
+    case 'open-plates': {
+      const step = t.closest('.slab-row') ? t.closest('.slab-row').nextElementSibling : null;
+      const input = step ? $('input.num', step) : null;
+      openPlates(input ? parseFloat(input.value) || 0 : 0);
+      break;
+    }
+    case 'bar-step': {
+      const key = unit() === 'lb' ? 'barLb' : 'barKg';
+      state.settings[key] = Math.min(200, Math.max(0, Math.round((state.settings[key] + Number(t.dataset.d)) * 100) / 100));
+      save();
+      renderPlateBody();
+      break;
+    }
+
+    /* ---- chart metric toggle ---- */
+    case 'chart-mode':
+      ui.chartMode = t.dataset.m === 'e1rm' ? 'e1rm' : 'top';
+      render();
+      break;
 
     /* ---- inline set editing ---- */
     case 'edit-set': {
@@ -2528,7 +2883,7 @@ document.addEventListener('click', e => {
       const wt = fromDisp(parseFloat($('.num.ew', card).value) || 0);
       const reps = Math.round(parseFloat($('.num.er', card).value) || 0);
       if (reps < 1) { toast('Reps first'); break; }
-      ex.sets[ui.editSet.i] = { w: wt, r: reps };
+      ex.sets[ui.editSet.i] = { w: wt, r: reps, t: ex.sets[ui.editSet.i].t || 'working' };
       ui.editSet = null;
       save();
       renderToday();
@@ -2756,6 +3111,35 @@ document.addEventListener('keydown', e => {
   if (e.target.id === 'new-ex-name') { e.preventDefault(); $('[data-action="confirm-add-ex"]').click(); }
   if (e.target.id === 'tpl-add-input') { e.preventDefault(); $('[data-action="tpl-add"]').click(); }
   if (e.target.id === 'rest-custom-s') { e.preventDefault(); $('[data-action="rest-start-custom"]').click(); }
+});
+
+/* ---------------- chart micro-tooltips (tap or focus+Enter a dot) ---------------- */
+function showChartTip(dot) {
+  const wrap = dot.closest('.chart-wrap');
+  if (!wrap) return;
+  let tip = $('.chart-tip', wrap);
+  if (!tip) { tip = document.createElement('div'); tip.className = 'chart-tip'; wrap.appendChild(tip); }
+  tip.innerHTML = `<div class="tip-main">${esc(dot.dataset.tip || '')}</div>` +
+                  (dot.dataset.sub ? `<div class="tip-sub">${esc(dot.dataset.sub)}</div>` : '');
+  const r = dot.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+  let x = r.left - wr.left + r.width / 2 - tip.offsetWidth / 2;
+  x = Math.max(6, Math.min(wr.width - tip.offsetWidth - 6, x));
+  let y = r.top - wr.top - tip.offsetHeight - 6;
+  if (y < 2) y = r.top - wr.top + r.height + 6;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+document.addEventListener('click', e => {
+  const el = e.target instanceof Element ? e.target : null;
+  const dot = el && el.closest('.chart-dot');
+  if (dot) showChartTip(dot);
+  else $$('.chart-tip').forEach(t => t.remove());   // tap anywhere else dismisses
+});
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target instanceof Element && e.target.classList.contains('chart-dot')) {
+    e.preventDefault();
+    showChartTip(e.target);
+  }
 });
 
 /* ---------------- go ---------------- */
