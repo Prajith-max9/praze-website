@@ -730,7 +730,7 @@ body.rest-on .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
    calls save() then re-renders the current view. No framework.
    ================================================================ */
 
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.2.1';
 const LS_KEY   = 'praze.v1';     // legacy localStorage blob (migrated on first run)
 const DB_NAME  = 'praze';
 const DB_STORE = 'kv';
@@ -894,9 +894,10 @@ function normalize(data) {
   out.templates = [];
   const epoch = v => { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
   const barW  = (v, dflt) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? Math.min(200, Math.round(n * 100) / 100) : dflt; };
+  const isDay = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);   // reject garbage dates → no NaN renders
   if (data && Array.isArray(data.workouts)) {
     out.workouts = data.workouts
-      .filter(w => w && typeof w.date === 'string')
+      .filter(w => w && isDay(w.date))
       .map(w => ({
         id: w.id || uid(),
         date: w.date,
@@ -926,7 +927,7 @@ function normalize(data) {
   }
   if (data && Array.isArray(data.bodyweight)) {
     out.bodyweight = data.bodyweight
-      .filter(b => b && typeof b.date === 'string' && Number(b.kg) > 0)
+      .filter(b => b && isDay(b.date) && Number(b.kg) > 0 && Number.isFinite(Number(b.kg)))
       .map(b => ({ date: b.date, kg: Number(b.kg) }));
   }
   if (data && data.exMeta && typeof data.exMeta === 'object' && !Array.isArray(data.exMeta)) {
@@ -957,13 +958,14 @@ function normalize(data) {
   if (data && ver < 2) upgradeV1Templates(out);
   /* v2 -> v3: badges earned by pre-v3 history are marked seen silently,
      so upgrading doesn't fire a toast storm for old milestones. */
-  if (!data || ver < 3) {
+  if (!data || ver < 3 || !Array.isArray(data.milestonesSeen)) {
+    /* pre-v3 data, or the field is missing (hand-edited file): mark already-
+       earned badges seen silently so loading history can't toast-storm */
     const tot = lifetimeTotals(out);
     out.milestonesSeen = MILESTONES.filter(d => milestoneHit(d, tot)).map(d => d.id);
   } else {
-    out.milestonesSeen = Array.isArray(data.milestonesSeen)
-      ? data.milestonesSeen.filter(x => typeof x === 'string' && MILESTONES.some(d => d.id === x))
-      : [];
+    out.milestonesSeen = data.milestonesSeen
+      .filter(x => typeof x === 'string' && MILESTONES.some(d => d.id === x));
   }
   out.v = 3.1;
   return out;
@@ -2032,6 +2034,10 @@ function renderToday() {
   const firstDay = firstWorkoutDate();
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  /* Sunday of this week via day arithmetic — subtracting 24h of ms from
+     the week end lands on Saturday when a DST shift makes Sunday 23h. */
+  const wkEnd = new Date(wk.start);
+  wkEnd.setDate(wkEnd.getDate() + 6);
 
   let html = `
     <div class="hero">
@@ -2040,7 +2046,7 @@ function renderToday() {
     </div>
 
     <div class="eyebrow">This week <span class="spacer"></span>
-      <span class="mini">${fmtShort(dayToStr(wk.start))} – ${fmtShort(dayToStr(new Date(wk.end - 864e5)))}</span>
+      <span class="mini">${fmtShort(dayToStr(wk.start))} – ${fmtShort(dayToStr(wkEnd))}</span>
     </div>
     <div class="trio quad" style="margin-bottom:8px">
       <div class="card"><div class="stat-num">${wk.sessions}</div><div class="stat-lab">Sessions</div></div>
@@ -2092,7 +2098,7 @@ function renderToday() {
     <div class="eyebrow">Session</div>
     <div class="daterow">
       <button class="nav-arrow" data-action="date-shift" data-d="-1" aria-label="Previous day">${I.left}</button>
-      <input type="date" class="field" id="session-date" value="${date}" max="2100-12-31">
+      <input type="date" class="field" id="session-date" value="${date}" max="2100-12-31" aria-label="Session date">
       <button class="nav-arrow" data-action="date-shift" data-d="1" aria-label="Next day">${I.right}</button>
     </div>
     ${isToday ? '' : '<button class="chip today-jump" data-action="date-today">Jump to today</button>'}`;
@@ -2238,7 +2244,7 @@ function exerciseCard(ex, date, typeHint) {
         </div>
         <div class="step-row">
           <button data-action="step" data-d="${-wStep()}" aria-label="Minus ${wStep()} ${unit()}">&minus;</button>
-          <input class="num w" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" value="${pre ? dispW(pre.w) : ''}">
+          <input class="num w" type="number" inputmode="decimal" step="0.5" min="0" placeholder="0" value="${pre ? dispW(pre.w) : ''}" aria-label="Weight in ${unit()}">
           <button data-action="step" data-d="${wStep()}" aria-label="Plus ${wStep()} ${unit()}">+</button>
         </div>
       </div>
@@ -2246,7 +2252,7 @@ function exerciseCard(ex, date, typeHint) {
         <div class="slab">Reps</div>
         <div class="step-row">
           <button data-action="step" data-d="-1" aria-label="Minus 1 rep">&minus;</button>
-          <input class="num r" type="number" inputmode="numeric" step="1" min="0" placeholder="0" value="${pre ? pre.r : ''}">
+          <input class="num r" type="number" inputmode="numeric" step="1" min="0" placeholder="0" value="${pre ? pre.r : ''}" aria-label="Reps">
           <button data-action="step" data-d="1" aria-label="Plus 1 rep">+</button>
         </div>
       </div>
@@ -2269,7 +2275,7 @@ function setEditRow(s, i) {
         </div>
         <div class="step-row sm">
           <button data-action="step" data-d="${-wStep()}" aria-label="Minus ${wStep()} ${unit()}">&minus;</button>
-          <input class="num ew" type="number" inputmode="decimal" step="0.5" min="0" value="${dispW(s.w)}">
+          <input class="num ew" type="number" inputmode="decimal" step="0.5" min="0" value="${dispW(s.w)}" aria-label="Weight in ${unit()}">
           <button data-action="step" data-d="${wStep()}" aria-label="Plus ${wStep()} ${unit()}">+</button>
         </div>
       </div>
@@ -2277,7 +2283,7 @@ function setEditRow(s, i) {
         <div class="slab">Reps</div>
         <div class="step-row sm">
           <button data-action="step" data-d="-1" aria-label="Minus 1 rep">&minus;</button>
-          <input class="num er" type="number" inputmode="numeric" step="1" min="0" value="${s.r}">
+          <input class="num er" type="number" inputmode="numeric" step="1" min="0" value="${s.r}" aria-label="Reps">
           <button data-action="step" data-d="1" aria-label="Plus 1 rep">+</button>
         </div>
       </div>
@@ -2617,11 +2623,11 @@ function renderBody() {
     <div class="eyebrow" style="margin-top:26px">Bodyweight</div>
     <div class="card">
       <div class="slab">Date</div>
-      <input type="date" class="field" id="bw-date" value="${ui.bwDate}" max="2100-12-31">
+      <input type="date" class="field" id="bw-date" value="${ui.bwDate}" max="2100-12-31" aria-label="Weigh-in date">
       <div class="slab" style="margin-top:12px">Weight · ${unit()}</div>
       <div class="step-row">
         <button data-action="step" data-d="${-bwStep()}" aria-label="Minus ${bwStep()} ${unit()}">&minus;</button>
-        <input class="num bw" type="number" inputmode="decimal" step="0.1" min="0" placeholder="0.0" value="${prefillKg ? dispW(prefillKg) : ''}">
+        <input class="num bw" type="number" inputmode="decimal" step="0.1" min="0" placeholder="0.0" value="${prefillKg ? dispW(prefillKg) : ''}" aria-label="Bodyweight in ${unit()}">
         <button data-action="step" data-d="${bwStep()}" aria-label="Plus ${bwStep()} ${unit()}">+</button>
       </div>
       <button class="btn primary" style="margin-top:12px" data-action="log-bw">${ui.bwEditing ? 'Save changes' : 'Log weigh-in'}</button>
@@ -2777,6 +2783,8 @@ function render() { renderers[ui.view](); }
 
 function showView(v) {
   ui.view = v;
+  /* leaving the journey: stop observing its (now hidden) panels */
+  if (journeyIO && v !== 'journey') { journeyIO.disconnect(); journeyIO = null; }
   $$('.view').forEach(el => el.classList.toggle('active', el.id === 'view-' + v));
   $$('.tab').forEach(el => el.classList.toggle('active', el.dataset.view === ui.tab));
   render();
@@ -2810,7 +2818,7 @@ function openAddExercise() {
   const known = knownExercises().filter(n => !inSession.has(n.toLowerCase().trim())).slice(0, 12);
   openSheet(`
     <div class="sheet-title">Add exercise</div>
-    <input class="field" id="new-ex-name" placeholder="e.g. Wide-Grip Lat Pulldown" autocomplete="off" autocapitalize="words">
+    <input class="field" id="new-ex-name" placeholder="e.g. Wide-Grip Lat Pulldown" autocomplete="off" autocapitalize="words" aria-label="Exercise name">
     ${known.length ? `<div class="slab">Quick add</div>
       <div class="chips">${known.map(n => `<button class="chip" data-action="quick-add-ex" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}
     <button class="btn primary" style="margin-top:18px" data-action="confirm-add-ex">Add</button>`);
@@ -2836,7 +2844,7 @@ function openTplEditor(draft) {
   openSheet(`
     <div class="sheet-title">${draft.id ? 'Edit template' : 'New template'}</div>
     <div class="slab">Name</div>
-    <input class="field" id="tpl-name" placeholder="e.g. Pull · Lat Focus" value="${esc(draft.name)}" autocomplete="off">
+    <input class="field" id="tpl-name" placeholder="e.g. Pull · Lat Focus" value="${esc(draft.name)}" autocomplete="off" aria-label="Template name">
     <div class="slab">Exercises</div>
     <div id="tpl-body"></div>
     <button class="btn primary" style="margin-top:18px" data-action="tpl-save">Save template</button>`);
@@ -2855,7 +2863,7 @@ function renderTplBody() {
       </div>`).join('') || '<div class="hint pad">Nothing in it yet.</div>'}
     </div>
     <div style="display:grid;grid-template-columns:1fr 92px;gap:8px;margin-top:10px">
-      <input class="field" id="tpl-add-input" placeholder="Add exercise" autocomplete="off" autocapitalize="words">
+      <input class="field" id="tpl-add-input" placeholder="Add exercise" autocomplete="off" autocapitalize="words" aria-label="Exercise to add">
       <button class="btn ghost sm" style="height:54px" data-action="tpl-add">Add</button>
     </div>
     ${known.length ? `<div class="chips" style="margin-top:10px">${known.map(n =>
@@ -2958,7 +2966,16 @@ function handleImportFile(input) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      state = normalize(JSON.parse(reader.result));
+      const data = JSON.parse(reader.result);
+      /* Only accept files shaped like a PRAZE export. Anything else is
+         rejected BEFORE state is touched — an unrelated JSON file must
+         never silently wipe the current data down to a fresh seed. */
+      if (!data || typeof data !== 'object' || Array.isArray(data)
+          || !Array.isArray(data.workouts) || !Array.isArray(data.templates)) {
+        toast("That's not a PRAZE backup — nothing was changed");
+        return;
+      }
+      state = normalize(data);
       save();
       applyTheme();
       closeSheet();
@@ -3098,6 +3115,9 @@ document.addEventListener('click', e => {
       s.t = next;
       save();
       renderToday();
+      /* keep keyboard focus on the badge that was just cycled */
+      const fb = $('#view-today .ex-card[data-ex="' + exId + '"] button.set-i[data-i="' + t.dataset.i + '"]');
+      if (fb) fb.focus({ preventScroll: true });
       toast('Set ' + (Number(t.dataset.i) + 1) + ' · ' + (
         next === 'working' ? 'working set' :
         next === 'warmup'  ? 'warm-up — out of PRs & volume' :
@@ -3131,6 +3151,9 @@ document.addEventListener('click', e => {
       if (!ex) break;
       ui.editSet = { exId: ex.id, i: Number(t.dataset.i) };
       renderToday();
+      /* move focus into the editor so keyboard users aren't dropped to body */
+      const fe = $('#view-today .set-row.editing .step-row button');
+      if (fe) fe.focus({ preventScroll: true });
       break;
     }
     case 'edit-set-cancel': ui.editSet = null; renderToday(); break;
@@ -3139,7 +3162,7 @@ document.addEventListener('click', e => {
       const wt = fromDisp(parseFloat($('.num.ew', card).value) || 0);
       const reps = Math.round(parseFloat($('.num.er', card).value) || 0);
       if (reps < 1) { toast('Reps first'); break; }
-      ex.sets[ui.editSet.i] = { w: wt, r: reps, t: ex.sets[ui.editSet.i].t || 'working' };
+      ex.sets[ui.editSet.i] = { w: wt, r: reps, t: (ex.sets[ui.editSet.i] || {}).t || 'working' };
       ui.editSet = null;
       save();
       renderToday();
@@ -3160,6 +3183,7 @@ document.addEventListener('click', e => {
     case 'start-template': {
       const tpl = state.templates.find(x => x.id === t.dataset.id);
       if (!tpl) break;
+      if (!tpl.exercises.length) { toast('This template is empty — edit it first'); break; }
       const session = ensureWorkout(ui.sessionDate);
       const have = new Set(session.exercises.map(x => x.name.toLowerCase().trim()));
       for (const name of tpl.exercises)
@@ -3400,9 +3424,19 @@ document.addEventListener('keydown', e => {
 
 /* ---------------- go ---------------- */
 (async function boot() {
-  state = await loadInitial();
-  applyTheme();
-  render();
+  try {
+    state = await loadInitial();
+    applyTheme();
+    render();
+  } catch (e) {
+    /* Unreadable stored state must never brick the app or strand the boot
+       skeleton. Fresh seed in memory; nothing is written over the stored
+       copy unless the user makes a change. */
+    state = seedState();
+    applyTheme();
+    render();
+    toast('Stored data could not be read — import a backup to restore it');
+  }
   setupPWA();
 })();
 </script>
