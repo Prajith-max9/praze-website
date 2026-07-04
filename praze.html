@@ -35,7 +35,7 @@
   --lime:      #cdff00;                    /* the accent. the only one.    */
   --lime-ink:  #0d0e02;                    /* text on lime                 */
   --red:       #ff6b5e;                    /* destructive confirm only     */
-  --radius:    16px;
+  --radius:    18px;
 }
 /* OLED mode: pure black canvas, everything else untouched. */
 html.oled{--bg:#000}
@@ -129,7 +129,7 @@ body.rest-on main{padding-bottom:calc(184px + env(safe-area-inset-bottom))}
 .card{
   background:linear-gradient(180deg,#151517,#101012);
   border:1px solid var(--line);border-radius:var(--radius);
-  padding:16px;
+  padding:24px;
 }
 .card + .card{margin-top:10px}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -389,6 +389,70 @@ div.num{display:grid;place-items:center}
 .cal-day.has.today{border-color:var(--lime);color:var(--lime)}
 .cal-blank{aspect-ratio:1}
 
+/* ---------------- this-week quad (4 stats in one row) ---------------- */
+.trio.quad{grid-template-columns:repeat(4,1fr);gap:6px}
+.quad .card{padding:12px 8px}
+.quad .stat-num{font-size:17px}
+.quad .stat-lab{font-size:8.5px;letter-spacing:.1em}
+
+/* ---------------- journey CTA on the dashboard ---------------- */
+.journey-cta{width:100%;display:flex;align-items:center;gap:12px;text-align:left;margin-top:10px}
+.journey-cta:active{border-color:rgba(205,255,0,.4)}
+.journey-cta .chev{flex:none;color:var(--dim);font-size:24px;font-weight:600;line-height:1}
+
+/* ---------------- Built Not Born journey ----------------
+   Full-bleed story panels. Each fades and rises in as it scrolls into
+   view (IntersectionObserver adds .seen); under prefers-reduced-motion
+   the media rule below makes them simply appear. */
+.jpanel{
+  min-height:76dvh;display:flex;flex-direction:column;justify-content:center;
+  padding:36px 4px;
+  opacity:0;transform:translateY(26px);
+  transition:opacity .65s ease,transform .65s cubic-bezier(.22,.9,.3,1);
+}
+.jpanel.seen{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.jpanel{opacity:1;transform:none}}
+.j-lab{
+  display:flex;align-items:center;gap:9px;
+  font:700 11px Inter;letter-spacing:.26em;text-transform:uppercase;color:var(--dim);
+  margin-bottom:16px;
+}
+.j-lab::before{content:"";width:14px;height:2px;background:var(--lime)}
+.j-num{
+  font-family:"Archivo Black",Inter,sans-serif;font-weight:400;
+  font-size:clamp(52px,17vw,92px);line-height:.95;letter-spacing:-.01em;
+  text-transform:uppercase;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;
+}
+.j-num .lime{color:var(--lime)}
+.j-num.j-sm{font-size:clamp(34px,10.5vw,58px)}
+.j-num .j-unit{font-size:.34em;color:var(--muted);letter-spacing:.02em}
+.j-num .j-dim{color:var(--dim)}
+.j-hero .j-num .lime{text-shadow:0 0 36px rgba(205,255,0,.35)}
+.j-name{font:800 17px/1.35 Inter;margin-bottom:12px}
+.j-sub{font:500 14px/1.65 Inter;color:var(--muted);margin-top:16px;max-width:36ch}
+.j-sub .lime{color:var(--lime)}
+.j-scroll{
+  margin-top:46px;display:flex;flex-direction:column;gap:10px;
+  font:700 10px Inter;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);
+}
+.j-scroll::after{content:"";width:2px;height:28px;background:linear-gradient(var(--lime),transparent)}
+@media (max-height:520px){.jpanel{min-height:92dvh;padding:26px 4px}}
+
+/* ---------------- boot skeleton (replaced by the first render) ---------------- */
+.skeleton{padding-top:26px}
+.sk{
+  background:linear-gradient(100deg,var(--panel) 40%,var(--panel-2) 50%,var(--panel) 60%);
+  background-size:200% 100%;border:1px solid var(--line);border-radius:var(--radius);
+  animation:skSheen 1.3s linear infinite;
+}
+@keyframes skSheen{from{background-position:180% 0}to{background-position:-180% 0}}
+.sk-line{height:12px;width:42%;border-radius:6px}
+.sk-title{height:52px;width:78%;margin-top:14px}
+.sk-title-2{height:52px;width:58%;margin-top:10px}
+.sk-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:30px}
+.sk-card{height:78px}
+.sk-block{height:92px;margin-top:10px}
+
 /* ---------------- set-type badges (working / warmup / drop / failure) ---------------- */
 button.set-i{position:relative}
 button.set-i::after{content:"";position:absolute;inset:-8px;border-radius:12px}  /* bigger tap target */
@@ -574,7 +638,17 @@ body.rest-on .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
 
 <!-- ============ views (rendered by JS) ============ -->
 <main>
-  <section class="view active" id="view-today"></section>
+  <section class="view active" id="view-today">
+    <!-- boot skeleton: stands in until state loads and the first render replaces it -->
+    <div class="skeleton" aria-hidden="true">
+      <div class="sk sk-line"></div>
+      <div class="sk sk-title"></div>
+      <div class="sk sk-title-2"></div>
+      <div class="sk-row"><div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div></div>
+      <div class="sk sk-block"></div>
+      <div class="sk sk-block"></div>
+    </div>
+  </section>
   <section class="view" id="view-calendar"></section>
   <section class="view" id="view-progress"></section>
   <section class="view" id="view-records"></section>
@@ -582,6 +656,7 @@ body.rest-on .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
   <!-- drill-ins (not in the tab bar) -->
   <section class="view" id="view-templates"></section>
   <section class="view" id="view-exhistory"></section>
+  <section class="view" id="view-journey"></section>
 </main>
 
 <!-- ============ rest timer (floats above the nav) ============ -->
@@ -624,7 +699,7 @@ body.rest-on .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
 <script>
 'use strict';
 /* ================================================================
-   PRAZE — app logic (v3.1)
+   PRAZE — app logic (v3.2)
    ----------------------------------------------------------------
    Data model (persisted to IndexedDB "praze" → store "kv" → key "state";
    falls back to localStorage, then to memory-only):
@@ -655,7 +730,7 @@ body.rest-on .toast{bottom:calc(158px + env(safe-area-inset-bottom))}
    calls save() then re-renders the current view. No framework.
    ================================================================ */
 
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.2.0';
 const LS_KEY   = 'praze.v1';     // legacy localStorage blob (migrated on first run)
 const DB_NAME  = 'praze';
 const DB_STORE = 'kv';
@@ -1055,6 +1130,56 @@ function currentStreak() {
   let n = 0;
   while (weeks.has(dayToStr(ws))) { n++; ws.setDate(ws.getDate() - 7); }
   return n;
+}
+
+/* Longest run of consecutive Mon–Sun training weeks anywhere in history —
+   same week buckets currentStreak uses, scanned across all of them. */
+function longestStreak() {
+  const weeks = new Set();
+  for (const w of state.workouts)
+    if (hasLoggedSets(w)) weeks.add(dayToStr(weekStartOf(parseDay(w.date))));
+  if (!weeks.size) return 0;
+  const sorted = [...weeks].sort();
+  let best = 1, run = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const next = parseDay(sorted[i - 1]);
+    next.setDate(next.getDate() + 7);
+    if (dayToStr(next) === sorted[i]) { run++; if (run > best) best = run; }
+    else run = 1;
+  }
+  return best;
+}
+
+/* PRs set in the current Mon–Sun week. Same rules as sessionPRs: per
+   exercise, a session's top working set beats every earlier working set,
+   and a first-ever weight doesn't count. Warm-ups are invisible here. */
+function weekPRCount() {
+  const [start, end] = weekBounds();
+  const maxes = new Map();   // exercise key -> running max working weight
+  let count = 0;
+  for (const w of sortedWorkouts()) {
+    const d = parseDay(w.date);
+    for (const ex of w.exercises) {
+      let top = 0;
+      for (const s of ex.sets) if (!isWarmup(s) && s.w > top) top = s.w;
+      if (!top) continue;
+      const key = ex.name.toLowerCase().trim();
+      const prior = maxes.get(key) || 0;
+      if (top > prior) {
+        if (prior > 0 && d >= start && d < end) count++;
+        maxes.set(key, top);
+      }
+    }
+  }
+  return count;
+}
+
+/* Date of the first session with a logged set — the journey's opening line. */
+function firstWorkoutDate() {
+  let first = null;
+  for (const w of state.workouts)
+    if (hasLoggedSets(w) && (!first || w.date < first)) first = w.date;
+  return first;
 }
 
 /* Every exercise name ever used (workouts + templates), most recent first. */
@@ -1903,26 +2028,38 @@ function renderToday() {
   const isToday = date === todayStr();
   const goal = state.settings.weeklyGoal;
   const streak = currentStreak();
+  const prsWk = weekPRCount();
+  const firstDay = firstWorkoutDate();
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   let html = `
     <div class="hero">
-      <div class="date">${fmtLong(todayStr())}</div>
+      <div class="date">${greet} · ${fmtLong(todayStr())}</div>
       <h1 class="display">Built<br>Not <span class="lime">Born</span></h1>
     </div>
 
     <div class="eyebrow">This week <span class="spacer"></span>
       <span class="mini">${fmtShort(dayToStr(wk.start))} – ${fmtShort(dayToStr(new Date(wk.end - 864e5)))}</span>
     </div>
-    <div class="trio" style="margin-bottom:8px">
+    <div class="trio quad" style="margin-bottom:8px">
       <div class="card"><div class="stat-num">${wk.sessions}</div><div class="stat-lab">Sessions</div></div>
       <div class="card"><div class="stat-num">${streak}</div><div class="stat-lab">Wk streak</div></div>
+      <div class="card"><div class="stat-num"${prsWk > 0 ? ' style="color:var(--lime)"' : ''}>${prsWk}</div><div class="stat-lab">New PRs</div></div>
       <div class="card"><div class="stat-num">${fmtInt(toDisp(wk.volume))}</div><div class="stat-lab">${unit()} volume</div></div>
     </div>
     <div class="card">
       <div class="slab">Weekly goal</div>
       <span class="bar"><i style="width:${Math.min(100, wk.sessions / goal * 100).toFixed(1)}%"></i></span>
       <div class="bar-cap">${wk.sessions} of ${goal} sessions${wk.sessions >= goal ? ' · <span class="lime">goal hit</span>' : ''}</div>
-    </div>`;
+    </div>
+    <button class="card journey-cta" data-action="open-journey" aria-label="Open your journey">
+      <div style="flex:1;min-width:0">
+        <div class="tpl-name">Your <span style="color:var(--lime)">journey</span></div>
+        <div class="hint" style="margin-top:3px">${firstDay ? 'The story since ' + fmtShort(firstDay) : 'Your story starts with the first set'}</div>
+      </div>
+      <span class="chev" aria-hidden="true">&rsaquo;</span>
+    </button>`;
 
   /* Momentum: suggested next template + last workout recap. */
   const lastW = [...state.workouts].filter(hasLoggedSets).sort((a, b) => a.date < b.date ? 1 : -1)[0];
@@ -2508,6 +2645,124 @@ function renderBody() {
   $('#view-body').innerHTML = html;
 }
 
+/* ================================================================
+   The "Built Not Born" journey — a full-screen scrolling story of the
+   transformation. Everything on it derives at runtime; nothing new is
+   persisted. Reached from the dashboard, never from the tab bar.
+   ================================================================ */
+function journeyStats() {
+  const tot = lifetimeTotals(state);
+  let workSets = 0, strongest = null;
+  for (const w of state.workouts)
+    for (const ex of w.exercises)
+      for (const s of ex.sets) {
+        if (isWarmup(s)) continue;
+        workSets++;
+        if (s.w > 0 && (!strongest || s.w > strongest.w || (s.w === strongest.w && s.r > strongest.r)))
+          strongest = { name: ex.name, w: s.w, r: s.r, date: w.date };
+      }
+  return { workouts: tot.workouts, kg: tot.kg, tonnes: tot.tonnes, workSets, strongest };
+}
+
+const fmtDMY = s => { const d = parseDay(s); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); };
+const jp = (cls, inner) => `<div class="jpanel${cls ? ' ' + cls : ''}">${inner}</div>`;
+
+function renderJourney() {
+  const first = firstWorkoutDate();
+  const st = journeyStats();
+  const panels = [];
+
+  /* 1 · title */
+  panels.push(jp('', `
+    <div class="j-lab">The story so far</div>
+    <div class="j-num">Your<br><span class="lime">journey</span></div>
+    <div class="j-sub">${first ? fmtDMY(first) + ' — today.' : 'It starts the day you log the first set.'}</div>
+    <div class="j-scroll" aria-hidden="true">Scroll</div>`));
+
+  if (st.workouts < 3) {
+    /* early state: no broken stats, just the invitation */
+    panels.push(jp('', `
+      <div class="j-lab">Chapter one</div>
+      <div class="j-num">Keep<br><span class="lime">logging</span></div>
+      <div class="j-sub">${st.workouts === 0
+        ? 'This page becomes the story of your transformation — bodyweight, tonnage, streaks, your strongest lift. Log a workout and the numbers start talking.'
+        : st.workouts + ' workout' + (st.workouts === 1 ? '' : 's') + ' in the book. A few more sessions and this page starts telling a story worth scrolling.'}</div>`));
+  } else {
+    /* 2 · bodyweight (only with at least two entries) */
+    const bw = [...state.bodyweight].sort((a, b) => a.date < b.date ? -1 : 1);
+    if (bw.length >= 2) {
+      const s0 = bw[0], s1 = bw[bw.length - 1];
+      const delta = Math.round((toDisp(s1.kg) - toDisp(s0.kg)) * 10) / 10;
+      panels.push(jp('', `
+        <div class="j-lab">Bodyweight</div>
+        <div class="j-num j-sm"><span class="j-dim">${dispW(s0.kg)}</span> &rarr; <span class="lime">${dispW(s1.kg)}</span> <span class="j-unit">${unit()}</span></div>
+        <div class="j-sub">${(delta >= 0 ? '+' : '') + delta} ${unit()} between ${fmtDMY(s0.date)} and ${fmtDMY(s1.date)}. The scale kept the receipts.</div>`));
+    }
+
+    /* 3 · workouts */
+    panels.push(jp('', `
+      <div class="j-lab">Showed up</div>
+      <div class="j-num"><span class="lime">${fmtInt(st.workouts)}</span> <span class="j-unit">workouts</span></div>
+      <div class="j-sub">Every one of them logged. Nobody was watching — you went anyway.</div>`));
+
+    /* 4 · working sets */
+    panels.push(jp('', `
+      <div class="j-lab">Working sets</div>
+      <div class="j-num"><span class="lime">${fmtInt(st.workSets)}</span> <span class="j-unit">sets</span></div>
+      <div class="j-sub">Warm-ups not included. These are the ones that counted.</div>`));
+
+    /* 5 · tonnage — the hero number */
+    panels.push(jp('j-hero', `
+      <div class="j-lab">Total weight moved</div>
+      <div class="j-num${String(Math.round(toDisp(st.kg))).length > 6 ? ' j-sm' : ''}"><span class="lime">${fmtInt(toDisp(st.kg))}</span> <span class="j-unit">${unit()}</span></div>
+      <div class="j-sub">${trimNum(Math.round(st.tonnes * 10) / 10)} tonnes, lifted one working set at a time. No shortcut carries that.</div>`));
+
+    /* 6 · streaks */
+    const longest = longestStreak(), cur = currentStreak();
+    panels.push(jp('', `
+      <div class="j-lab">Longest streak</div>
+      <div class="j-num"><span class="lime">${longest}</span> <span class="j-unit">${longest === 1 ? 'week' : 'weeks'}</span></div>
+      <div class="j-sub">Consecutive training weeks at your best. Current streak: ${cur} ${cur === 1 ? 'week' : 'weeks'}${cur >= longest && cur > 0 ? ' — <span class="lime">this is the one</span>' : ''}.</div>`));
+
+    /* 7 · strongest lift */
+    if (st.strongest) {
+      const s = st.strongest;
+      panels.push(jp('', `
+        <div class="j-lab">Strongest lift</div>
+        <div class="j-name">${esc(s.name)}</div>
+        <div class="j-num j-sm"><span class="lime">${dispW(s.w)}</span> <span class="j-unit">${unit()} × ${s.r}</span></div>
+        <div class="j-sub">Estimated 1RM ${dispW(e1rm(s.w, s.r))} ${unit()} · set ${fmtDMY(s.date)}. The heaviest working set you've ever put down.</div>`));
+    }
+  }
+
+  /* closing wordmark */
+  panels.push(jp('', `
+    <div class="j-num">Built<br><span class="lime">not</span><br>born</div>
+    <button class="btn ghost" style="margin-top:36px;max-width:280px" data-action="nav" data-view="today">Back to training</button>`));
+
+  $('#view-journey').innerHTML = `
+    <button class="back-row" data-action="nav" data-view="today">${I.left} Back to Today</button>
+    ${panels.join('')}`;
+  armJourneyPanels();
+}
+
+/* Fade-and-rise each panel as it enters the viewport. Reduced motion (or
+   no IntersectionObserver) marks everything seen immediately instead. */
+let journeyIO = null;
+function armJourneyPanels() {
+  const panels = $$('#view-journey .jpanel');
+  if (journeyIO) { journeyIO.disconnect(); journeyIO = null; }
+  if (reducedMotion.matches || !('IntersectionObserver' in window)) {
+    panels.forEach(p => p.classList.add('seen'));
+    return;
+  }
+  journeyIO = new IntersectionObserver(entries => {
+    for (const en of entries)
+      if (en.isIntersecting) { en.target.classList.add('seen'); journeyIO.unobserve(en.target); }
+  }, { threshold: 0.22 });
+  panels.forEach(p => journeyIO.observe(p));
+}
+
 /* ---------------- navigation + render dispatch ----------------
    Main tabs: today · calendar · progress · records · body.
    Drill-ins (templates, exhistory) keep the parent tab highlighted
@@ -2515,7 +2770,7 @@ function renderBody() {
 const renderers = {
   today: renderToday, calendar: renderCalendar, progress: renderProgress,
   records: renderRecords, body: renderBody,
-  templates: renderTemplates, exhistory: renderExHistory
+  templates: renderTemplates, exhistory: renderExHistory, journey: renderJourney
 };
 const MAIN_TABS = ['today', 'calendar', 'progress', 'records', 'body'];
 function render() { renderers[ui.view](); }
@@ -2736,6 +2991,7 @@ document.addEventListener('click', e => {
     case 'open-ex': openExHistory(t.dataset.name); break;
     case 'drill-back': setView(ui.exBack || 'today'); break;
     case 'open-templates': showView('templates'); break;
+    case 'open-journey': showView('journey'); break;
 
     /* ---- session date ---- */
     case 'date-shift': {
