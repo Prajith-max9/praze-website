@@ -167,6 +167,52 @@
     return body.slice(0, LIMIT) + '…';
   }
 
+  /* Wiki-links: [[Note Title]] in a body links to the note with that title */
+
+  var WIKI_LINK_RE = /\[\[([^\[\]]+)\]\]/g;
+
+  function buildLinkIndexes() {
+    var titleIndex = {}; // lowercased title -> note (newest creation wins)
+    store.notes
+      .slice()
+      .sort(function (a, b) { return a.createdAt - b.createdAt; })
+      .forEach(function (n) {
+        var key = n.title.trim().toLowerCase();
+        if (key) titleIndex[key] = n;
+      });
+
+    var backlinks = {}; // target note id -> [source notes]
+    store.notes.forEach(function (src) {
+      var seen = {};
+      var m;
+      WIKI_LINK_RE.lastIndex = 0;
+      while ((m = WIKI_LINK_RE.exec(src.body))) {
+        var target = titleIndex[m[1].trim().toLowerCase()];
+        if (target && target.id !== src.id && !seen[target.id]) {
+          seen[target.id] = true;
+          (backlinks[target.id] = backlinks[target.id] || []).push(src);
+        }
+      }
+    });
+
+    return { titleIndex: titleIndex, backlinks: backlinks };
+  }
+
+  function renderBody(text, tokens, titleIndex) {
+    // split with a capturing group alternates plain text (even) / link titles (odd)
+    return text.split(WIKI_LINK_RE).map(function (part, i) {
+      if (i % 2 === 0) return highlight(part, tokens);
+      var target = titleIndex[part.trim().toLowerCase()];
+      if (target) {
+        return '<a href="#" class="wiki-link" data-action="open-note" data-note-id="' +
+          escapeHtml(target.id) + '">' + highlight(part, tokens) + '</a>';
+      }
+      return '<button type="button" class="wiki-link wiki-link--missing" data-action="new-note" data-title="' +
+        escapeHtml(part.trim()) + '" title="No note with this title yet — click to create it">' +
+        highlight(part, tokens) + '</button>';
+    }).join('');
+  }
+
   function renderTagChip(tag, count, extraClass) {
     var active = state.activeTag === tag;
     return '<button type="button" class="tag-chip' + (active ? ' tag-chip--active' : '') + (extraClass ? ' ' + extraClass : '') + '"' +
@@ -198,7 +244,7 @@
       '</div></div></li>';
   }
 
-  function renderNoteCard(note, tokens) {
+  function renderNoteCard(note, tokens, links) {
     if (state.editingId === note.id) return renderEditForm(note);
 
     var titleHtml = note.title
@@ -211,6 +257,16 @@
       ? ' &middot; edited ' + formatDate(note.updatedAt)
       : '';
 
+    var sources = links.backlinks[note.id];
+    var backlinksHtml = sources && sources.length
+      ? '<div class="note__backlinks"><span class="note__backlinks-label">Linked from</span>' +
+        sources.map(function (src) {
+          var label = src.title || src.body.slice(0, 40) + (src.body.length > 40 ? '…' : '');
+          return '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
+            escapeHtml(src.id) + '">' + escapeHtml(label) + '</button>';
+        }).join('') + '</div>'
+      : '';
+
     var actionsHtml = state.confirmingDeleteId === note.id
       ? '<span class="note__date">Delete?</span>' +
         '<button type="button" class="note__action note__action--danger" data-action="delete-yes">Yes</button>' +
@@ -220,8 +276,9 @@
 
     return '<li class="note" data-id="' + escapeHtml(note.id) + '">' +
       titleHtml +
-      '<p class="note__body">' + highlight(bodySnippet(note.body, tokens), tokens) + '</p>' +
+      '<p class="note__body">' + renderBody(bodySnippet(note.body, tokens), tokens, links.titleIndex) + '</p>' +
       tagsHtml +
+      backlinksHtml +
       '<div class="note__meta">' +
       '<span class="note__date">' + formatDate(note.createdAt) + edited + '</span>' +
       '<div class="note__actions">' + actionsHtml + '</div>' +
@@ -245,11 +302,12 @@
   function render() {
     var tokens = tokenize(state.query);
     var filtered = filterNotes();
+    var links = buildLinkIndexes();
 
     renderTagRail();
 
     els.noteList.innerHTML = filtered.length
-      ? filtered.map(function (n) { return renderNoteCard(n, tokens); }).join('')
+      ? filtered.map(function (n) { return renderNoteCard(n, tokens, links); }).join('')
       : renderEmptyState();
 
     var filtering = state.query || state.activeTag;
@@ -302,6 +360,29 @@
       var tag = btn.getAttribute('data-tag');
       state.activeTag = state.activeTag === tag ? null : tag;
       render();
+      return;
+    }
+
+    if (action === 'open-note') {
+      e.preventDefault();
+      // clear filters so the target note is guaranteed to be in the list
+      state.query = '';
+      state.activeTag = null;
+      els.search.value = '';
+      render();
+      var targetCard = els.noteList.querySelector('[data-id="' + btn.getAttribute('data-note-id') + '"]');
+      if (targetCard) {
+        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetCard.classList.add('note--flash');
+        setTimeout(function () { targetCard.classList.remove('note--flash'); }, 1200);
+      }
+      return;
+    }
+
+    if (action === 'new-note') {
+      els.captureTitle.value = btn.getAttribute('data-title');
+      els.captureForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      els.captureBody.focus();
       return;
     }
 

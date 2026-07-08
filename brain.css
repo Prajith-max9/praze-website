@@ -237,6 +237,79 @@
   padding: 0 1px;
 }
 
+.wiki-link {
+  font: inherit;
+  color: var(--ink);
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 2px solid var(--lime);
+  transition: background 0.15s;
+}
+
+.wiki-link:hover {
+  background: var(--lime);
+}
+
+.wiki-link--missing {
+  font-weight: 400;
+  color: var(--gray);
+  border-bottom: 2px dashed var(--border);
+}
+
+.wiki-link--missing:hover {
+  background: none;
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+
+.note__backlinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.note__backlinks-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-right: 0.2rem;
+}
+
+.backlink {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  background: none;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--lime);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.backlink:hover {
+  background: var(--lime);
+  border-color: var(--ink);
+}
+
+@keyframes note-flash {
+  from { background: var(--lime); }
+  to { background: #fbfaf7; }
+}
+
+.note--flash {
+  animation: note-flash 1.2s ease;
+}
+
 .note__tags {
   display: flex;
   flex-wrap: wrap;
