@@ -32,6 +32,7 @@
       <input id="capture-title" class="capture__title" type="text" placeholder="Title (optional)" autocomplete="off">
       <textarea id="capture-body" class="capture__body" rows="4" placeholder="What's on your mind?" required></textarea>
       <input id="capture-tags" class="capture__tags" type="text" placeholder="tags: training, content" autocomplete="off">
+      <div id="tag-suggest" class="tag-suggest"></div>
       <div class="capture__actions">
         <button class="btn" type="submit">CAPTURE</button>
         <span class="capture__hint">Ctrl/Cmd + Enter</span>
@@ -41,7 +42,7 @@
 
   <section class="toolbar">
     <div class="toolbar__search">
-      <input id="search" type="search" placeholder="Search your brain&hellip;" autocomplete="off">
+      <input id="search" type="search" placeholder="Search your brain&hellip; ( / )" autocomplete="off">
       <span id="note-count" class="toolbar__count">0 NOTES</span>
     </div>
     <div class="toolbar__actions">

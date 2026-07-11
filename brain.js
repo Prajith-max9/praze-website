@@ -42,6 +42,23 @@
     return 'n_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
   }
 
+  var DAY_MS = 86400000;
+
+  function formatRelative(ms) {
+    var now = new Date();
+    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (ms >= startOfToday) return 'today';
+    if (ms >= startOfToday - DAY_MS) return 'yesterday';
+    var daysAgo = Math.floor((startOfToday - ms) / DAY_MS) + 1;
+    if (daysAgo < 7) return daysAgo + 'd ago';
+    return formatDate(ms);
+  }
+
+  function autoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
   /* ---------- Storage ---------- */
 
   function loadStore() {
@@ -101,9 +118,47 @@
       title: title.trim(),
       body: body.trim(),
       tags: normalizeTags(tagsInput),
+      pinned: false,
       createdAt: now,
       updatedAt: now
     };
+  }
+
+  /* Draft persistence: a half-typed capture survives refresh/close */
+
+  var DRAFT_KEY = 'praze.brain.draft.v1';
+
+  function saveDraft() {
+    try {
+      var draft = {
+        title: els.captureTitle.value,
+        body: els.captureBody.value,
+        tags: els.captureTags.value
+      };
+      if (draft.title || draft.body || draft.tags) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch (e) {}
+  }
+
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+  }
+
+  function restoreDraft() {
+    var draft;
+    try {
+      draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
+    } catch (e) {}
+    if (!draft || !(draft.title || draft.body || draft.tags)) return;
+    els.captureTitle.value = draft.title || '';
+    els.captureBody.value = draft.body || '';
+    els.captureTags.value = draft.tags || '';
+    autoGrow(els.captureBody);
+    renderTagSuggest();
+    showBanner('Draft restored — you have an unsaved note.');
   }
 
   /* ---------- State ---------- */
@@ -133,7 +188,9 @@
     var tokens = tokenize(state.query);
     return store.notes
       .filter(function (n) { return noteMatches(n, tokens, state.activeTag); })
-      .sort(function (a, b) { return b.createdAt - a.createdAt; });
+      .sort(function (a, b) {
+        return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.createdAt - a.createdAt;
+      });
   }
 
   /* ---------- Rendering ---------- */
@@ -221,15 +278,38 @@
       '</button>';
   }
 
-  function renderTagRail() {
+  function tagCounts() {
     var counts = {};
     store.notes.forEach(function (n) {
       n.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
     });
-    var tags = Object.keys(counts).sort(function (a, b) {
+    return counts;
+  }
+
+  function sortedTags(counts) {
+    return Object.keys(counts).sort(function (a, b) {
       return counts[b] - counts[a] || a.localeCompare(b);
     });
-    els.tagRail.innerHTML = tags.map(function (t) { return renderTagChip(t, counts[t]); }).join('');
+  }
+
+  function renderTagRail() {
+    var counts = tagCounts();
+    els.tagRail.innerHTML = sortedTags(counts).map(function (t) {
+      return renderTagChip(t, counts[t]);
+    }).join('');
+  }
+
+  function renderTagSuggest() {
+    var counts = tagCounts();
+    var current = normalizeTags(els.captureTags.value);
+    var tags = sortedTags(counts).slice(0, 12);
+    els.tagSuggest.innerHTML = tags.length
+      ? '<span class="tag-suggest__label">quick add</span>' + tags.map(function (t) {
+          var active = current.indexOf(t) !== -1;
+          return '<button type="button" class="tag-chip' + (active ? ' tag-chip--active' : '') +
+            '" data-action="suggest-tag" data-tag="' + escapeHtml(t) + '">#' + escapeHtml(t) + '</button>';
+        }).join('')
+      : '';
   }
 
   function renderEditForm(note) {
@@ -254,7 +334,7 @@
       ? '<div class="note__tags">' + note.tags.map(function (t) { return renderTagChip(t, null); }).join('') + '</div>'
       : '';
     var edited = note.updatedAt > note.createdAt
-      ? ' &middot; edited ' + formatDate(note.updatedAt)
+      ? ' &middot; edited ' + formatRelative(note.updatedAt)
       : '';
 
     var sources = links.backlinks[note.id];
@@ -271,16 +351,19 @@
       ? '<span class="note__date">Delete?</span>' +
         '<button type="button" class="note__action note__action--danger" data-action="delete-yes">Yes</button>' +
         '<button type="button" class="note__action" data-action="delete-no">No</button>'
-      : '<button type="button" class="note__action" data-action="edit">Edit</button>' +
+      : '<button type="button" class="note__action" data-action="pin">' + (note.pinned ? 'Unpin' : 'Pin') + '</button>' +
+        '<button type="button" class="note__action" data-action="edit">Edit</button>' +
         '<button type="button" class="note__action note__action--danger" data-action="delete-ask">Delete</button>';
 
-    return '<li class="note" data-id="' + escapeHtml(note.id) + '">' +
+    var pinnedMark = note.pinned ? '<span class="note__pinned">Pinned</span> ' : '';
+
+    return '<li class="note' + (note.pinned ? ' note--pinned' : '') + '" data-id="' + escapeHtml(note.id) + '">' +
       titleHtml +
       '<p class="note__body">' + renderBody(bodySnippet(note.body, tokens), tokens, links.titleIndex) + '</p>' +
       tagsHtml +
       backlinksHtml +
       '<div class="note__meta">' +
-      '<span class="note__date">' + formatDate(note.createdAt) + edited + '</span>' +
+      '<span class="note__date">' + pinnedMark + formatRelative(note.createdAt) + edited + '</span>' +
       '<div class="note__actions">' + actionsHtml + '</div>' +
       '</div></li>';
   }
@@ -290,7 +373,12 @@
       return '<li class="empty">' +
         '<p class="empty__title">Nothing captured yet.</p>' +
         '<p class="empty__text">First thought goes above.</p>' +
-        '</li>';
+        '<ul class="empty__tips">' +
+        '<li>Add tags — <em>training, ideas</em> — to organize</li>' +
+        '<li>Write [[Note Title]] to link notes together</li>' +
+        '<li>Press <em>/</em> to search, <em>Ctrl/Cmd+Enter</em> to save</li>' +
+        '<li>Notes stay in this browser — Export keeps a backup</li>' +
+        '</ul></li>';
     }
     var what = state.query ? '‘' + escapeHtml(state.query) + '’' : '#' + escapeHtml(state.activeTag || '');
     return '<li class="empty">' +
@@ -305,6 +393,7 @@
     var links = buildLinkIndexes();
 
     renderTagRail();
+    renderTagSuggest();
 
     els.noteList.innerHTML = filtered.length
       ? filtered.map(function (n) { return renderNoteCard(n, tokens, links); }).join('')
@@ -338,7 +427,9 @@
     if (!body) return;
     store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value));
     saveStore();
+    clearDraft();
     els.captureForm.reset();
+    els.captureBody.style.height = '';
     render();
     els.captureBody.focus();
   }
@@ -381,8 +472,20 @@
 
     if (action === 'new-note') {
       els.captureTitle.value = btn.getAttribute('data-title');
+      saveDraft();
       els.captureForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
       els.captureBody.focus();
+      return;
+    }
+
+    if (action === 'suggest-tag') {
+      var suggested = btn.getAttribute('data-tag');
+      var tags = normalizeTags(els.captureTags.value);
+      var idx = tags.indexOf(suggested);
+      if (idx === -1) tags.push(suggested); else tags.splice(idx, 1);
+      els.captureTags.value = tags.join(', ');
+      saveDraft();
+      renderTagSuggest();
       return;
     }
 
@@ -393,10 +496,20 @@
     if (!note) return;
 
     switch (action) {
+      case 'pin':
+        note.pinned = !note.pinned;
+        saveStore();
+        render();
+        break;
       case 'edit':
         state.editingId = id;
         state.confirmingDeleteId = null;
         render();
+        var editBody = els.noteList.querySelector('.note--editing .note__edit-body');
+        if (editBody) {
+          autoGrow(editBody);
+          editBody.focus();
+        }
         break;
       case 'edit-save':
         var newBody = card.querySelector('.note__edit-body').value.trim();
@@ -474,6 +587,7 @@
           title: typeof raw.title === 'string' ? raw.title : '',
           body: raw.body,
           tags: normalizeTags(Array.isArray(raw.tags) ? raw.tags.join(',') : ''),
+          pinned: !!raw.pinned,
           createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
           updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
         };
@@ -486,6 +600,7 @@
           existing.title = incoming.title;
           existing.body = incoming.body;
           existing.tags = incoming.tags;
+          existing.pinned = incoming.pinned;
           existing.createdAt = incoming.createdAt;
           existing.updatedAt = incoming.updatedAt;
           updated++;
@@ -513,6 +628,7 @@
     els.search = document.getElementById('search');
     els.noteCount = document.getElementById('note-count');
     els.tagRail = document.getElementById('tag-rail');
+    els.tagSuggest = document.getElementById('tag-suggest');
     els.noteList = document.getElementById('note-list');
 
     store = loadStore();
@@ -525,13 +641,54 @@
       }
     });
 
+    // draft autosave + auto-growing capture box
+    var debouncedDraft = debounce(saveDraft, 300);
+    [els.captureTitle, els.captureBody, els.captureTags].forEach(function (el) {
+      el.addEventListener('input', debouncedDraft);
+    });
+    els.captureBody.addEventListener('input', function () { autoGrow(els.captureBody); });
+    els.captureTags.addEventListener('input', renderTagSuggest);
+
     els.search.addEventListener('input', debounce(function () {
       state.query = els.search.value;
       render();
     }, 150));
+    els.search.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        state.query = '';
+        els.search.value = '';
+        render();
+        els.search.blur();
+      }
+    });
+
+    // '/' focuses search from anywhere outside a field
+    document.addEventListener('keydown', function (e) {
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
+        e.preventDefault();
+        els.search.focus();
+      }
+    });
 
     els.noteList.addEventListener('click', handleListClick);
     els.tagRail.addEventListener('click', handleListClick);
+    els.tagSuggest.addEventListener('click', handleListClick);
+
+    // inline edit: Ctrl/Cmd+Enter saves, Escape cancels, textarea auto-grows
+    els.noteList.addEventListener('keydown', function (e) {
+      var card = e.target.closest && e.target.closest('.note--editing');
+      if (!card) return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        card.querySelector('[data-action="edit-save"]').click();
+      } else if (e.key === 'Escape') {
+        card.querySelector('[data-action="edit-cancel"]').click();
+      }
+    });
+    els.noteList.addEventListener('input', function (e) {
+      if (e.target.classList.contains('note__edit-body')) autoGrow(e.target);
+    });
 
     document.getElementById('export-btn').addEventListener('click', exportNotes);
     var importFile = document.getElementById('import-file');
@@ -548,6 +705,7 @@
     });
 
     render();
+    restoreDraft();
   }
 
   init();
