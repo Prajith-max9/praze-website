@@ -875,6 +875,31 @@
   touch-action: none;
 }
 
+.graph-tooltip {
+  position: absolute;
+  z-index: 5;
+  max-width: 240px;
+  background: var(--ink);
+  color: var(--bone);
+  padding: 0.5rem 0.7rem;
+  pointer-events: none;
+  border: 1px solid var(--border);
+}
+
+.graph-tooltip__title {
+  font-family: var(--display);
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+  overflow-wrap: break-word;
+}
+
+.graph-tooltip__meta {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+}
+
 #graph-empty {
   position: absolute;
   top: 50%;

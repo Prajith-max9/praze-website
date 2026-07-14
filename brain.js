@@ -825,8 +825,12 @@
       }
     });
 
+    var byId = notesById();
     window.BrainGraph.mount(els.graphCanvas, { nodes: nodes, edges: edges }, function (id) {
       openNote(id);
+    }, function (id) {
+      var n = byId[id];
+      return n ? { title: noteLabel(n), kind: n.kind, tags: n.tags, date: formatDate(n.createdAt) } : null;
     });
   }
 
