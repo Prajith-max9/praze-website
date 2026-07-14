@@ -16,10 +16,13 @@ const inlineStyle =
   '<style>\n/* --- styles.css --- */\n' + styles +
   '\n/* --- brain.css --- */\n' + brainCss + '\n</style>';
 
-// Replace the two external stylesheet links with one inline <style>
+// Replace the two external stylesheet links with one inline <style>.
+// Function-form replacements throughout: a plain string replacement treats
+// `$&` as "the matched text", which mangles any inlined code containing `$&`
+// (escapeRegExp's '\\$&' became '\\</body>' in earlier bundles).
 html = html.replace(
   /<link rel="stylesheet" href="styles\.css">\s*<link rel="stylesheet" href="brain\.css">/,
-  inlineStyle
+  function () { return inlineStyle; }
 );
 
 // Remove the three deferred external scripts from <head>
@@ -33,7 +36,7 @@ const inlineScripts =
   '<script>\n' + read('brain-graph.js') + '\n</script>\n' +
   '<script>\n' + read('brain.js') + '\n</script>\n';
 
-html = html.replace('</body>', inlineScripts + '</body>');
+html = html.replace('</body>', function () { return inlineScripts + '</body>'; });
 
 fs.writeFileSync(path.join(dir, 'brain-app.html'), html);
 console.log('Wrote brain-app.html (' + html.length + ' bytes)');

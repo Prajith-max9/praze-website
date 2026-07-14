@@ -1981,7 +1981,7 @@ window.BrainGraph = (function () {
   }
 
   function escapeRegExp(text) {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\</body>');
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   function debounce(fn, ms) {
