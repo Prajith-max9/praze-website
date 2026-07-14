@@ -1076,6 +1076,55 @@ a {
   filter: grayscale(35%);
 }
 
+.clip__player {
+  position: relative;
+  margin-bottom: 0.75rem;
+}
+
+.clip__player .clip__thumb {
+  margin-bottom: 0;
+}
+
+.clip__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--lime);
+  color: #131313;
+  border: 2px solid #131313;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 4px;
+  transition: transform 0.15s;
+}
+
+.clip__play:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.clip__embed {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+}
+
+.clip__embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
 .clip__open {
   text-decoration: none;
   border-bottom: 2px solid var(--lime);
@@ -2932,9 +2981,13 @@ window.BrainGraph = (function () {
     var platform = href ? detectPlatform(href) : 'link';
     var ytId = href && platform === 'youtube' ? youtubeId(href) : null;
 
+    // thumbnail by default; the player iframe loads only on explicit click
     var thumbHtml = ytId
-      ? '<img class="clip__thumb" src="https://img.youtube.com/vi/' + encodeURIComponent(ytId) +
-        '/hqdefault.jpg" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+      ? '<div class="clip__player" data-yt="' + encodeURIComponent(ytId) + '">' +
+        '<img class="clip__thumb" src="https://img.youtube.com/vi/' + encodeURIComponent(ytId) +
+        '/hqdefault.jpg" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+        '<button type="button" class="clip__play" data-action="clip-play" aria-label="Play video">&#9654;</button>' +
+        '</div>'
       : '';
 
     var tagsHtml = note.tags.length
@@ -3314,6 +3367,24 @@ window.BrainGraph = (function () {
       saveDraft();
       els.captureForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
       els.captureBody.focus();
+      return;
+    }
+
+    if (action === 'clip-play') {
+      // swap this card's thumbnail for a 16:9 iframe — render-time only,
+      // never persisted; other cards stay as thumbnails
+      var player = btn.closest('.clip__player');
+      if (player) {
+        var embed = document.createElement('div');
+        embed.className = 'clip__embed';
+        var iframe = document.createElement('iframe');
+        iframe.src = 'https://www.youtube.com/embed/' + player.getAttribute('data-yt');
+        iframe.setAttribute('allow', 'accelerometer; autoplay; encrypted-media; picture-in-picture');
+        iframe.setAttribute('allowfullscreen', '');
+        iframe.setAttribute('title', 'YouTube video');
+        embed.appendChild(iframe);
+        player.replaceWith(embed);
+      }
       return;
     }
 

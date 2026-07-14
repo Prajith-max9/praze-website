@@ -718,6 +718,55 @@
   filter: grayscale(35%);
 }
 
+.clip__player {
+  position: relative;
+  margin-bottom: 0.75rem;
+}
+
+.clip__player .clip__thumb {
+  margin-bottom: 0;
+}
+
+.clip__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--lime);
+  color: #131313;
+  border: 2px solid #131313;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 4px;
+  transition: transform 0.15s;
+}
+
+.clip__play:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+
+.clip__embed {
+  position: relative;
+  padding-bottom: 56.25%;
+  height: 0;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border);
+}
+
+.clip__embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
 .clip__open {
   text-decoration: none;
   border-bottom: 2px solid var(--lime);

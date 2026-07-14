@@ -638,9 +638,13 @@
     var platform = href ? detectPlatform(href) : 'link';
     var ytId = href && platform === 'youtube' ? youtubeId(href) : null;
 
+    // thumbnail by default; the player iframe loads only on explicit click
     var thumbHtml = ytId
-      ? '<img class="clip__thumb" src="https://img.youtube.com/vi/' + encodeURIComponent(ytId) +
-        '/hqdefault.jpg" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+      ? '<div class="clip__player" data-yt="' + encodeURIComponent(ytId) + '">' +
+        '<img class="clip__thumb" src="https://img.youtube.com/vi/' + encodeURIComponent(ytId) +
+        '/hqdefault.jpg" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+        '<button type="button" class="clip__play" data-action="clip-play" aria-label="Play video">&#9654;</button>' +
+        '</div>'
       : '';
 
     var tagsHtml = note.tags.length
@@ -1020,6 +1024,24 @@
       saveDraft();
       els.captureForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
       els.captureBody.focus();
+      return;
+    }
+
+    if (action === 'clip-play') {
+      // swap this card's thumbnail for a 16:9 iframe — render-time only,
+      // never persisted; other cards stay as thumbnails
+      var player = btn.closest('.clip__player');
+      if (player) {
+        var embed = document.createElement('div');
+        embed.className = 'clip__embed';
+        var iframe = document.createElement('iframe');
+        iframe.src = 'https://www.youtube.com/embed/' + player.getAttribute('data-yt');
+        iframe.setAttribute('allow', 'accelerometer; autoplay; encrypted-media; picture-in-picture');
+        iframe.setAttribute('allowfullscreen', '');
+        iframe.setAttribute('title', 'YouTube video');
+        embed.appendChild(iframe);
+        player.replaceWith(embed);
+      }
       return;
     }
 
