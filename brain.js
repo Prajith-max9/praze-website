@@ -5,7 +5,7 @@
   var STORAGE_KEY = 'praze.brain.v1';
   var PRE_MIGRATION_KEY = 'praze.brain.v1.pre-migration';
   var SCHEMA_VERSION = 2;
-  var VIEWS = ['ideas', 'diary', 'clips', 'goals', 'graph'];
+  var VIEWS = ['dashboard', 'ideas', 'diary', 'clips', 'goals', 'graph'];
 
   /* ---------- Utils ---------- */
 
@@ -794,6 +794,81 @@
     })();
   }
 
+  /* ---------- DASHBOARD view ---------- */
+
+  function renderDashboard() {
+    var h = new Date().getHours();
+    var greeting = h < 12 ? 'Morning.' : h < 18 ? 'Afternoon.' : 'Evening.';
+    var ideaStreak = computeStreak('idea');
+    var diaryStreak = computeStreak('diary');
+    var activeGoals = store.goals.filter(function (g) { return !g.completedAt; });
+    var recent = store.notes.slice()
+      .sort(function (a, b) { return b.createdAt - a.createdAt; }).slice(0, 3);
+    var latestDiary = store.notes.filter(function (n) { return n.kind === 'diary'; })
+      .sort(function (a, b) { return b.createdAt - a.createdAt; })[0];
+    var pairs = getAnalysis().pairs.slice()
+      .sort(function (a, b) { return b.score - a.score; }).slice(0, 2);
+    var byId = notesById();
+
+    var html =
+      '<div class="dash-card dash-card--hero">' +
+      '<p class="dash-greeting">' + greeting + '</p>' +
+      '<p class="dash-tagline">BUILT NOT BORN.</p>' +
+      '<button type="button" class="btn" data-action="dash-capture">CAPTURE AN IDEA</button>' +
+      '</div>';
+
+    html += '<div class="dash-card">' +
+      '<p class="label">STREAKS</p>' +
+      '<button type="button" class="dash-row" data-action="goto" data-go="goals">🔥 ' +
+      ideaStreak.current + '-day idea streak <span class="dash-row__meta">best ' + ideaStreak.best + '</span></button>' +
+      '<button type="button" class="dash-row" data-action="goto" data-go="goals">🔥 ' +
+      diaryStreak.current + '-day diary streak <span class="dash-row__meta">best ' + diaryStreak.best + '</span></button>' +
+      '</div>';
+
+    html += '<div class="dash-card"><p class="label">ACTIVE GOALS</p>' +
+      (activeGoals.length
+        ? activeGoals.map(function (g) {
+            var pct = Math.min(100, Math.round((g.progress / g.target) * 100));
+            return '<button type="button" class="dash-row" data-action="goto" data-go="goals">' +
+              escapeHtml(g.title) +
+              '<span class="dash-row__meta">' + g.progress + ' / ' + g.target + '</span>' +
+              '<span class="dash-bar"><span class="dash-bar__fill" style="width:' + pct + '%"></span></span>' +
+              '</button>';
+          }).join('')
+        : '<button type="button" class="dash-row" data-action="goto" data-go="goals">No active goals — set one<span class="dash-row__meta">→</span></button>') +
+      '</div>';
+
+    html += '<div class="dash-card"><p class="label">RECENT</p>' +
+      (recent.length
+        ? recent.map(function (n) {
+            return '<button type="button" class="dash-row" data-action="open-note" data-note-id="' +
+              escapeHtml(n.id) + '">' + escapeHtml(noteLabel(n)) +
+              '<span class="dash-row__meta">' + escapeHtml(n.kind) + ' · ' + formatRelative(n.createdAt) + '</span></button>';
+          }).join('')
+        : '<p class="empty__text">Nothing captured yet — hit the lime button.</p>') +
+      '</div>';
+
+    if (latestDiary) {
+      var mood = detectMood(latestDiary.body);
+      html += '<div class="dash-card"><p class="label">LATEST DIARY</p>' +
+        '<button type="button" class="dash-row" data-action="open-note" data-note-id="' + escapeHtml(latestDiary.id) + '">' +
+        escapeHtml(latestDiary.body.slice(0, 90)) + (latestDiary.body.length > 90 ? '…' : '') +
+        '<span class="dash-row__meta">' + mood.label + ' · ' + formatRelative(latestDiary.createdAt) + '</span></button></div>';
+    }
+
+    if (pairs.length) {
+      html += '<div class="dash-card"><p class="label">YOUR BRAIN CONNECTED THESE</p>' +
+        pairs.map(function (p) {
+          var a = byId[p.a], b = byId[p.b];
+          if (!a || !b) return '';
+          return '<button type="button" class="dash-row" data-action="open-note" data-note-id="' + escapeHtml(a.id) + '">' +
+            escapeHtml(noteLabel(a)) + ' ↔ ' + escapeHtml(noteLabel(b)) + '</button>';
+        }).join('') + '</div>';
+    }
+
+    els.dash.innerHTML = html;
+  }
+
   /* ---------- GRAPH view ---------- */
 
   function renderGraph() {
@@ -842,7 +917,7 @@
 
   function currentViewFromHash() {
     var h = location.hash.replace('#', '');
-    return VIEWS.indexOf(h) !== -1 ? h : 'ideas';
+    return VIEWS.indexOf(h) !== -1 ? h : 'dashboard';
   }
 
   function setView(view) {
@@ -866,7 +941,8 @@
       els.views[v].hidden = v !== state.view;
     });
 
-    if (state.view === 'ideas') renderIdeas();
+    if (state.view === 'dashboard') renderDashboard();
+    else if (state.view === 'ideas') renderIdeas();
     else if (state.view === 'diary') renderDiary();
     else if (state.view === 'clips') renderClips();
     else if (state.view === 'goals') renderGoals();
@@ -1023,6 +1099,17 @@
       els.captureTitle.value = btn.getAttribute('data-title');
       saveDraft();
       els.captureForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      els.captureBody.focus();
+      return;
+    }
+
+    if (action === 'goto') {
+      setView(btn.getAttribute('data-go'));
+      return;
+    }
+
+    if (action === 'dash-capture') {
+      setView('ideas');
       els.captureBody.focus();
       return;
     }
@@ -1394,6 +1481,7 @@
     els.bannerText = document.getElementById('banner-text');
     els.tabs = document.getElementById('tabs');
     els.views = {
+      dashboard: document.getElementById('view-dashboard'),
       ideas: document.getElementById('view-ideas'),
       diary: document.getElementById('view-diary'),
       clips: document.getElementById('view-clips'),
@@ -1427,6 +1515,7 @@
     els.wins = document.getElementById('wins');
     els.graphCanvas = document.getElementById('graph-canvas');
     els.graphEmpty = document.getElementById('graph-empty');
+    els.dash = document.getElementById('dash');
     els.settingsPanel = document.getElementById('settings-panel');
     els.apiKeyInput = document.getElementById('api-key-input');
     els.apiKeyStatus = document.getElementById('api-key-status');
