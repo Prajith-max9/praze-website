@@ -1,0 +1,3422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>PRAZE — Brain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* --- styles.css --- */
+:root {
+  --bone: #f5f3ee;
+  --ink: #131313;
+  --lime: #d4ff00;
+  --gray: #6b6b66;
+  --border: rgba(19, 19, 19, 0.12);
+
+  --display: 'Archivo Black', sans-serif;
+  --mono: 'Space Mono', monospace;
+  --body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bone);
+  color: var(--ink);
+  font-family: var(--body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+.label {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-bottom: 0.75rem;
+}
+
+.section-title {
+  font-family: var(--display);
+  font-size: 1.6rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin-bottom: 1.5rem;
+  max-width: 22ch;
+}
+
+.btn {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  background: var(--ink);
+  color: var(--bone);
+  padding: 0.95rem 1.75rem;
+  border: 2px solid var(--ink);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.btn:hover {
+  background: var(--lime);
+  color: var(--ink);
+  border-color: var(--lime);
+}
+
+/* Navbar */
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  position: sticky;
+  top: 0;
+  background: var(--bone);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+
+.navbar__mark {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+
+.navbar__cta {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  border-bottom: 2px solid var(--lime);
+  padding-bottom: 2px;
+}
+
+/* Hero */
+
+.hero {
+  padding: 5.5rem 1.5rem 4.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.hero__title {
+  font-family: var(--display);
+  font-size: clamp(3.5rem, 18vw, 8rem);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+}
+
+.hero__tagline {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: clamp(1rem, 3.5vw, 1.4rem);
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  margin-bottom: 1.5rem;
+  position: relative;
+  display: inline-block;
+}
+
+.hero__tagline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -8px;
+  width: 48px;
+  height: 4px;
+  background: var(--lime);
+}
+
+.hero__sub {
+  max-width: 32ch;
+  font-size: 1.05rem;
+  color: var(--gray);
+  margin: 1.75rem 0 2.25rem;
+}
+
+/* About */
+
+.about {
+  padding: 4.5rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.about__text {
+  max-width: 56ch;
+  font-size: 1.05rem;
+  color: #2c2c2a;
+}
+
+.about__pillars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-top: 2rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+}
+
+.about__pillars span {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+}
+
+/* What I do */
+
+.what-i-do {
+  padding: 4.5rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.card {
+  border: 1px solid var(--border);
+  padding: 1.75rem 1.5rem;
+  background: #fbfaf7;
+}
+
+.card__num {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--gray);
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.card__title {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+.card__text {
+  font-size: 0.95rem;
+  color: var(--gray);
+}
+
+/* Stats */
+
+.stats {
+  padding: 4.5rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  margin-top: 2rem;
+  border: 1px solid var(--border);
+  background: var(--border);
+}
+
+.stat-card {
+  background: var(--bone);
+  padding: 1.75rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stat-card__value {
+  font-family: var(--display);
+  font-size: 2rem;
+  color: var(--ink);
+}
+
+.stat-card__value::selection {
+  background: var(--lime);
+}
+
+.stat-card__label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+}
+
+/* Footer */
+
+.footer {
+  padding: 3.5rem 1.5rem 2.5rem;
+  background: var(--ink);
+  color: var(--bone);
+}
+
+.footer__mark {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  display: block;
+  margin-bottom: 1.5rem;
+}
+
+.footer__links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  margin-bottom: 2rem;
+}
+
+.footer__links a {
+  text-decoration: none;
+  border-bottom: 1px solid rgba(245, 243, 238, 0.25);
+  width: fit-content;
+  padding-bottom: 2px;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.footer__links a:hover {
+  border-color: var(--lime);
+  color: var(--lime);
+}
+
+.footer__copy {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: rgba(245, 243, 238, 0.5);
+}
+
+/* Tablet+ */
+
+@media (min-width: 640px) {
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .section-title {
+    font-size: 2rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .hero,
+  .about,
+  .what-i-do,
+  .stats,
+  .footer {
+    padding-left: 4rem;
+    padding-right: 4rem;
+  }
+
+  .navbar {
+    padding-left: 4rem;
+    padding-right: 4rem;
+  }
+
+  .section-title {
+    font-size: 2.5rem;
+  }
+}
+
+/* --- brain.css --- */
+/* Second Brain app styles — layered on styles.css tokens */
+
+.brain {
+  padding: 2.5rem 1.5rem 4rem;
+  max-width: 760px;
+}
+
+/* Banner */
+
+.banner[hidden] {
+  display: none;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  background: var(--lime);
+  color: var(--ink);
+  border-bottom: 1px solid var(--border);
+}
+
+.banner--error {
+  background: var(--ink);
+  color: var(--bone);
+}
+
+.banner__dismiss {
+  font-family: var(--mono);
+  font-size: 1rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+/* Capture */
+
+.capture {
+  border: 1px solid var(--border);
+  background: #fbfaf7;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.capture__title,
+.capture__body,
+.capture__tags,
+.toolbar__search input {
+  width: 100%;
+  font-family: var(--body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--bone);
+  border: 1px solid var(--border);
+  padding: 0.7rem 0.85rem;
+  outline: none;
+}
+
+.capture__title:focus,
+.capture__body:focus,
+.capture__tags:focus,
+.toolbar__search input:focus {
+  border-color: var(--ink);
+}
+
+.capture__title {
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.capture__body {
+  resize: vertical;
+  min-height: 5.5rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+
+.capture__tags {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.tag-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: -0.5rem 0 1rem;
+}
+
+.tag-suggest:empty {
+  display: none;
+}
+
+.tag-suggest__label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-right: 0.2rem;
+}
+
+.capture__actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.capture__actions .btn {
+  cursor: pointer;
+}
+
+.capture__hint {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--gray);
+  letter-spacing: 0.05em;
+}
+
+/* Toolbar */
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar__search {
+  position: relative;
+  flex: 1;
+}
+
+.toolbar__search input {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  padding-right: 6.5rem;
+}
+
+.toolbar__count {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--gray);
+  pointer-events: none;
+}
+
+.toolbar__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.toolbar__btn {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: none;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.toolbar__btn:hover {
+  background: var(--lime);
+  border-color: var(--ink);
+}
+
+/* Tag rail + chips */
+
+.tag-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.75rem;
+}
+
+.tag-chip {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  background: none;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.tag-chip:hover {
+  border-color: var(--ink);
+}
+
+.tag-chip--active {
+  background: var(--lime);
+  border-color: var(--ink);
+}
+
+.tag-chip__count {
+  color: var(--gray);
+  margin-left: 0.35rem;
+}
+
+.tag-chip--active .tag-chip__count {
+  color: var(--ink);
+}
+
+/* Note list */
+
+.note-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.note {
+  border: 1px solid var(--border);
+  background: #fbfaf7;
+  padding: 1.5rem;
+}
+
+.note--pinned {
+  border-left: 3px solid var(--lime);
+}
+
+.note__pinned {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--lime);
+  color: var(--ink);
+  padding: 0.15rem 0.4rem;
+  margin-right: 0.3rem;
+}
+
+.note__title {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.6rem;
+  overflow-wrap: break-word;
+}
+
+.note__body {
+  font-size: 0.95rem;
+  color: #2c2c2a;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  margin-bottom: 1rem;
+}
+
+.note__body mark,
+.note__title mark {
+  background: var(--lime);
+  color: var(--ink);
+  padding: 0 1px;
+}
+
+.wiki-link {
+  font: inherit;
+  color: var(--ink);
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 2px solid var(--lime);
+  transition: background 0.15s;
+}
+
+.wiki-link:hover {
+  background: var(--lime);
+}
+
+.wiki-link--missing {
+  font-weight: 400;
+  color: var(--gray);
+  border-bottom: 2px dashed var(--border);
+}
+
+.wiki-link--missing:hover {
+  background: none;
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+
+.note__backlinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.note__backlinks-label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-right: 0.2rem;
+}
+
+.backlink {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  background: none;
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--lime);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.backlink:hover {
+  background: var(--lime);
+  border-color: var(--ink);
+}
+
+@keyframes note-flash {
+  from { background: var(--lime); }
+  to { background: #fbfaf7; }
+}
+
+.note--flash {
+  animation: note-flash 1.2s ease;
+}
+
+.note__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.note__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.note__date {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+}
+
+.note__actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.note__action {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  color: var(--gray);
+  cursor: pointer;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid transparent;
+}
+
+.note__action:hover {
+  color: var(--ink);
+  border-bottom-color: var(--lime);
+}
+
+.note__action--danger:hover {
+  color: #b30000;
+}
+
+/* Inline edit form */
+
+.note--editing .note__edit-title,
+.note--editing .note__edit-body,
+.note--editing .note__edit-tags {
+  width: 100%;
+  font-family: var(--body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--bone);
+  border: 1px solid var(--border);
+  padding: 0.6rem 0.75rem;
+  outline: none;
+  margin-bottom: 0.6rem;
+}
+
+.note--editing .note__edit-title:focus,
+.note--editing .note__edit-body:focus,
+.note--editing .note__edit-tags:focus {
+  border-color: var(--ink);
+}
+
+.note--editing .note__edit-title {
+  font-weight: 600;
+}
+
+.note--editing .note__edit-body {
+  resize: vertical;
+  min-height: 5rem;
+  line-height: 1.5;
+}
+
+.note--editing .note__edit-tags {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+/* Empty states */
+
+.empty {
+  border: 1px dashed var(--border);
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.empty__title {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty__text {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--gray);
+  margin-bottom: 1rem;
+}
+
+.empty .toolbar__btn {
+  margin-top: 0.25rem;
+}
+
+.empty__tips {
+  list-style: none;
+  display: inline-block;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--gray);
+  line-height: 2;
+  margin-top: 0.5rem;
+}
+
+.empty__tips li::before {
+  content: '→ ';
+  color: var(--ink);
+}
+
+.empty__tips em {
+  font-style: normal;
+  color: var(--ink);
+  background: var(--lime);
+  padding: 0 3px;
+}
+
+/* Footer + noscript */
+
+.brain-footer {
+  padding: 0 1.5rem 2.5rem;
+  max-width: 760px;
+}
+
+.brain-footer p,
+.noscript {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--gray);
+  line-height: 1.7;
+}
+
+.noscript {
+  display: block;
+  padding: 1.5rem 0;
+}
+
+/* Tabs (Chrome feel) */
+
+.tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 1.5rem;
+  background: var(--bone);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tabs__tab {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--gray);
+  padding: 0.8rem 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tabs__tab:hover {
+  color: var(--ink);
+}
+
+.tabs__tab--active {
+  color: var(--ink);
+  border-bottom-color: var(--lime);
+  font-weight: 700;
+}
+
+.tabs__gear {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: var(--gray);
+  cursor: pointer;
+  padding: 0.5rem 0.25rem;
+}
+
+.tabs__gear:hover {
+  color: var(--ink);
+}
+
+/* Settings */
+
+.settings {
+  padding: 1.5rem;
+  background: #fbfaf7;
+  border-bottom: 1px solid var(--border);
+  max-width: 760px;
+}
+
+.settings__text {
+  font-size: 0.85rem;
+  color: var(--gray);
+  max-width: 56ch;
+  margin-bottom: 1rem;
+}
+
+.settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings__row input {
+  flex: 1;
+  min-width: 200px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: var(--bone);
+  border: 1px solid var(--border);
+  padding: 0.55rem 0.85rem;
+  outline: none;
+}
+
+.settings__row input:focus {
+  border-color: var(--ink);
+}
+
+.settings__status {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--gray);
+  margin-top: 0.75rem;
+  min-height: 1em;
+}
+
+/* Views */
+
+.view[hidden] {
+  display: none;
+}
+
+.capture__streak {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--ink);
+  letter-spacing: 0.03em;
+}
+
+/* Diary */
+
+.diary-day {
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--gray);
+  margin: 0.75rem 0 0.25rem;
+}
+
+.mood {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  margin-right: 0.35rem;
+  border: 1px solid var(--border);
+}
+
+.mood--good { background: var(--lime); color: var(--ink); border-color: var(--ink); }
+.mood--rough { background: var(--ink); color: var(--bone); }
+.mood--neutral { color: var(--gray); }
+.mood--activedot { border-left: 3px solid var(--lime); color: var(--ink); }
+
+.reflect {
+  border-left: 3px solid var(--lime);
+  padding: 0.5rem 0.85rem;
+  margin-bottom: 0.9rem;
+  background: rgba(212, 255, 0, 0.08);
+}
+
+.reflect__text {
+  font-size: 0.9rem;
+  color: #2c2c2a;
+  font-style: italic;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.tag-chip--ai {
+  border-left: 3px solid var(--lime);
+}
+
+.note__related .backlink {
+  border-left-style: dashed;
+}
+
+/* Clips */
+
+.clip-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.clip__badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--ink);
+  margin-bottom: 0.75rem;
+}
+
+.clip__badge--youtube { background: var(--ink); color: var(--bone); }
+.clip__badge--instagram { background: var(--lime); color: var(--ink); }
+.clip__badge--tiktok { background: var(--bone); color: var(--ink); }
+.clip__badge--link { color: var(--gray); border-color: var(--border); }
+
+.clip__thumb {
+  display: block;
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  margin-bottom: 0.75rem;
+  filter: grayscale(35%);
+}
+
+.clip__open {
+  text-decoration: none;
+  border-bottom: 2px solid var(--lime);
+}
+
+/* Goals */
+
+.streaks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  border: 1px solid var(--border);
+  background: var(--border);
+  margin-bottom: 2rem;
+}
+
+.streak-card {
+  background: var(--bone);
+  padding: 1.25rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.streak-card__flame { font-size: 1.2rem; }
+
+.streak-card__value {
+  font-family: var(--display);
+  font-size: 2rem;
+}
+
+.streak-card__label {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray);
+}
+
+.goal-form__row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.goal-form__row .capture__title { margin-bottom: 0.75rem; }
+.goal-form__target { max-width: 90px; }
+
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.goal {
+  border: 1px solid var(--border);
+  background: #fbfaf7;
+  padding: 1.25rem 1.5rem;
+}
+
+.goal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.goal__title {
+  font-family: var(--display);
+  font-size: 1rem;
+}
+
+.goal__count {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--gray);
+  white-space: nowrap;
+}
+
+.goal__bar {
+  height: 10px;
+  border: 1px solid var(--ink);
+  background: var(--bone);
+  margin-bottom: 0.9rem;
+}
+
+.goal__fill {
+  height: 100%;
+  background: var(--lime);
+  transition: width 0.3s ease;
+}
+
+.goal__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.goal__plus {
+  font-weight: 700;
+  background: var(--lime);
+  border-color: var(--ink);
+}
+
+.wins { margin-bottom: 1rem; }
+
+.win {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.win__title {
+  font-family: var(--display);
+  font-size: 0.9rem;
+}
+
+.win__meta {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--gray);
+}
+
+/* Graph */
+
+.view--graph .label { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+
+.graph-legend {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--gray);
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+
+.graph-legend__diary { color: var(--gray); opacity: 0.6; }
+
+.graph-wrap {
+  border: 1px solid var(--border);
+  background: #fbfaf7;
+  height: 60vh;
+  min-height: 320px;
+  position: relative;
+}
+
+#graph-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#graph-empty {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  transform: translateY(-50%);
+}
+
+/* Celebration */
+
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Tablet+ */
+
+@media (min-width: 640px) {
+  .toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .clip-list {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 900px) {
+  .brain,
+  .brain-footer {
+    padding-left: 4rem;
+    padding-right: 4rem;
+    max-width: 860px;
+  }
+
+  .banner,
+  .tabs,
+  .settings {
+    padding-left: 4rem;
+    padding-right: 4rem;
+  }
+
+  .settings {
+    max-width: 860px;
+  }
+}
+
+</style>
+</head>
+<body>
+
+<header class="navbar">
+  <span class="navbar__mark">PRAZE — BRAIN</span>
+  <a class="navbar__cta" href="index.html">&larr; site</a>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button type="button" class="tabs__tab" data-view="ideas">IDEAS</button>
+  <button type="button" class="tabs__tab" data-view="diary">DIARY</button>
+  <button type="button" class="tabs__tab" data-view="clips">CLIPS</button>
+  <button type="button" class="tabs__tab" data-view="goals">GOALS</button>
+  <button type="button" class="tabs__tab" data-view="graph">GRAPH</button>
+  <button type="button" class="tabs__gear" id="settings-toggle" aria-label="Settings">&#9881;</button>
+</nav>
+
+<div id="banner" class="banner" hidden>
+  <span id="banner-text"></span>
+  <button id="banner-dismiss" class="banner__dismiss" type="button" aria-label="Dismiss">&times;</button>
+</div>
+
+<section id="settings-panel" class="settings" hidden>
+  <p class="label">SETTINGS — AI</p>
+  <p class="settings__text">Paste your Anthropic API key to unlock real AI: smart tagging for ideas and reflections on diary entries. The key is stored <b>only in this browser</b> — it never appears in exports and is never sent anywhere except directly to Claude.</p>
+  <div class="settings__row">
+    <input id="api-key-input" type="password" placeholder="sk-ant-…" autocomplete="off">
+    <button id="api-key-save" class="toolbar__btn" type="button">Save</button>
+    <button id="api-key-test" class="toolbar__btn" type="button">Test</button>
+    <button id="api-key-clear" class="toolbar__btn" type="button" hidden>Remove key</button>
+  </div>
+  <p id="api-key-status" class="settings__status"></p>
+</section>
+
+<main class="brain">
+
+  <!-- IDEAS -->
+  <section id="view-ideas" class="view">
+    <section class="capture">
+      <p class="label">CAPTURE</p>
+      <form id="capture-form">
+        <input id="capture-title" class="capture__title" type="text" placeholder="Title (optional)" autocomplete="off">
+        <textarea id="capture-body" class="capture__body" rows="4" placeholder="What's on your mind? Link notes with [[Title]]" required></textarea>
+        <input id="capture-tags" class="capture__tags" type="text" placeholder="tags: training, content" autocomplete="off">
+        <div id="tag-suggest" class="tag-suggest"></div>
+        <div class="capture__actions">
+          <button class="btn" type="submit">CAPTURE</button>
+          <span class="capture__hint">Ctrl/Cmd + Enter</span>
+          <span id="capture-streak" class="capture__streak"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="toolbar">
+      <div class="toolbar__search">
+        <input id="search" type="search" placeholder="Search your brain&hellip; ( / )" autocomplete="off">
+        <span id="note-count" class="toolbar__count">0 NOTES</span>
+      </div>
+      <div class="toolbar__actions">
+        <button id="export-btn" class="toolbar__btn" type="button">Export</button>
+        <button id="import-btn" class="toolbar__btn" type="button">Import</button>
+        <input id="import-file" type="file" accept=".json,application/json" hidden>
+      </div>
+    </section>
+
+    <div id="tag-rail" class="tag-rail"></div>
+    <ol id="note-list" class="note-list"></ol>
+  </section>
+
+  <!-- DIARY -->
+  <section id="view-diary" class="view" hidden>
+    <section class="capture">
+      <p class="label">DIARY <span id="diary-streak" class="capture__streak"></span></p>
+      <form id="diary-form">
+        <textarea id="diary-body" class="capture__body" rows="4" placeholder="How was today?" required></textarea>
+        <div class="capture__actions">
+          <button class="btn" type="submit">SAVE ENTRY</button>
+          <span class="capture__hint">Ctrl/Cmd + Enter</span>
+        </div>
+      </form>
+    </section>
+    <ol id="diary-list" class="note-list"></ol>
+  </section>
+
+  <!-- CLIPS -->
+  <section id="view-clips" class="view" hidden>
+    <section class="capture">
+      <p class="label">SAVE A CLIP</p>
+      <form id="clip-form">
+        <input id="clip-url" class="capture__title" type="url" placeholder="Paste a video link (Instagram, TikTok, YouTube…)" required autocomplete="off">
+        <textarea id="clip-note" class="capture__body" rows="2" placeholder="Why save it? (optional)"></textarea>
+        <input id="clip-tags" class="capture__tags" type="text" placeholder="tags: inspo, editing" autocomplete="off">
+        <div class="capture__actions">
+          <button class="btn" type="submit">SAVE CLIP</button>
+        </div>
+      </form>
+    </section>
+    <ol id="clip-list" class="clip-list"></ol>
+  </section>
+
+  <!-- GOALS -->
+  <section id="view-goals" class="view" hidden>
+    <div id="streaks" class="streaks"></div>
+    <section class="capture">
+      <p class="label">SET A GOAL</p>
+      <form id="goal-form">
+        <div class="goal-form__row">
+          <input id="goal-title" class="capture__title" type="text" placeholder="Post 12 reels" required autocomplete="off">
+          <input id="goal-target" class="capture__title goal-form__target" type="number" min="1" step="1" placeholder="12" required>
+        </div>
+        <div class="capture__actions">
+          <button class="btn" type="submit">SET GOAL</button>
+        </div>
+      </form>
+    </section>
+    <div id="goal-list" class="goal-list"></div>
+    <div id="wins" class="wins"></div>
+  </section>
+
+  <!-- GRAPH -->
+  <section id="view-graph" class="view view--graph" hidden>
+    <p class="label">THE WEB <span class="graph-legend">&#9679; idea &nbsp; <span class="graph-legend__diary">&#9679;</span> diary &nbsp; &#9675; clip &nbsp; — [[link]] &nbsp; &#183;&#183;&#183; similar</span></p>
+    <div class="graph-wrap">
+      <canvas id="graph-canvas"></canvas>
+      <p id="graph-empty" class="empty__text" hidden>Capture a few ideas and the web appears here.</p>
+    </div>
+  </section>
+
+  <noscript>
+    <p class="noscript">This app needs JavaScript — your notes live in this browser, nothing is sent anywhere.</p>
+  </noscript>
+
+</main>
+
+<footer class="brain-footer">
+  <p>Notes are stored only in this browser (localStorage). No account, no server, no sync — export regularly to keep a backup.</p>
+</footer>
+
+
+<script>
+/* PRAZE Second Brain — intelligence layer.
+   Built-in: TF-IDF similarity engine (offline, free) for auto-linking and tag suggestions.
+   Optional: Claude API client using the user's own key (stored locally, never exported). */
+window.BrainAI = (function () {
+  'use strict';
+
+  /* ---------- Similarity engine ---------- */
+
+  var SIMILARITY_THRESHOLD = 0.15;
+  var MIN_NOTES_FOR_LINKS = 5; // cold-start gate: below this, IDF is noise
+  var TOP_RELATED = 3;
+
+  var STOPWORDS = {};
+  ('a an the and or but if then so of to in on at by for with from as is are was were be been being ' +
+   'it its this that these those i im me my you your we our they them he she his her do does did ' +
+   'have has had will would can could just not').split(' ').forEach(function (w) { STOPWORDS[w] = true; });
+
+  function tokenizeText(text) {
+    return String(text).toLowerCase().split(/[^a-z0-9]+/).filter(function (t) {
+      return t.length > 2 && !STOPWORDS[t];
+    });
+  }
+
+  var cache = { rev: -1, result: null };
+
+  function computeAll(notes) {
+    var eligible = notes.filter(function (n) { return n.kind !== 'clip'; }).length;
+    if (eligible < MIN_NOTES_FOR_LINKS) {
+      return { related: {}, pairs: [] };
+    }
+
+    // term frequencies per note; title tokens count double (titles are dense signal)
+    var docs = notes.map(function (n) {
+      var tf = {};
+      tokenizeText(n.body).forEach(function (t) { tf[t] = (tf[t] || 0) + 1; });
+      tokenizeText(n.title).forEach(function (t) { tf[t] = (tf[t] || 0) + 2; });
+      return { id: n.id, tf: tf };
+    });
+
+    var df = {};
+    docs.forEach(function (d) {
+      Object.keys(d.tf).forEach(function (t) { df[t] = (df[t] || 0) + 1; });
+    });
+
+    var N = docs.length;
+    docs.forEach(function (d) {
+      var vec = {};
+      var norm = 0;
+      Object.keys(d.tf).forEach(function (t) {
+        // smoothed IDF: keeps shared-term weight meaningful on small corpora
+        var w = d.tf[t] * Math.log(1 + N / df[t]);
+        if (w > 0) {
+          vec[t] = w;
+          norm += w * w;
+        }
+      });
+      d.vec = vec;
+      d.norm = Math.sqrt(norm);
+    });
+
+    function cosine(a, b) {
+      if (!a.norm || !b.norm) return 0;
+      var dot = 0;
+      var small = Object.keys(a.vec).length <= Object.keys(b.vec).length ? a : b;
+      var other = small === a ? b : a;
+      Object.keys(small.vec).forEach(function (t) {
+        if (other.vec[t]) dot += small.vec[t] * other.vec[t];
+      });
+      return dot / (a.norm * b.norm);
+    }
+
+    var related = {};
+    var pairs = [];
+    for (var i = 0; i < docs.length; i++) {
+      for (var j = i + 1; j < docs.length; j++) {
+        var score = cosine(docs[i], docs[j]);
+        if (score >= SIMILARITY_THRESHOLD) {
+          (related[docs[i].id] = related[docs[i].id] || []).push({ id: docs[j].id, score: score });
+          (related[docs[j].id] = related[docs[j].id] || []).push({ id: docs[i].id, score: score });
+          pairs.push({ a: docs[i].id, b: docs[j].id, score: score });
+        }
+      }
+    }
+    Object.keys(related).forEach(function (id) {
+      related[id].sort(function (x, y) { return y.score - x.score; });
+      related[id] = related[id].slice(0, TOP_RELATED);
+    });
+
+    return { related: related, pairs: pairs };
+  }
+
+  function analyze(notes, rev) {
+    if (cache.rev !== rev || !cache.result) {
+      cache.result = computeAll(notes);
+      cache.rev = rev;
+    }
+    return cache.result;
+  }
+
+  // Suggest tags the note lacks but ≥2 of its related notes carry
+  function suggestTags(note, relatedEntries, notesById) {
+    var counts = {};
+    (relatedEntries || []).forEach(function (r) {
+      var other = notesById[r.id];
+      if (!other) return;
+      other.tags.forEach(function (t) {
+        if (note.tags.indexOf(t) === -1) counts[t] = (counts[t] || 0) + 1;
+      });
+    });
+    return Object.keys(counts).filter(function (t) { return counts[t] >= 2; }).slice(0, 3);
+  }
+
+  /* ---------- Claude API client (optional, user-supplied key) ---------- */
+
+  var API_KEY_STORAGE = 'praze.brain.apikey';
+  var API_URL = 'https://api.anthropic.com/v1/messages';
+  var MODEL = 'claude-haiku-4-5';
+  var TIMEOUT_MS = 20000;
+
+  function getKey() {
+    try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch (e) { return ''; }
+  }
+
+  function setKey(key) {
+    try {
+      if (key) localStorage.setItem(API_KEY_STORAGE, key);
+      else localStorage.removeItem(API_KEY_STORAGE);
+    } catch (e) {}
+  }
+
+  function hasKey() {
+    return !!getKey();
+  }
+
+  function maskedKey() {
+    var k = getKey();
+    if (!k) return '';
+    return k.slice(0, 7) + '…' + k.slice(-4);
+  }
+
+  async function callClaude(prompt, maxTokens) {
+    var key = getKey();
+    if (!key) throw new Error('Add your Claude API key in Settings to enable AI.');
+
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
+
+    var response;
+    try {
+      response = await fetch(API_URL, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: maxTokens || 300,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+    } catch (e) {
+      if (e.name === 'AbortError') throw new Error('AI request timed out — try again.');
+      throw new Error('Network error reaching the AI — check your connection.');
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (response.status === 401) throw new Error('API key rejected — check it in Settings.');
+    if (response.status === 429) throw new Error('AI rate limit hit — wait a minute and try again.');
+    if (!response.ok) throw new Error('AI request failed (' + response.status + ') — try again.');
+
+    var data = await response.json();
+    var textBlock = (data.content || []).filter(function (b) { return b.type === 'text'; })[0];
+    if (!textBlock) throw new Error('AI returned an empty response — try again.');
+    return textBlock.text;
+  }
+
+  function parseJson(text) {
+    // strip accidental markdown fences
+    var cleaned = text.trim().replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
+    return JSON.parse(cleaned);
+  }
+
+  // Suggest 1-3 tags for a note, preferring the existing vocabulary
+  async function organizeNote(note, tagVocabulary) {
+    var prompt =
+      'You are tagging a note in a personal knowledge base.\n\n' +
+      'Note title: ' + (note.title || '(none)') + '\n' +
+      'Note body: ' + note.body + '\n\n' +
+      'Existing tags in this knowledge base: ' + (tagVocabulary.join(', ') || '(none yet)') + '\n\n' +
+      'Suggest 1-3 tags for this note. Prefer existing tags when they genuinely fit; ' +
+      'invent a new lowercase single-word tag only when nothing existing fits. ' +
+      'Respond with ONLY a JSON array of strings, no markdown fences, no explanation. ' +
+      'Example: ["fitness","content"]';
+
+    var text = await callClaude(prompt, 300);
+    var parsed;
+    try {
+      parsed = parseJson(text);
+    } catch (e) {
+      throw new Error('AI response was malformed — try again.');
+    }
+    if (!Array.isArray(parsed)) throw new Error('AI response was malformed — try again.');
+    var seen = {};
+    return parsed
+      .filter(function (t) { return typeof t === 'string' && t.trim(); })
+      .map(function (t) { return t.trim().toLowerCase(); })
+      .filter(function (t) {
+        if (seen[t] || note.tags.indexOf(t) !== -1) return false;
+        seen[t] = true;
+        return true;
+      })
+      .slice(0, 3);
+  }
+
+  // Reflect on a diary entry: themes + one grounded observation
+  async function reflectEntry(body) {
+    var prompt =
+      'You are a reflection assistant inside a private diary app. The user is a driven young ' +
+      'person building a fitness brand; be honest and grounded, never sycophantic, never clinical.\n\n' +
+      'Diary entry: ' + body + '\n\n' +
+      'Respond with ONLY a JSON object, no markdown fences: ' +
+      '{"themes": ["theme1","theme2"], "reflection": "one or two sentences"}\n' +
+      'Rules: 2-3 lowercase single-word themes. The reflection observes a pattern or asks one ' +
+      'sharp question. It never diagnoses, never mentions being an AI, never exceeds 40 words.';
+
+    var text = await callClaude(prompt, 300);
+    var parsed;
+    try {
+      parsed = parseJson(text);
+    } catch (e) {
+      throw new Error('AI response was malformed — try again.');
+    }
+    if (!parsed || !Array.isArray(parsed.themes) || typeof parsed.reflection !== 'string') {
+      throw new Error('AI response was malformed — try again.');
+    }
+    return {
+      themes: parsed.themes
+        .filter(function (t) { return typeof t === 'string' && t.trim(); })
+        .map(function (t) { return t.trim().toLowerCase(); })
+        .slice(0, 3),
+      reflection: parsed.reflection.trim()
+    };
+  }
+
+  async function testKey() {
+    await callClaude('Reply with exactly: ok', 10);
+    return true;
+  }
+
+  return {
+    SIMILARITY_THRESHOLD: SIMILARITY_THRESHOLD,
+    MIN_NOTES_FOR_LINKS: MIN_NOTES_FOR_LINKS,
+    analyze: analyze,
+    suggestTags: suggestTags,
+    getKey: getKey,
+    setKey: setKey,
+    hasKey: hasKey,
+    maskedKey: maskedKey,
+    organizeNote: organizeNote,
+    reflectEntry: reflectEntry,
+    testKey: testKey
+  };
+})();
+
+</script>
+<script>
+/* PRAZE Second Brain — force-directed graph view on canvas.
+   BrainGraph.mount(canvas, data, onNodeClick) / BrainGraph.destroy().
+   The sim is fully torn down on destroy — no rAF left running in background. */
+window.BrainGraph = (function () {
+  'use strict';
+
+  var COLORS = {
+    bone: '#f5f3ee',
+    ink: '#131313',
+    lime: '#d4ff00',
+    gray: '#6b6b66',
+    edge: 'rgba(19, 19, 19, 0.18)',
+    simEdge: 'rgba(19, 19, 19, 0.30)'
+  };
+  var LABEL_LIMIT = 40; // draw all labels up to this many nodes; above it, hover only
+
+  var state = null; // null when unmounted
+
+  function setDebug() {
+    window.__brainDebug = {
+      nodes: state ? state.nodes.length : 0,
+      edges: state ? state.edges.length : 0,
+      running: !!(state && state.raf)
+    };
+  }
+
+  function mount(canvas, data, onNodeClick) {
+    destroy();
+
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    var W = Math.max(rect.width, 200);
+    var H = Math.max(rect.height, 200);
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    var byId = {};
+    var nodes = data.nodes.map(function (n, i) {
+      var angle = (i / Math.max(data.nodes.length, 1)) * Math.PI * 2;
+      var r = Math.min(W, H) * 0.3 * (0.4 + 0.6 * Math.random());
+      var node = {
+        id: n.id, label: n.label, kind: n.kind, pinned: n.pinned,
+        x: W / 2 + Math.cos(angle) * r,
+        y: H / 2 + Math.sin(angle) * r,
+        vx: 0, vy: 0, deg: 0
+      };
+      byId[n.id] = node;
+      return node;
+    });
+
+    var edges = data.edges.filter(function (e) {
+      return byId[e.a] && byId[e.b];
+    }).map(function (e) {
+      byId[e.a].deg++;
+      byId[e.b].deg++;
+      return { a: byId[e.a], b: byId[e.b], type: e.type };
+    });
+
+    state = {
+      canvas: canvas, ctx: ctx, W: W, H: H,
+      nodes: nodes, edges: edges, byId: byId,
+      onNodeClick: onNodeClick,
+      raf: null, cooling: 1, dragging: null, hover: null,
+      downAt: null, listeners: []
+    };
+
+    function radius(node) {
+      return 5 + Math.min(6, node.deg * 1.2);
+    }
+
+    function step() {
+      var i, j, n, m, dx, dy, d2, d, f;
+      var REPULSION = 1800;
+      var SPRING = 0.015;
+      var REST = 90;
+      var GRAVITY = 0.012;
+      var moved = 0;
+
+      for (i = 0; i < nodes.length; i++) {
+        n = nodes[i];
+        for (j = i + 1; j < nodes.length; j++) {
+          m = nodes[j];
+          dx = n.x - m.x; dy = n.y - m.y;
+          d2 = dx * dx + dy * dy || 1;
+          if (d2 < 90000) { // ignore far pairs
+            f = REPULSION / d2;
+            d = Math.sqrt(d2);
+            n.vx += (dx / d) * f; n.vy += (dy / d) * f;
+            m.vx -= (dx / d) * f; m.vy -= (dy / d) * f;
+          }
+        }
+        n.vx += (state.W / 2 - n.x) * GRAVITY;
+        n.vy += (state.H / 2 - n.y) * GRAVITY;
+      }
+
+      for (i = 0; i < edges.length; i++) {
+        var e = edges[i];
+        dx = e.b.x - e.a.x; dy = e.b.y - e.a.y;
+        d = Math.sqrt(dx * dx + dy * dy) || 1;
+        f = (d - REST) * SPRING;
+        e.a.vx += (dx / d) * f; e.a.vy += (dy / d) * f;
+        e.b.vx -= (dx / d) * f; e.b.vy -= (dy / d) * f;
+      }
+
+      for (i = 0; i < nodes.length; i++) {
+        n = nodes[i];
+        if (n === state.dragging) { n.vx = 0; n.vy = 0; continue; }
+        n.vx *= 0.85; n.vy *= 0.85;
+        n.x += n.vx * state.cooling;
+        n.y += n.vy * state.cooling;
+        n.x = Math.max(15, Math.min(state.W - 15, n.x));
+        n.y = Math.max(15, Math.min(state.H - 15, n.y));
+        moved += Math.abs(n.vx) + Math.abs(n.vy);
+      }
+
+      state.cooling = Math.max(0.35, state.cooling * 0.995);
+      return moved;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, state.W, state.H);
+
+      state.edges.forEach(function (e) {
+        ctx.beginPath();
+        ctx.moveTo(e.a.x, e.a.y);
+        ctx.lineTo(e.b.x, e.b.y);
+        if (e.type === 'sim') {
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = COLORS.simEdge;
+        } else {
+          ctx.setLineDash([]);
+          ctx.strokeStyle = COLORS.edge;
+        }
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      var showAllLabels = state.nodes.length <= LABEL_LIMIT;
+      state.nodes.forEach(function (n) {
+        var r = radius(n);
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+        if (n.pinned) {
+          ctx.fillStyle = COLORS.lime;
+          ctx.fill();
+          ctx.strokeStyle = COLORS.ink;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        } else if (n.kind === 'clip') {
+          ctx.fillStyle = COLORS.bone;
+          ctx.fill();
+          ctx.strokeStyle = COLORS.ink;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (n.kind === 'diary') {
+          ctx.fillStyle = COLORS.gray;
+          ctx.fill();
+        } else {
+          ctx.fillStyle = COLORS.ink;
+          ctx.fill();
+        }
+        if (n === state.hover) {
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, r + 3, 0, Math.PI * 2);
+          ctx.strokeStyle = COLORS.lime;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        if (showAllLabels || n === state.hover) {
+          ctx.font = '11px "Space Mono", monospace';
+          ctx.fillStyle = COLORS.ink;
+          ctx.textAlign = 'center';
+          ctx.fillText(n.label.slice(0, 24), n.x, n.y - r - 6);
+        }
+      });
+    }
+
+    function loop() {
+      var moved = step();
+      draw();
+      // keep animating while there's motion, a drag, or early settling
+      if (moved > 0.5 || state.dragging) {
+        state.raf = requestAnimationFrame(loop);
+      } else {
+        state.raf = null;
+      }
+      setDebug();
+    }
+
+    function wake() {
+      state.cooling = Math.max(state.cooling, 0.6);
+      if (!state.raf) {
+        state.raf = requestAnimationFrame(loop);
+        setDebug();
+      }
+    }
+
+    function pointerPos(e) {
+      var r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+
+    function pick(p) {
+      for (var i = state.nodes.length - 1; i >= 0; i--) {
+        var n = state.nodes[i];
+        var dx = p.x - n.x, dy = p.y - n.y;
+        var r = radius(n) + 5;
+        if (dx * dx + dy * dy <= r * r) return n;
+      }
+      return null;
+    }
+
+    function on(target, type, fn) {
+      target.addEventListener(type, fn);
+      state.listeners.push({ target: target, type: type, fn: fn });
+    }
+
+    on(canvas, 'pointerdown', function (e) {
+      var p = pointerPos(e);
+      var n = pick(p);
+      if (n) {
+        state.dragging = n;
+        state.downAt = { x: p.x, y: p.y, node: n };
+        canvas.setPointerCapture(e.pointerId);
+        wake();
+      }
+    });
+
+    on(canvas, 'pointermove', function (e) {
+      var p = pointerPos(e);
+      if (state.dragging) {
+        state.dragging.x = Math.max(15, Math.min(state.W - 15, p.x));
+        state.dragging.y = Math.max(15, Math.min(state.H - 15, p.y));
+        wake();
+      } else {
+        var n = pick(p);
+        if (n !== state.hover) {
+          state.hover = n;
+          canvas.style.cursor = n ? 'pointer' : 'default';
+          wake();
+        }
+      }
+    });
+
+    on(canvas, 'pointerup', function (e) {
+      if (state.dragging && state.downAt) {
+        var p = pointerPos(e);
+        var dx = p.x - state.downAt.x, dy = p.y - state.downAt.y;
+        if (dx * dx + dy * dy < 25 && state.onNodeClick) {
+          state.onNodeClick(state.downAt.node.id);
+        }
+      }
+      state.dragging = null;
+      state.downAt = null;
+    });
+
+    on(document, 'visibilitychange', function () {
+      if (!state) return;
+      if (document.hidden) {
+        if (state.raf) {
+          cancelAnimationFrame(state.raf);
+          state.raf = null;
+          setDebug();
+        }
+      } else {
+        wake();
+      }
+    });
+
+    if (nodes.length <= 2) {
+      // static layout, no physics drama
+      nodes.forEach(function (n, i) {
+        n.x = state.W / 2 + (i - (nodes.length - 1) / 2) * 120;
+        n.y = state.H / 2;
+      });
+      draw();
+      setDebug();
+    } else {
+      state.raf = requestAnimationFrame(loop);
+      setDebug();
+    }
+  }
+
+  function destroy() {
+    if (!state) { setDebug(); return; }
+    if (state.raf) cancelAnimationFrame(state.raf);
+    state.listeners.forEach(function (l) {
+      l.target.removeEventListener(l.type, l.fn);
+    });
+    state = null;
+    setDebug();
+  }
+
+  setDebug();
+  return { mount: mount, destroy: destroy };
+})();
+
+</script>
+<script>
+/* PRAZE Second Brain — capture, tag, search, link, reflect. All data lives in localStorage. */
+(function () {
+  'use strict';
+
+  var STORAGE_KEY = 'praze.brain.v1';
+  var PRE_MIGRATION_KEY = 'praze.brain.v1.pre-migration';
+  var SCHEMA_VERSION = 2;
+  var VIEWS = ['ideas', 'diary', 'clips', 'goals', 'graph'];
+
+  /* ---------- Utils ---------- */
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\</body>');
+  }
+
+  function debounce(fn, ms) {
+    var t;
+    return function () {
+      var args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function () { fn.apply(null, args); }, ms);
+    };
+  }
+
+  var MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+  function formatDate(ms) {
+    var d = new Date(ms);
+    var day = String(d.getDate()).padStart(2, '0');
+    return day + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
+  var DAY_MS = 86400000;
+
+  function formatRelative(ms) {
+    var now = new Date();
+    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (ms >= startOfToday) return 'today';
+    if (ms >= startOfToday - DAY_MS) return 'yesterday';
+    var daysAgo = Math.floor((startOfToday - ms) / DAY_MS) + 1;
+    if (daysAgo < 7) return daysAgo + 'd ago';
+    return formatDate(ms);
+  }
+
+  function autoGrow(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  function makeId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'n_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function dayKeyOf(ms) {
+    var d = new Date(ms);
+    return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  }
+
+  // Only http/https URLs are ever rendered as hrefs
+  function safeUrl(url) {
+    try {
+      var u = new URL(url);
+      if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
+    } catch (e) {}
+    return null;
+  }
+
+  /* ---------- Storage ---------- */
+
+  function migrateStore(store, rawString) {
+    if (store.schemaVersion === SCHEMA_VERSION) return store;
+    // v1 → v2: keep a one-time untouched safety copy of the pre-migration payload
+    try {
+      if (rawString && !localStorage.getItem(PRE_MIGRATION_KEY)) {
+        localStorage.setItem(PRE_MIGRATION_KEY, rawString);
+      }
+    } catch (e) {}
+    store.notes.forEach(function (n) {
+      if (!n.kind) n.kind = 'idea';
+      if (typeof n.url !== 'string') n.url = '';
+    });
+    if (!Array.isArray(store.goals)) store.goals = [];
+    if (typeof store.rev !== 'number') store.rev = 0;
+    store.schemaVersion = SCHEMA_VERSION;
+    // persist immediately so localStorage reflects v2 without waiting for an edit
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); } catch (e) {}
+    return store;
+  }
+
+  function emptyStore() {
+    return { schemaVersion: SCHEMA_VERSION, rev: 0, notes: [], goals: [] };
+  }
+
+  function loadStore() {
+    var raw;
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch (e) {
+      showBanner('Could not access browser storage — notes will not persist.', 'error', true);
+      return emptyStore();
+    }
+    if (!raw) return emptyStore();
+    try {
+      var parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.notes)) throw new Error('bad shape');
+      if (!Array.isArray(parsed.goals)) parsed.goals = [];
+      if (typeof parsed.rev !== 'number') parsed.rev = 0;
+      return migrateStore(parsed, raw);
+    } catch (e) {
+      // Preserve the unreadable data instead of overwriting it
+      try { localStorage.setItem(STORAGE_KEY + '.corrupt.' + Date.now(), raw); } catch (e2) {}
+      showBanner('Stored notes were unreadable; a raw backup was kept in localStorage.', 'error', true);
+      return emptyStore();
+    }
+  }
+
+  function saveStore() {
+    store.rev = (store.rev || 0) + 1;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    } catch (e) {
+      showBanner('Storage full — export your notes now to avoid losing them.', 'error', true);
+    }
+  }
+
+  /* ---------- Model ---------- */
+
+  function normalizeTags(input) {
+    var seen = {};
+    return String(input || '')
+      .split(',')
+      .map(function (t) { return t.trim().replace(/^#+/, '').toLowerCase(); })
+      .filter(function (t) {
+        if (!t || seen[t]) return false;
+        seen[t] = true;
+        return true;
+      });
+  }
+
+  function createNote(title, body, tagsInput, kind, url) {
+    var now = Date.now();
+    return {
+      id: makeId(),
+      title: title.trim(),
+      body: body.trim(),
+      tags: normalizeTags(tagsInput),
+      pinned: false,
+      kind: kind || 'idea',
+      url: url || '',
+      createdAt: now,
+      updatedAt: now
+    };
+  }
+
+  /* Draft persistence: a half-typed capture survives refresh/close */
+
+  var DRAFT_KEY = 'praze.brain.draft.v1';
+
+  function saveDraft() {
+    try {
+      var draft = {
+        title: els.captureTitle.value,
+        body: els.captureBody.value,
+        tags: els.captureTags.value
+      };
+      if (draft.title || draft.body || draft.tags) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch (e) {}
+  }
+
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+  }
+
+  function restoreDraft() {
+    var draft;
+    try {
+      draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
+    } catch (e) {}
+    if (!draft || !(draft.title || draft.body || draft.tags)) return;
+    els.captureTitle.value = draft.title || '';
+    els.captureBody.value = draft.body || '';
+    els.captureTags.value = draft.tags || '';
+    autoGrow(els.captureBody);
+    renderTagSuggest();
+    showBanner('Draft restored — you have an unsaved note.');
+  }
+
+  /* ---------- State ---------- */
+
+  var store = emptyStore();
+  var state = {
+    view: 'ideas',
+    query: '',
+    activeTag: null,
+    editingId: null,
+    confirmingDeleteId: null,
+    confirmingGoalId: null,
+    aiBusy: {},
+    aiSuggest: {},   // note id -> suggested tags from Claude
+    aiReflect: {}    // note id -> {themes, reflection} from Claude
+  };
+
+  /* ---------- Search (ideas) ---------- */
+
+  function tokenize(query) {
+    return query.toLowerCase().split(/\s+/).filter(Boolean);
+  }
+
+  function noteMatches(note, tokens, activeTag) {
+    if (activeTag && note.tags.indexOf(activeTag) === -1) return false;
+    if (!tokens.length) return true;
+    var haystack = (note.title + '\n' + note.body + '\n' + note.tags.join(' ')).toLowerCase();
+    return tokens.every(function (tok) { return haystack.indexOf(tok) !== -1; });
+  }
+
+  function ideas() {
+    return store.notes.filter(function (n) { return n.kind === 'idea'; });
+  }
+
+  function filterIdeas() {
+    var tokens = tokenize(state.query);
+    return ideas()
+      .filter(function (n) { return noteMatches(n, tokens, state.activeTag); })
+      .sort(function (a, b) {
+        return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.createdAt - a.createdAt;
+      });
+  }
+
+  /* ---------- Wiki-links ---------- */
+
+  var WIKI_LINK_RE = /\[\[([^\[\]]+)\]\]/g;
+
+  function buildLinkIndexes() {
+    var titleIndex = {};
+    store.notes
+      .slice()
+      .sort(function (a, b) { return a.createdAt - b.createdAt; })
+      .forEach(function (n) {
+        var key = n.title.trim().toLowerCase();
+        if (key) titleIndex[key] = n;
+      });
+
+    var backlinks = {};
+    store.notes.forEach(function (src) {
+      var seen = {};
+      var m;
+      WIKI_LINK_RE.lastIndex = 0;
+      while ((m = WIKI_LINK_RE.exec(src.body))) {
+        var target = titleIndex[m[1].trim().toLowerCase()];
+        if (target && target.id !== src.id && !seen[target.id]) {
+          seen[target.id] = true;
+          (backlinks[target.id] = backlinks[target.id] || []).push(src);
+        }
+      }
+    });
+
+    return { titleIndex: titleIndex, backlinks: backlinks };
+  }
+
+  function renderBody(text, tokens, titleIndex) {
+    return text.split(WIKI_LINK_RE).map(function (part, i) {
+      if (i % 2 === 0) return highlight(part, tokens);
+      var target = titleIndex[part.trim().toLowerCase()];
+      if (target) {
+        return '<a href="#" class="wiki-link" data-action="open-note" data-note-id="' +
+          escapeHtml(target.id) + '">' + highlight(part, tokens) + '</a>';
+      }
+      return '<button type="button" class="wiki-link wiki-link--missing" data-action="new-note" data-title="' +
+        escapeHtml(part.trim()) + '" title="No note with this title yet — click to create it">' +
+        highlight(part, tokens) + '</button>';
+    }).join('');
+  }
+
+  /* ---------- Similarity glue ---------- */
+
+  function getAnalysis() {
+    return window.BrainAI.analyze(store.notes, store.rev);
+  }
+
+  function notesById() {
+    var map = {};
+    store.notes.forEach(function (n) { map[n.id] = n; });
+    return map;
+  }
+
+  function noteLabel(note) {
+    return note.title || note.body.slice(0, 32) + (note.body.length > 32 ? '…' : '');
+  }
+
+  function renderRelatedRow(note, byId) {
+    var entries = getAnalysis().related[note.id];
+    if (!entries || !entries.length) return '';
+    var chips = entries.map(function (r) {
+      var other = byId[r.id];
+      if (!other) return '';
+      return '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
+        escapeHtml(other.id) + '">' + escapeHtml(noteLabel(other)) + '</button>';
+    }).join('');
+    if (!chips) return '';
+    return '<div class="note__backlinks note__related"><span class="note__backlinks-label">Related</span>' + chips + '</div>';
+  }
+
+  function renderSimTagRow(note, byId) {
+    var entries = getAnalysis().related[note.id];
+    var suggestions = window.BrainAI.suggestTags(note, entries, byId);
+    if (!suggestions.length) return '';
+    return '<div class="note__backlinks"><span class="note__backlinks-label">Add?</span>' +
+      suggestions.map(function (t) {
+        return '<button type="button" class="tag-chip" data-action="apply-tag" data-tag="' +
+          escapeHtml(t) + '">+ #' + escapeHtml(t) + '</button>';
+      }).join('') + '</div>';
+  }
+
+  function renderAiSuggestRow(note) {
+    var tags = state.aiSuggest[note.id];
+    if (!tags || !tags.length) return '';
+    return '<div class="note__backlinks note__ai"><span class="note__backlinks-label">AI says</span>' +
+      tags.map(function (t) {
+        return '<button type="button" class="tag-chip tag-chip--ai" data-action="apply-tag" data-tag="' +
+          escapeHtml(t) + '">+ #' + escapeHtml(t) + '</button>';
+      }).join('') + '</div>';
+  }
+
+  /* ---------- Rendering: shared ---------- */
+
+  var els = {};
+
+  function highlight(text, tokens) {
+    if (!tokens.length) return escapeHtml(text);
+    var re = new RegExp('(' + tokens.map(escapeRegExp).join('|') + ')', 'gi');
+    return text.split(re).map(function (part, i) {
+      var safe = escapeHtml(part);
+      return i % 2 === 1 ? '<mark>' + safe + '</mark>' : safe;
+    }).join('');
+  }
+
+  function bodySnippet(body, tokens) {
+    var LIMIT = 280;
+    if (body.length <= LIMIT) return body;
+    if (tokens.length) {
+      var lower = body.toLowerCase();
+      var first = -1;
+      tokens.forEach(function (tok) {
+        var idx = lower.indexOf(tok);
+        if (idx !== -1 && (first === -1 || idx < first)) first = idx;
+      });
+      if (first > LIMIT / 2) {
+        var start = Math.max(0, first - Math.floor(LIMIT / 2));
+        return '…' + body.slice(start, start + LIMIT) + '…';
+      }
+    }
+    return body.slice(0, LIMIT) + '…';
+  }
+
+  function tagCounts() {
+    var counts = {};
+    ideas().forEach(function (n) {
+      n.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
+    });
+    return counts;
+  }
+
+  function sortedTags(counts) {
+    return Object.keys(counts).sort(function (a, b) {
+      return counts[b] - counts[a] || a.localeCompare(b);
+    });
+  }
+
+  function renderTagChip(tag, count) {
+    var active = state.activeTag === tag;
+    return '<button type="button" class="tag-chip' + (active ? ' tag-chip--active' : '') + '"' +
+      ' data-action="tag" data-tag="' + escapeHtml(tag) + '">#' + escapeHtml(tag) +
+      (count != null ? '<span class="tag-chip__count">' + count + '</span>' : '') +
+      '</button>';
+  }
+
+  function renderTagRail() {
+    var counts = tagCounts();
+    els.tagRail.innerHTML = sortedTags(counts).map(function (t) {
+      return renderTagChip(t, counts[t]);
+    }).join('');
+  }
+
+  function renderTagSuggest() {
+    var counts = tagCounts();
+    var current = normalizeTags(els.captureTags.value);
+    var tags = sortedTags(counts).slice(0, 12);
+    els.tagSuggest.innerHTML = tags.length
+      ? '<span class="tag-suggest__label">quick add</span>' + tags.map(function (t) {
+          var active = current.indexOf(t) !== -1;
+          return '<button type="button" class="tag-chip' + (active ? ' tag-chip--active' : '') +
+            '" data-action="suggest-tag" data-tag="' + escapeHtml(t) + '">#' + escapeHtml(t) + '</button>';
+        }).join('')
+      : '';
+  }
+
+  function renderEditForm(note) {
+    return '<li class="note note--editing" data-id="' + escapeHtml(note.id) + '">' +
+      '<input class="note__edit-title" type="text" value="' + escapeHtml(note.title) + '" placeholder="Title (optional)">' +
+      '<textarea class="note__edit-body" rows="4">' + escapeHtml(note.body) + '</textarea>' +
+      '<input class="note__edit-tags" type="text" value="' + escapeHtml(note.tags.join(', ')) + '" placeholder="tags: training, content">' +
+      '<div class="note__meta"><span class="note__date">' + formatDate(note.createdAt) + '</span>' +
+      '<div class="note__actions">' +
+      '<button type="button" class="note__action" data-action="edit-save">Save</button>' +
+      '<button type="button" class="note__action" data-action="edit-cancel">Cancel</button>' +
+      '</div></div></li>';
+  }
+
+  function deleteOrActions(note, extraActions) {
+    if (state.confirmingDeleteId === note.id) {
+      return '<span class="note__date">Delete?</span>' +
+        '<button type="button" class="note__action note__action--danger" data-action="delete-yes">Yes</button>' +
+        '<button type="button" class="note__action" data-action="delete-no">No</button>';
+    }
+    return (extraActions || '') +
+      '<button type="button" class="note__action" data-action="edit">Edit</button>' +
+      '<button type="button" class="note__action note__action--danger" data-action="delete-ask">Delete</button>';
+  }
+
+  /* ---------- IDEAS view ---------- */
+
+  function renderNoteCard(note, tokens, links, byId) {
+    if (state.editingId === note.id) return renderEditForm(note);
+
+    var titleHtml = note.title
+      ? '<h2 class="note__title">' + highlight(note.title, tokens) + '</h2>'
+      : '';
+    var tagsHtml = note.tags.length
+      ? '<div class="note__tags">' + note.tags.map(function (t) { return renderTagChip(t, null); }).join('') + '</div>'
+      : '';
+    var edited = note.updatedAt > note.createdAt
+      ? ' &middot; edited ' + formatRelative(note.updatedAt)
+      : '';
+
+    var sources = links.backlinks[note.id];
+    var backlinksHtml = sources && sources.length
+      ? '<div class="note__backlinks"><span class="note__backlinks-label">Linked from</span>' +
+        sources.map(function (src) {
+          return '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
+            escapeHtml(src.id) + '">' + escapeHtml(noteLabel(src)) + '</button>';
+        }).join('') + '</div>'
+      : '';
+
+    var aiBtn = '<button type="button" class="note__action" data-action="ai-organize"' +
+      (state.aiBusy[note.id] ? ' disabled' : '') + '>' +
+      (state.aiBusy[note.id] ? 'AI…' : 'AI tags') + '</button>';
+
+    var actionsHtml = deleteOrActions(note,
+      '<button type="button" class="note__action" data-action="pin">' + (note.pinned ? 'Unpin' : 'Pin') + '</button>' + aiBtn);
+
+    var pinnedMark = note.pinned ? '<span class="note__pinned">Pinned</span> ' : '';
+
+    return '<li class="note' + (note.pinned ? ' note--pinned' : '') + '" data-id="' + escapeHtml(note.id) + '">' +
+      titleHtml +
+      '<p class="note__body">' + renderBody(bodySnippet(note.body, tokens), tokens, links.titleIndex) + '</p>' +
+      tagsHtml +
+      renderAiSuggestRow(note) +
+      renderSimTagRow(note, byId) +
+      backlinksHtml +
+      renderRelatedRow(note, byId) +
+      '<div class="note__meta">' +
+      '<span class="note__date">' + pinnedMark + formatRelative(note.createdAt) + edited + '</span>' +
+      '<div class="note__actions">' + actionsHtml + '</div>' +
+      '</div></li>';
+  }
+
+  function renderEmptyState() {
+    if (!ideas().length) {
+      return '<li class="empty">' +
+        '<p class="empty__title">Nothing captured yet.</p>' +
+        '<p class="empty__text">First thought goes above.</p>' +
+        '<ul class="empty__tips">' +
+        '<li>Add tags — <em>training, ideas</em> — to organize</li>' +
+        '<li>Write [[Note Title]] to link notes together</li>' +
+        '<li>Press <em>/</em> to search, <em>Ctrl/Cmd+Enter</em> to save</li>' +
+        '<li>Similar ideas auto-link once you have 5+ notes</li>' +
+        '</ul></li>';
+    }
+    var what = state.query ? '‘' + escapeHtml(state.query) + '’' : '#' + escapeHtml(state.activeTag || '');
+    return '<li class="empty">' +
+      '<p class="empty__title">No notes match ' + what + '.</p>' +
+      '<button type="button" class="toolbar__btn" data-action="clear-filters">Clear filters</button>' +
+      '</li>';
+  }
+
+  function renderIdeas() {
+    var tokens = tokenize(state.query);
+    var filtered = filterIdeas();
+    var links = buildLinkIndexes();
+    var byId = notesById();
+
+    renderTagRail();
+    renderTagSuggest();
+
+    els.noteList.innerHTML = filtered.length
+      ? filtered.map(function (n) { return renderNoteCard(n, tokens, links, byId); }).join('')
+      : renderEmptyState();
+
+    var total = ideas().length;
+    var filtering = state.query || state.activeTag;
+    els.noteCount.textContent = filtering
+      ? filtered.length + ' / ' + total + ' NOTES'
+      : total + ' NOTES';
+
+    var streak = computeStreak('idea');
+    els.captureStreak.textContent = streak.current > 0 ? '🔥 ' + streak.current + '-day streak' : '';
+  }
+
+  /* ---------- DIARY view ---------- */
+
+  var MOOD_POSITIVE = ['good', 'great', 'happy', 'proud', 'win', 'won', 'strong', 'calm', 'grateful', 'progress', 'pumped', 'focused', 'best', 'love', 'enjoyed'];
+  var MOOD_NEGATIVE = ['bad', 'tired', 'sad', 'angry', 'stressed', 'anxious', 'failed', 'weak', 'worried', 'frustrated', 'lost', 'hurt', 'skipped', 'lazy', 'guilty'];
+  var MOOD_ENERGY = ['gym', 'trained', 'workout', 'ran', 'lifted', 'pr', 'built', 'shipped', 'posted', 'studied', 'coded', 'created'];
+
+  function detectMood(body) {
+    var words = body.toLowerCase().split(/[^a-z']+/);
+    var pos = 0, neg = 0, energy = 0;
+    words.forEach(function (w) {
+      if (MOOD_POSITIVE.indexOf(w) !== -1) pos++;
+      if (MOOD_NEGATIVE.indexOf(w) !== -1) neg++;
+      if (MOOD_ENERGY.indexOf(w) !== -1) energy++;
+    });
+    var score = pos - neg;
+    return {
+      label: score > 0 ? 'good' : score < 0 ? 'rough' : 'neutral',
+      active: energy > 0
+    };
+  }
+
+  function renderDiaryEntry(note, links, byId) {
+    if (state.editingId === note.id) return renderEditForm(note);
+
+    var mood = detectMood(note.body);
+    var moodHtml = '<span class="mood mood--' + mood.label + '">' + mood.label + '</span>' +
+      (mood.active ? '<span class="mood mood--activedot">active</span>' : '');
+
+    var tagsHtml = note.tags.length
+      ? '<div class="note__tags">' + note.tags.map(function (t) { return renderTagChip(t, null); }).join('') + '</div>'
+      : '';
+
+    var reflect = state.aiReflect[note.id];
+    var reflectHtml = reflect
+      ? '<div class="reflect"><span class="note__backlinks-label">Reflection</span>' +
+        '<p class="reflect__text">' + escapeHtml(reflect.reflection) + '</p>' +
+        '<div class="note__backlinks">' + reflect.themes.map(function (t) {
+          return '<button type="button" class="tag-chip tag-chip--ai" data-action="apply-tag" data-tag="' +
+            escapeHtml(t) + '">+ #' + escapeHtml(t) + '</button>';
+        }).join('') + '</div></div>'
+      : '';
+
+    var aiBtn = '<button type="button" class="note__action" data-action="ai-reflect"' +
+      (state.aiBusy[note.id] ? ' disabled' : '') + '>' +
+      (state.aiBusy[note.id] ? 'AI…' : 'AI reflect') + '</button>';
+
+    return '<li class="note note--diary" data-id="' + escapeHtml(note.id) + '">' +
+      '<p class="note__body">' + renderBody(note.body, [], links.titleIndex) + '</p>' +
+      tagsHtml +
+      reflectHtml +
+      renderRelatedRow(note, byId) +
+      '<div class="note__meta">' +
+      '<span class="note__date">' + moodHtml + '</span>' +
+      '<div class="note__actions">' + deleteOrActions(note, aiBtn) + '</div>' +
+      '</div></li>';
+  }
+
+  function renderDiary() {
+    var entries = store.notes
+      .filter(function (n) { return n.kind === 'diary'; })
+      .sort(function (a, b) { return b.createdAt - a.createdAt; });
+
+    var links = buildLinkIndexes();
+    var byId = notesById();
+    var html = '';
+    var lastDay = null;
+    entries.forEach(function (n) {
+      var day = dayKeyOf(n.createdAt);
+      if (day !== lastDay) {
+        html += '<li class="diary-day">' + formatRelative(n.createdAt).toUpperCase() + '</li>';
+        lastDay = day;
+      }
+      html += renderDiaryEntry(n, links, byId);
+    });
+
+    els.diaryList.innerHTML = html ||
+      '<li class="empty"><p class="empty__title">No entries yet.</p>' +
+      '<p class="empty__text">One honest paragraph a day builds the record.</p></li>';
+
+    var streak = computeStreak('diary');
+    els.diaryStreak.textContent = streak.current > 0
+      ? '🔥 ' + streak.current + '-day streak · best ' + streak.best
+      : '';
+  }
+
+  /* ---------- CLIPS view ---------- */
+
+  function detectPlatform(url) {
+    try {
+      var host = new URL(url).hostname.toLowerCase();
+      if (host.indexOf('instagram') !== -1) return 'instagram';
+      if (host.indexOf('tiktok') !== -1) return 'tiktok';
+      if (host.indexOf('youtube') !== -1 || host === 'youtu.be') return 'youtube';
+    } catch (e) {}
+    return 'link';
+  }
+
+  function youtubeId(url) {
+    try {
+      var u = new URL(url);
+      var host = u.hostname.toLowerCase();
+      if (host === 'youtu.be') return u.pathname.slice(1).split('/')[0] || null;
+      if (host.indexOf('youtube') !== -1) {
+        if (u.searchParams.get('v')) return u.searchParams.get('v');
+        var m = u.pathname.match(/\/shorts\/([\w-]+)/);
+        if (m) return m[1];
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function renderClipCard(note) {
+    if (state.editingId === note.id) return renderEditForm(note);
+
+    var href = safeUrl(note.url);
+    var platform = href ? detectPlatform(href) : 'link';
+    var ytId = href && platform === 'youtube' ? youtubeId(href) : null;
+
+    var thumbHtml = ytId
+      ? '<img class="clip__thumb" src="https://img.youtube.com/vi/' + encodeURIComponent(ytId) +
+        '/hqdefault.jpg" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+      : '';
+
+    var tagsHtml = note.tags.length
+      ? '<div class="note__tags">' + note.tags.map(function (t) { return renderTagChip(t, null); }).join('') + '</div>'
+      : '';
+
+    return '<li class="note clip" data-id="' + escapeHtml(note.id) + '">' +
+      '<span class="clip__badge clip__badge--' + platform + '">' + platform.toUpperCase() + '</span>' +
+      thumbHtml +
+      (note.body ? '<p class="note__body">' + escapeHtml(note.body) + '</p>' : '') +
+      tagsHtml +
+      '<div class="note__meta">' +
+      '<span class="note__date">' + formatRelative(note.createdAt) + '</span>' +
+      '<div class="note__actions">' +
+      (href ? '<a class="note__action clip__open" href="' + escapeHtml(href) + '" target="_blank" rel="noopener">Open ↗</a>' : '') +
+      deleteOrActions(note) +
+      '</div></div></li>';
+  }
+
+  function renderClips() {
+    var clips = store.notes
+      .filter(function (n) { return n.kind === 'clip'; })
+      .sort(function (a, b) { return b.createdAt - a.createdAt; });
+
+    els.clipList.innerHTML = clips.length
+      ? clips.map(renderClipCard).join('')
+      : '<li class="empty"><p class="empty__title">No clips saved.</p>' +
+        '<p class="empty__text">Paste a video link above — it lives here with your reason for saving it.</p></li>';
+  }
+
+  /* ---------- GOALS view ---------- */
+
+  function computeStreak(kind) {
+    var days = {};
+    store.notes.forEach(function (n) {
+      if (n.kind === kind) days[dayKeyOf(n.createdAt)] = true;
+    });
+
+    // current streak: walk back day-by-day in local time; alive if today OR yesterday has an entry
+    var cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    var current = 0;
+    if (!days[dayKeyOf(cursor.getTime())]) cursor.setDate(cursor.getDate() - 1);
+    while (days[dayKeyOf(cursor.getTime())]) {
+      current++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    // best streak: longest consecutive run over history (noon-anchored, DST-tolerant)
+    var stamps = Object.keys(days).map(function (k) {
+      var p = k.split('-');
+      return new Date(+p[0], +p[1] - 1, +p[2], 12).getTime();
+    }).sort(function (a, b) { return a - b; });
+    var best = 0, run = 0, prev = null;
+    stamps.forEach(function (t) {
+      run = (prev !== null && t - prev > DAY_MS * 0.5 && t - prev < DAY_MS * 1.5) ? run + 1 : 1;
+      prev = t;
+      if (run > best) best = run;
+    });
+
+    return { current: current, best: Math.max(best, current) };
+  }
+
+  function renderGoals() {
+    var ideaStreak = computeStreak('idea');
+    var diaryStreak = computeStreak('diary');
+    els.streaks.innerHTML =
+      '<div class="streak-card"><span class="streak-card__flame">🔥</span>' +
+      '<span class="streak-card__value">' + ideaStreak.current + '</span>' +
+      '<span class="streak-card__label">day idea streak · best ' + ideaStreak.best + '</span></div>' +
+      '<div class="streak-card"><span class="streak-card__flame">🔥</span>' +
+      '<span class="streak-card__value">' + diaryStreak.current + '</span>' +
+      '<span class="streak-card__label">day diary streak · best ' + diaryStreak.best + '</span></div>';
+
+    var active = store.goals.filter(function (g) { return !g.completedAt; });
+    var wins = store.goals.filter(function (g) { return g.completedAt; })
+      .sort(function (a, b) { return b.completedAt - a.completedAt; });
+
+    els.goalList.innerHTML = active.length
+      ? active.map(function (g) {
+          var pct = Math.min(100, Math.round((g.progress / g.target) * 100));
+          var confirming = state.confirmingGoalId === g.id;
+          return '<div class="goal" data-goal="' + escapeHtml(g.id) + '">' +
+            '<div class="goal__head"><span class="goal__title">' + escapeHtml(g.title) + '</span>' +
+            '<span class="goal__count">' + g.progress + ' / ' + g.target + '</span></div>' +
+            '<div class="goal__bar"><div class="goal__fill" style="width:' + pct + '%"></div></div>' +
+            '<div class="goal__actions">' +
+            (confirming
+              ? '<span class="note__date">Delete?</span>' +
+                '<button type="button" class="note__action note__action--danger" data-action="goal-del-yes">Yes</button>' +
+                '<button type="button" class="note__action" data-action="goal-del-no">No</button>'
+              : '<button type="button" class="toolbar__btn goal__plus" data-action="goal-inc">+1</button>' +
+                '<button type="button" class="note__action note__action--danger" data-action="goal-del-ask">Delete</button>') +
+            '</div></div>';
+        }).join('')
+      : '<div class="empty"><p class="empty__title">No active goals.</p>' +
+        '<p class="empty__text">Set one above — make it a number you can count.</p></div>';
+
+    els.wins.innerHTML = wins.length
+      ? '<p class="label">WINS</p>' + wins.map(function (g) {
+          return '<div class="win">🏆 <span class="win__title">' + escapeHtml(g.title) + '</span>' +
+            '<span class="win__meta">' + g.target + ' done · ' + formatDate(g.completedAt) + '</span></div>';
+        }).join('')
+      : '';
+  }
+
+  function celebrate() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var canvas = document.createElement('canvas');
+    canvas.id = 'confetti-canvas';
+    canvas.className = 'confetti';
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    document.body.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
+    var colors = ['#d4ff00', '#d4ff00', '#d4ff00', '#131313', '#f5f3ee'];
+    var parts = [];
+    for (var i = 0; i < 90; i++) {
+      parts.push({
+        x: canvas.width / 2 + (Math.random() - 0.5) * 120,
+        y: canvas.height * 0.45,
+        vx: (Math.random() - 0.5) * 14,
+        vy: -Math.random() * 11 - 4,
+        s: 4 + Math.random() * 6,
+        c: colors[Math.floor(Math.random() * colors.length)],
+        r: Math.random() * Math.PI
+      });
+    }
+    var frames = 0;
+    (function tick() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      parts.forEach(function (p) {
+        p.vy += 0.3;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.r += 0.1;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.r);
+        ctx.fillStyle = p.c;
+        ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6);
+        ctx.restore();
+      });
+      frames++;
+      if (frames < 100) requestAnimationFrame(tick);
+      else canvas.remove();
+    })();
+  }
+
+  /* ---------- GRAPH view ---------- */
+
+  function renderGraph() {
+    var hasNotes = store.notes.length > 0;
+    els.graphEmpty.hidden = hasNotes;
+    els.graphCanvas.style.display = hasNotes ? 'block' : 'none';
+    if (!hasNotes) {
+      window.BrainGraph.destroy();
+      return;
+    }
+
+    var nodes = store.notes.map(function (n) {
+      return { id: n.id, label: noteLabel(n), kind: n.kind, pinned: n.pinned };
+    });
+
+    var links = buildLinkIndexes();
+    var edges = [];
+    var seen = {};
+    Object.keys(links.backlinks).forEach(function (targetId) {
+      links.backlinks[targetId].forEach(function (src) {
+        var key = src.id < targetId ? src.id + '|' + targetId : targetId + '|' + src.id;
+        if (!seen[key]) {
+          seen[key] = true;
+          edges.push({ a: src.id, b: targetId, type: 'wiki' });
+        }
+      });
+    });
+    getAnalysis().pairs.forEach(function (p) {
+      var key = p.a < p.b ? p.a + '|' + p.b : p.b + '|' + p.a;
+      if (!seen[key]) {
+        seen[key] = true;
+        edges.push({ a: p.a, b: p.b, type: 'sim' });
+      }
+    });
+
+    window.BrainGraph.mount(els.graphCanvas, { nodes: nodes, edges: edges }, function (id) {
+      openNote(id);
+    });
+  }
+
+  /* ---------- Router + render dispatcher ---------- */
+
+  function currentViewFromHash() {
+    var h = location.hash.replace('#', '');
+    return VIEWS.indexOf(h) !== -1 ? h : 'ideas';
+  }
+
+  function setView(view) {
+    if (state.view === 'graph' && view !== 'graph') window.BrainGraph.destroy();
+    state.view = view;
+    if (location.hash !== '#' + view) {
+      // pushes a history entry — browser back walks tabs, the Chrome feel
+      location.hash = '#' + view;
+    }
+    render();
+  }
+
+  function render() {
+    // tab bar
+    var tabs = els.tabs.querySelectorAll('.tabs__tab');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('tabs__tab--active', tabs[i].getAttribute('data-view') === state.view);
+    }
+    // view visibility
+    VIEWS.forEach(function (v) {
+      els.views[v].hidden = v !== state.view;
+    });
+
+    if (state.view === 'ideas') renderIdeas();
+    else if (state.view === 'diary') renderDiary();
+    else if (state.view === 'clips') renderClips();
+    else if (state.view === 'goals') renderGoals();
+    else if (state.view === 'graph') renderGraph();
+  }
+
+  function showBanner(text, type, persistent) {
+    var banner = els.banner || document.getElementById('banner');
+    var bannerText = els.bannerText || document.getElementById('banner-text');
+    if (!banner || !bannerText) return;
+    bannerText.textContent = text;
+    banner.className = 'banner' + (type === 'error' ? ' banner--error' : '');
+    banner.hidden = false;
+    if (!persistent) {
+      clearTimeout(showBanner._t);
+      showBanner._t = setTimeout(function () { banner.hidden = true; }, 6000);
+    }
+  }
+
+  /* ---------- Navigation to a note ---------- */
+
+  function openNote(id) {
+    var byId = notesById();
+    var note = byId[id];
+    if (!note) return;
+    var view = note.kind === 'diary' ? 'diary' : note.kind === 'clip' ? 'clips' : 'ideas';
+    if (view === 'ideas') {
+      state.query = '';
+      state.activeTag = null;
+      els.search.value = '';
+    }
+    setView(view);
+    var card = document.querySelector('.view [data-id="' + id + '"]');
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('note--flash');
+      setTimeout(function () { card.classList.remove('note--flash'); }, 1200);
+    }
+  }
+
+  /* ---------- Actions ---------- */
+
+  function handleCapture(e) {
+    e.preventDefault();
+    var body = els.captureBody.value.trim();
+    if (!body) return;
+    store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value, 'idea'));
+    saveStore();
+    clearDraft();
+    els.captureForm.reset();
+    els.captureBody.style.height = '';
+    render();
+    els.captureBody.focus();
+  }
+
+  function handleDiarySubmit(e) {
+    e.preventDefault();
+    var body = els.diaryBody.value.trim();
+    if (!body) return;
+    store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
+    saveStore();
+    els.diaryForm.reset();
+    els.diaryBody.style.height = '';
+    render();
+    els.diaryBody.focus();
+  }
+
+  function handleClipSubmit(e) {
+    e.preventDefault();
+    var url = safeUrl(els.clipUrl.value.trim());
+    if (!url) {
+      showBanner('That link doesn\'t look right — it needs to start with http(s).', 'error');
+      return;
+    }
+    store.notes.push(createNote('', els.clipNote.value.trim(), els.clipTags.value, 'clip', url));
+    saveStore();
+    els.clipForm.reset();
+    render();
+  }
+
+  function handleGoalSubmit(e) {
+    e.preventDefault();
+    var title = els.goalTitle.value.trim();
+    var target = parseInt(els.goalTarget.value, 10);
+    if (!title || !(target >= 1)) return;
+    store.goals.push({
+      id: makeId(),
+      title: title,
+      target: target,
+      progress: 0,
+      createdAt: Date.now(),
+      completedAt: null
+    });
+    saveStore();
+    els.goalForm.reset();
+    render();
+  }
+
+  function findNoteFromEvent(btn) {
+    var card = btn.closest('[data-id]');
+    if (!card) return null;
+    var id = card.getAttribute('data-id');
+    var note = store.notes.find(function (n) { return n.id === id; });
+    return note ? { card: card, note: note } : null;
+  }
+
+  function runAi(note, work) {
+    if (!window.BrainAI.hasKey()) {
+      showBanner('Add your Claude API key in Settings (⚙) to enable AI.');
+      openSettings(true);
+      return;
+    }
+    state.aiBusy[note.id] = true;
+    render();
+    work().then(function () {
+      delete state.aiBusy[note.id];
+      render();
+    }).catch(function (err) {
+      delete state.aiBusy[note.id];
+      showBanner(err.message || 'AI request failed.', 'error');
+      render();
+    });
+  }
+
+  function handleMainClick(e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-action');
+
+    if (action === 'clear-filters') {
+      state.query = '';
+      state.activeTag = null;
+      els.search.value = '';
+      render();
+      return;
+    }
+
+    if (action === 'tag') {
+      var tag = btn.getAttribute('data-tag');
+      state.activeTag = state.activeTag === tag ? null : tag;
+      if (state.view !== 'ideas') setView('ideas');
+      else render();
+      return;
+    }
+
+    if (action === 'open-note') {
+      e.preventDefault();
+      openNote(btn.getAttribute('data-note-id'));
+      return;
+    }
+
+    if (action === 'new-note') {
+      setView('ideas');
+      els.captureTitle.value = btn.getAttribute('data-title');
+      saveDraft();
+      els.captureForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      els.captureBody.focus();
+      return;
+    }
+
+    if (action === 'suggest-tag') {
+      var suggested = btn.getAttribute('data-tag');
+      var tags = normalizeTags(els.captureTags.value);
+      var idx = tags.indexOf(suggested);
+      if (idx === -1) tags.push(suggested); else tags.splice(idx, 1);
+      els.captureTags.value = tags.join(', ');
+      saveDraft();
+      renderTagSuggest();
+      return;
+    }
+
+    // goal actions
+    var goalEl = btn.closest('[data-goal]');
+    if (goalEl) {
+      var goalId = goalEl.getAttribute('data-goal');
+      var goal = store.goals.find(function (g) { return g.id === goalId; });
+      if (!goal) return;
+      if (action === 'goal-inc') {
+        goal.progress++;
+        if (goal.progress >= goal.target && !goal.completedAt) {
+          goal.completedAt = Date.now();
+          celebrate();
+          showBanner('GOAL HIT — ' + goal.title + ' 🏆');
+        }
+        saveStore();
+        render();
+      } else if (action === 'goal-del-ask') {
+        state.confirmingGoalId = goalId;
+        render();
+      } else if (action === 'goal-del-yes') {
+        store.goals = store.goals.filter(function (g) { return g.id !== goalId; });
+        state.confirmingGoalId = null;
+        saveStore();
+        render();
+      } else if (action === 'goal-del-no') {
+        state.confirmingGoalId = null;
+        render();
+      }
+      return;
+    }
+
+    // note actions
+    var found = findNoteFromEvent(btn);
+    if (!found) return;
+    var note = found.note;
+    var card = found.card;
+
+    switch (action) {
+      case 'pin':
+        note.pinned = !note.pinned;
+        saveStore();
+        render();
+        break;
+      case 'apply-tag':
+        var newTag = btn.getAttribute('data-tag');
+        if (note.tags.indexOf(newTag) === -1) {
+          note.tags.push(newTag);
+          note.updatedAt = Date.now();
+          if (state.aiSuggest[note.id]) {
+            state.aiSuggest[note.id] = state.aiSuggest[note.id].filter(function (t) { return t !== newTag; });
+          }
+          saveStore();
+          render();
+        }
+        break;
+      case 'ai-organize':
+        runAi(note, function () {
+          return window.BrainAI.organizeNote(note, sortedTags(tagCounts())).then(function (tags) {
+            state.aiSuggest[note.id] = tags;
+            if (!tags.length) showBanner('AI had no new tags to suggest — your tagging is on point.');
+          });
+        });
+        break;
+      case 'ai-reflect':
+        runAi(note, function () {
+          return window.BrainAI.reflectEntry(note.body).then(function (result) {
+            state.aiReflect[note.id] = result;
+          });
+        });
+        break;
+      case 'edit':
+        state.editingId = note.id;
+        state.confirmingDeleteId = null;
+        render();
+        var editBody = document.querySelector('.note--editing .note__edit-body');
+        if (editBody) {
+          autoGrow(editBody);
+          editBody.focus();
+        }
+        break;
+      case 'edit-save':
+        var newBody = card.querySelector('.note__edit-body').value.trim();
+        if (!newBody) return;
+        note.title = card.querySelector('.note__edit-title').value.trim();
+        note.body = newBody;
+        note.tags = normalizeTags(card.querySelector('.note__edit-tags').value);
+        note.updatedAt = Date.now();
+        state.editingId = null;
+        saveStore();
+        render();
+        break;
+      case 'edit-cancel':
+        state.editingId = null;
+        render();
+        break;
+      case 'delete-ask':
+        state.confirmingDeleteId = note.id;
+        render();
+        break;
+      case 'delete-yes':
+        store.notes = store.notes.filter(function (n) { return n.id !== note.id; });
+        state.confirmingDeleteId = null;
+        saveStore();
+        render();
+        break;
+      case 'delete-no':
+        state.confirmingDeleteId = null;
+        render();
+        break;
+    }
+  }
+
+  /* ---------- Export / Import ---------- */
+
+  function exportNotes() {
+    var payload = {
+      schemaVersion: store.schemaVersion,
+      exportedAt: new Date().toISOString(),
+      notes: store.notes,
+      goals: store.goals
+    };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var d = new Date();
+    a.href = url;
+    a.download = 'praze-brain-' + d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function importNotes(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data;
+      try {
+        data = JSON.parse(reader.result);
+      } catch (e) {
+        showBanner('Import failed — that file is not valid JSON.', 'error');
+        return;
+      }
+      if (!data || !Array.isArray(data.notes)) {
+        showBanner('Import failed — no notes found in that file.', 'error');
+        return;
+      }
+      var byId = {};
+      store.notes.forEach(function (n) { byId[n.id] = n; });
+      var added = 0, updated = 0;
+      data.notes.forEach(function (raw) {
+        if (!raw || typeof raw.id !== 'string' || typeof raw.body !== 'string') return;
+        var incoming = {
+          id: raw.id,
+          title: typeof raw.title === 'string' ? raw.title : '',
+          body: raw.body,
+          tags: normalizeTags(Array.isArray(raw.tags) ? raw.tags.join(',') : ''),
+          pinned: !!raw.pinned,
+          kind: raw.kind === 'diary' || raw.kind === 'clip' ? raw.kind : 'idea',
+          url: typeof raw.url === 'string' ? raw.url : '',
+          createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+          updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
+        };
+        var existing = byId[incoming.id];
+        if (!existing) {
+          byId[incoming.id] = incoming;
+          store.notes.push(incoming);
+          added++;
+        } else if (incoming.updatedAt > existing.updatedAt) {
+          existing.title = incoming.title;
+          existing.body = incoming.body;
+          existing.tags = incoming.tags;
+          existing.pinned = incoming.pinned;
+          existing.kind = incoming.kind;
+          existing.url = incoming.url;
+          existing.createdAt = incoming.createdAt;
+          existing.updatedAt = incoming.updatedAt;
+          updated++;
+        }
+      });
+      if (Array.isArray(data.goals)) {
+        var goalsById = {};
+        store.goals.forEach(function (g) { goalsById[g.id] = g; });
+        data.goals.forEach(function (raw) {
+          if (!raw || typeof raw.id !== 'string' || typeof raw.title !== 'string') return;
+          var existing = goalsById[raw.id];
+          if (!existing) {
+            store.goals.push({
+              id: raw.id,
+              title: raw.title,
+              target: typeof raw.target === 'number' ? raw.target : 1,
+              progress: typeof raw.progress === 'number' ? raw.progress : 0,
+              createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+              completedAt: typeof raw.completedAt === 'number' ? raw.completedAt : null
+            });
+          } else {
+            existing.progress = Math.max(existing.progress, raw.progress || 0);
+            existing.completedAt = existing.completedAt || raw.completedAt || null;
+          }
+        });
+      }
+      saveStore();
+      render();
+      showBanner('Imported ' + (added + updated) + ' notes (' + updated + ' updated, ' + added + ' new).');
+    };
+    reader.onerror = function () {
+      showBanner('Import failed — could not read that file.', 'error');
+    };
+    reader.readAsText(file);
+  }
+
+  /* ---------- Settings ---------- */
+
+  function renderSettings() {
+    var has = window.BrainAI.hasKey();
+    els.apiKeyInput.value = '';
+    els.apiKeyInput.placeholder = has ? window.BrainAI.maskedKey() + ' (saved)' : 'sk-ant-…';
+    els.apiKeyClear.hidden = !has;
+    els.apiKeyStatus.textContent = has
+      ? 'AI is on — smart tags and reflections are one tap away.'
+      : 'No key yet. Everything else works without one; similar ideas still auto-link offline.';
+  }
+
+  function openSettings(open) {
+    els.settingsPanel.hidden = open === undefined ? !els.settingsPanel.hidden : !open;
+    if (!els.settingsPanel.hidden) renderSettings();
+  }
+
+  /* ---------- Init ---------- */
+
+  function init() {
+    els.banner = document.getElementById('banner');
+    els.bannerText = document.getElementById('banner-text');
+    els.tabs = document.getElementById('tabs');
+    els.views = {
+      ideas: document.getElementById('view-ideas'),
+      diary: document.getElementById('view-diary'),
+      clips: document.getElementById('view-clips'),
+      goals: document.getElementById('view-goals'),
+      graph: document.getElementById('view-graph')
+    };
+    els.captureForm = document.getElementById('capture-form');
+    els.captureTitle = document.getElementById('capture-title');
+    els.captureBody = document.getElementById('capture-body');
+    els.captureTags = document.getElementById('capture-tags');
+    els.captureStreak = document.getElementById('capture-streak');
+    els.search = document.getElementById('search');
+    els.noteCount = document.getElementById('note-count');
+    els.tagRail = document.getElementById('tag-rail');
+    els.tagSuggest = document.getElementById('tag-suggest');
+    els.noteList = document.getElementById('note-list');
+    els.diaryForm = document.getElementById('diary-form');
+    els.diaryBody = document.getElementById('diary-body');
+    els.diaryList = document.getElementById('diary-list');
+    els.diaryStreak = document.getElementById('diary-streak');
+    els.clipForm = document.getElementById('clip-form');
+    els.clipUrl = document.getElementById('clip-url');
+    els.clipNote = document.getElementById('clip-note');
+    els.clipTags = document.getElementById('clip-tags');
+    els.clipList = document.getElementById('clip-list');
+    els.goalForm = document.getElementById('goal-form');
+    els.goalTitle = document.getElementById('goal-title');
+    els.goalTarget = document.getElementById('goal-target');
+    els.goalList = document.getElementById('goal-list');
+    els.streaks = document.getElementById('streaks');
+    els.wins = document.getElementById('wins');
+    els.graphCanvas = document.getElementById('graph-canvas');
+    els.graphEmpty = document.getElementById('graph-empty');
+    els.settingsPanel = document.getElementById('settings-panel');
+    els.apiKeyInput = document.getElementById('api-key-input');
+    els.apiKeyStatus = document.getElementById('api-key-status');
+    els.apiKeyClear = document.getElementById('api-key-clear');
+
+    store = loadStore();
+    state.view = currentViewFromHash();
+
+    // forms
+    els.captureForm.addEventListener('submit', handleCapture);
+    els.diaryForm.addEventListener('submit', handleDiarySubmit);
+    els.clipForm.addEventListener('submit', handleClipSubmit);
+    els.goalForm.addEventListener('submit', handleGoalSubmit);
+
+    els.captureBody.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleCapture(e);
+      }
+    });
+    els.diaryBody.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleDiarySubmit(e);
+      }
+    });
+
+    // draft autosave + auto-growing textareas
+    var debouncedDraft = debounce(saveDraft, 300);
+    [els.captureTitle, els.captureBody, els.captureTags].forEach(function (el) {
+      el.addEventListener('input', debouncedDraft);
+    });
+    els.captureBody.addEventListener('input', function () { autoGrow(els.captureBody); });
+    els.diaryBody.addEventListener('input', function () { autoGrow(els.diaryBody); });
+    els.captureTags.addEventListener('input', renderTagSuggest);
+
+    // search
+    els.search.addEventListener('input', debounce(function () {
+      state.query = els.search.value;
+      render();
+    }, 150));
+    els.search.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        state.query = '';
+        els.search.value = '';
+        render();
+        els.search.blur();
+      }
+    });
+
+    // '/' focuses search from anywhere outside a field (jumps to IDEAS first)
+    document.addEventListener('keydown', function (e) {
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
+        e.preventDefault();
+        if (state.view !== 'ideas') setView('ideas');
+        els.search.focus();
+      }
+      if (e.key === 'Escape' && !els.settingsPanel.hidden) {
+        els.settingsPanel.hidden = true;
+      }
+    });
+
+    // one delegated click handler for every view
+    var main = document.querySelector('main');
+    main.addEventListener('click', handleMainClick);
+
+    // inline edit keyboard
+    main.addEventListener('keydown', function (e) {
+      var card = e.target.closest && e.target.closest('.note--editing');
+      if (!card) return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        card.querySelector('[data-action="edit-save"]').click();
+      } else if (e.key === 'Escape') {
+        card.querySelector('[data-action="edit-cancel"]').click();
+      }
+    });
+    main.addEventListener('input', function (e) {
+      if (e.target.classList.contains('note__edit-body')) autoGrow(e.target);
+    });
+
+    // tabs + routing
+    els.tabs.addEventListener('click', function (e) {
+      var tab = e.target.closest('[data-view]');
+      if (tab) setView(tab.getAttribute('data-view'));
+    });
+    window.addEventListener('hashchange', function () {
+      var v = currentViewFromHash();
+      if (v !== state.view) {
+        if (state.view === 'graph') window.BrainGraph.destroy();
+        state.view = v;
+        render();
+      }
+    });
+
+    // export / import
+    document.getElementById('export-btn').addEventListener('click', exportNotes);
+    var importFile = document.getElementById('import-file');
+    document.getElementById('import-btn').addEventListener('click', function () {
+      importFile.click();
+    });
+    importFile.addEventListener('change', function () {
+      if (importFile.files[0]) importNotes(importFile.files[0]);
+      importFile.value = '';
+    });
+
+    document.getElementById('banner-dismiss').addEventListener('click', function () {
+      els.banner.hidden = true;
+    });
+
+    // settings
+    document.getElementById('settings-toggle').addEventListener('click', function () {
+      openSettings();
+    });
+    document.getElementById('api-key-save').addEventListener('click', function () {
+      var key = els.apiKeyInput.value.trim();
+      if (!key) {
+        els.apiKeyStatus.textContent = 'Paste a key first.';
+        return;
+      }
+      window.BrainAI.setKey(key);
+      renderSettings();
+      els.apiKeyStatus.textContent = 'Key saved — stored only in this browser.';
+    });
+    document.getElementById('api-key-test').addEventListener('click', function () {
+      // a freshly pasted (unsaved) key gets saved first, then tested
+      var pending = els.apiKeyInput.value.trim();
+      if (pending) {
+        window.BrainAI.setKey(pending);
+        renderSettings();
+      }
+      if (!window.BrainAI.hasKey()) {
+        els.apiKeyStatus.textContent = 'Paste a key first.';
+        return;
+      }
+      els.apiKeyStatus.textContent = 'Testing…';
+      window.BrainAI.testKey().then(function () {
+        els.apiKeyStatus.textContent = 'Key works ✓ AI is ready.';
+      }).catch(function (err) {
+        els.apiKeyStatus.textContent = err.message;
+      });
+    });
+    document.getElementById('api-key-clear').addEventListener('click', function () {
+      window.BrainAI.setKey('');
+      renderSettings();
+      els.apiKeyStatus.textContent = 'Key removed.';
+    });
+
+    render();
+    restoreDraft();
+  }
+
+  init();
+})();
+
+</script>
+</body>
+</html>
