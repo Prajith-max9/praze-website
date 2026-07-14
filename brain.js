@@ -1375,6 +1375,11 @@
     els.apiKeyStatus.textContent = has
       ? 'AI is on — smart tags and reflections are one tap away.'
       : 'No key yet. Everything else works without one; similar ideas still auto-link offline.';
+    var pref = window.BrainAI.getModelPref();
+    var btns = document.querySelectorAll('#model-row [data-model]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('toolbar__btn--active', btns[i].getAttribute('data-model') === pref);
+    }
   }
 
   function openSettings(open) {
@@ -1608,6 +1613,13 @@
       if (li) runPaletteItem(palette.items[+li.getAttribute('data-idx')]);
     });
     document.getElementById('palette-backdrop').addEventListener('click', closePalette);
+
+    document.getElementById('model-row').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-model]');
+      if (!btn) return;
+      window.BrainAI.setModelPref(btn.getAttribute('data-model'));
+      renderSettings();
+    });
 
     var themeBtn = document.getElementById('theme-toggle');
     themeBtn.textContent = currentTheme() === 'dark' ? 'Switch to light' : 'Switch to dark';

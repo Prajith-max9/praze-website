@@ -973,6 +973,26 @@ a {
   margin-top: 1.5rem;
 }
 
+.settings__inline-label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  align-self: center;
+  margin-right: 0.25rem;
+}
+
+#model-row {
+  margin-top: 0.75rem;
+}
+
+.toolbar__btn--active {
+  background: var(--lime);
+  border-color: var(--ink);
+  color: #131313;
+}
+
 .settings__status {
   font-family: var(--mono);
   font-size: 0.72rem;
@@ -1468,6 +1488,12 @@ a {
     <button id="api-key-clear" class="toolbar__btn" type="button" hidden>Remove key</button>
   </div>
   <p id="api-key-status" class="settings__status"></p>
+  <div class="settings__row" id="model-row">
+    <span class="settings__inline-label">AI quality</span>
+    <button class="toolbar__btn" data-model="fast" type="button">Fast</button>
+    <button class="toolbar__btn" data-model="balanced" type="button">Balanced</button>
+    <button class="toolbar__btn" data-model="best" type="button">Best</button>
+  </div>
   <p class="label settings__section">SETTINGS — APPEARANCE</p>
   <div class="settings__row">
     <button id="theme-toggle" class="toolbar__btn" type="button">Switch to dark</button>
@@ -1703,9 +1729,27 @@ window.BrainAI = (function () {
   /* ---------- Claude API client (optional, user-supplied key) ---------- */
 
   var API_KEY_STORAGE = 'praze.brain.apikey';
+  var MODEL_PREF_KEY = 'praze.brain.aimodel';
   var API_URL = 'https://api.anthropic.com/v1/messages';
-  var MODEL = 'claude-haiku-4-5';
   var TIMEOUT_MS = 20000;
+
+  // one place to touch when model ids change (current ids as of build time)
+  var MODELS = {
+    fast: 'claude-haiku-4-5',
+    balanced: 'claude-sonnet-5',
+    best: 'claude-opus-4-8'
+  };
+
+  function getModelPref() {
+    try {
+      var p = localStorage.getItem(MODEL_PREF_KEY);
+      return MODELS[p] ? p : 'balanced';
+    } catch (e) { return 'balanced'; }
+  }
+
+  function setModelPref(pref) {
+    try { if (MODELS[pref]) localStorage.setItem(MODEL_PREF_KEY, pref); } catch (e) {}
+  }
 
   function getKey() {
     try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch (e) { return ''; }
@@ -1747,7 +1791,7 @@ window.BrainAI = (function () {
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: MODEL,
+          model: MODELS[getModelPref()],
           max_tokens: maxTokens || 300,
           messages: [{ role: 'user', content: prompt }]
         })
@@ -1849,6 +1893,8 @@ window.BrainAI = (function () {
     suggestTags: suggestTags,
     getKey: getKey,
     setKey: setKey,
+    getModelPref: getModelPref,
+    setModelPref: setModelPref,
     hasKey: hasKey,
     maskedKey: maskedKey,
     organizeNote: organizeNote,
@@ -3718,6 +3764,11 @@ window.BrainGraph = (function () {
     els.apiKeyStatus.textContent = has
       ? 'AI is on — smart tags and reflections are one tap away.'
       : 'No key yet. Everything else works without one; similar ideas still auto-link offline.';
+    var pref = window.BrainAI.getModelPref();
+    var btns = document.querySelectorAll('#model-row [data-model]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('toolbar__btn--active', btns[i].getAttribute('data-model') === pref);
+    }
   }
 
   function openSettings(open) {
@@ -3951,6 +4002,13 @@ window.BrainGraph = (function () {
       if (li) runPaletteItem(palette.items[+li.getAttribute('data-idx')]);
     });
     document.getElementById('palette-backdrop').addEventListener('click', closePalette);
+
+    document.getElementById('model-row').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-model]');
+      if (!btn) return;
+      window.BrainAI.setModelPref(btn.getAttribute('data-model'));
+      renderSettings();
+    });
 
     var themeBtn = document.getElementById('theme-toggle');
     themeBtn.textContent = currentTheme() === 'dark' ? 'Switch to light' : 'Switch to dark';

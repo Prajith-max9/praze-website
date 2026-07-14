@@ -615,6 +615,26 @@
   margin-top: 1.5rem;
 }
 
+.settings__inline-label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  align-self: center;
+  margin-right: 0.25rem;
+}
+
+#model-row {
+  margin-top: 0.75rem;
+}
+
+.toolbar__btn--active {
+  background: var(--lime);
+  border-color: var(--ink);
+  color: #131313;
+}
+
 .settings__status {
   font-family: var(--mono);
   font-size: 0.72rem;

@@ -113,9 +113,27 @@ window.BrainAI = (function () {
   /* ---------- Claude API client (optional, user-supplied key) ---------- */
 
   var API_KEY_STORAGE = 'praze.brain.apikey';
+  var MODEL_PREF_KEY = 'praze.brain.aimodel';
   var API_URL = 'https://api.anthropic.com/v1/messages';
-  var MODEL = 'claude-haiku-4-5';
   var TIMEOUT_MS = 20000;
+
+  // one place to touch when model ids change (current ids as of build time)
+  var MODELS = {
+    fast: 'claude-haiku-4-5',
+    balanced: 'claude-sonnet-5',
+    best: 'claude-opus-4-8'
+  };
+
+  function getModelPref() {
+    try {
+      var p = localStorage.getItem(MODEL_PREF_KEY);
+      return MODELS[p] ? p : 'balanced';
+    } catch (e) { return 'balanced'; }
+  }
+
+  function setModelPref(pref) {
+    try { if (MODELS[pref]) localStorage.setItem(MODEL_PREF_KEY, pref); } catch (e) {}
+  }
 
   function getKey() {
     try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch (e) { return ''; }
@@ -157,7 +175,7 @@ window.BrainAI = (function () {
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: MODEL,
+          model: MODELS[getModelPref()],
           max_tokens: maxTokens || 300,
           messages: [{ role: 'user', content: prompt }]
         })
@@ -259,6 +277,8 @@ window.BrainAI = (function () {
     suggestTags: suggestTags,
     getKey: getKey,
     setKey: setKey,
+    getModelPref: getModelPref,
+    setModelPref: setModelPref,
     hasKey: hasKey,
     maskedKey: maskedKey,
     organizeNote: organizeNote,
