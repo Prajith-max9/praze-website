@@ -931,6 +931,8 @@
   }
 
   function render() {
+    // leaving the diary tab must not leave the mic hot in the background
+    if (state.view !== 'diary') stopDictation();
     // tab bar
     var tabs = els.tabs.querySelectorAll('.tabs__tab');
     for (var i = 0; i < tabs.length; i++) {
@@ -1000,6 +1002,7 @@
 
   function handleDiarySubmit(e) {
     e.preventDefault();
+    stopDictation(); // if the mic is hot, end it before the normal submit runs
     var body = els.diaryBody.value.trim();
     if (!body) return;
     store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
@@ -1474,6 +1477,105 @@
     if (!els.settingsPanel.hidden) renderSettings();
   }
 
+  /* ---------- Diary voice dictation (browser-native, online-only) ---------- */
+
+  var dictation = { supported: false, listening: false };
+
+  function setupDictation() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return; // unsupported (e.g. Firefox): no button, diary works as before
+    dictation.supported = true;
+
+    var micBtn = document.createElement('button');
+    micBtn.type = 'button'; // never submit the form
+    micBtn.className = 'toolbar__btn diary-mic';
+    micBtn.setAttribute('aria-label', 'Dictate diary entry');
+    micBtn.textContent = '🎤 Dictate';
+    // place it right after SAVE ENTRY, before the hint
+    var actions = els.diaryForm.querySelector('.capture__actions');
+    var hint = actions.querySelector('.capture__hint');
+    actions.insertBefore(micBtn, hint || null);
+    dictation.btn = micBtn;
+
+    var recog = new SR();
+    recog.lang = 'en-IN';
+    recog.continuous = true;
+    recog.interimResults = true;
+    dictation.recog = recog;
+
+    var baseText = '';
+    var separator = '';
+    var finalTranscript = '';
+    var lastInterim = '';
+
+    function setIdle() {
+      dictation.listening = false;
+      micBtn.textContent = '🎤 Dictate';
+      micBtn.classList.remove('diary-mic--live');
+    }
+
+    function repaint(interim) {
+      els.diaryBody.value = baseText + separator + finalTranscript + interim;
+      autoGrow(els.diaryBody);
+      els.diaryBody.selectionStart = els.diaryBody.selectionEnd = els.diaryBody.value.length;
+    }
+
+    recog.onresult = function (e) {
+      // e.results is cumulative for the session — rebuild from scratch so a
+      // re-sent final never double-counts and interim keeps replacing itself
+      var interim = '';
+      var finals = '';
+      for (var i = 0; i < e.results.length; i++) {
+        var chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finals += chunk;
+        else interim += chunk;
+      }
+      finalTranscript = finals;
+      lastInterim = interim;
+      repaint(interim);
+    };
+
+    recog.onerror = function (e) {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        showBanner('Microphone access denied — allow it in your browser to dictate.', 'error');
+      }
+      // 'no-speech' / 'aborted' are normal — reset silently
+      setIdle();
+    };
+
+    recog.onend = function () {
+      // fold any trailing interim into the saved value so nothing is lost
+      finalTranscript += lastInterim;
+      lastInterim = '';
+      repaint('');
+      setIdle();
+    };
+
+    micBtn.addEventListener('click', function () {
+      if (dictation.listening) {
+        recog.stop();
+        return;
+      }
+      baseText = els.diaryBody.value;
+      separator = (baseText && !/\s$/.test(baseText)) ? ' ' : '';
+      finalTranscript = '';
+      lastInterim = '';
+      try {
+        recog.start();
+      } catch (err) {
+        return; // guard double-start: start() throws if already running
+      }
+      dictation.listening = true;
+      micBtn.textContent = '⏹ Stop';
+      micBtn.classList.add('diary-mic--live');
+      els.diaryBody.focus();
+    });
+  }
+
+  function stopDictation() {
+    if (dictation.listening && dictation.recog) dictation.recog.stop();
+  }
+
   /* ---------- Init ---------- */
 
   function init() {
@@ -1716,6 +1818,7 @@
       applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
     });
 
+    setupDictation();
     render();
     restoreDraft();
   }
