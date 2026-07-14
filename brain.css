@@ -1,5 +1,27 @@
 /* Second Brain app styles — layered on styles.css tokens */
 
+/* App-only tokens (styles.css owns the base four) + dark theme overrides.
+   Theme is applied as data-theme on <html>; a head script sets it pre-paint. */
+:root {
+  --surface: #fbfaf7;
+  --text-soft: #2c2c2a;
+  --danger: #b30000;
+  --graph-edge: rgba(19, 19, 19, 0.18);
+  --graph-edge-sim: rgba(19, 19, 19, 0.30);
+}
+
+[data-theme="dark"] {
+  --bone: #131313;
+  --ink: #f5f3ee;
+  --gray: #9b9b94;
+  --border: rgba(245, 243, 238, 0.16);
+  --surface: #1b1b19;
+  --text-soft: #d8d6cf;
+  --danger: #ff7a6b;
+  --graph-edge: rgba(245, 243, 238, 0.20);
+  --graph-edge-sim: rgba(245, 243, 238, 0.34);
+}
+
 .brain {
   padding: 2.5rem 1.5rem 4rem;
   max-width: 760px;
@@ -44,7 +66,7 @@
 
 .capture {
   border: 1px solid var(--border);
-  background: #fbfaf7;
+  background: var(--surface);
   padding: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -231,7 +253,7 @@
 
 .note {
   border: 1px solid var(--border);
-  background: #fbfaf7;
+  background: var(--surface);
   padding: 1.5rem;
 }
 
@@ -260,7 +282,7 @@
 
 .note__body {
   font-size: 0.95rem;
-  color: #2c2c2a;
+  color: var(--text-soft);
   white-space: pre-wrap;
   overflow-wrap: break-word;
   margin-bottom: 1rem;
@@ -339,7 +361,7 @@
 
 @keyframes note-flash {
   from { background: var(--lime); }
-  to { background: #fbfaf7; }
+  to { background: var(--surface); }
 }
 
 .note--flash {
@@ -393,7 +415,7 @@
 }
 
 .note__action--danger:hover {
-  color: #b30000;
+  color: var(--danger);
 }
 
 /* Inline edit form */
@@ -555,7 +577,7 @@
 
 .settings {
   padding: 1.5rem;
-  background: #fbfaf7;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   max-width: 760px;
 }
@@ -587,6 +609,10 @@
 
 .settings__row input:focus {
   border-color: var(--ink);
+}
+
+.settings__section {
+  margin-top: 1.5rem;
 }
 
 .settings__status {
@@ -645,7 +671,7 @@
 
 .reflect__text {
   font-size: 0.9rem;
-  color: #2c2c2a;
+  color: var(--text-soft);
   font-style: italic;
   margin: 0.25rem 0 0.5rem;
 }
@@ -749,7 +775,7 @@
 
 .goal {
   border: 1px solid var(--border);
-  background: #fbfaf7;
+  background: var(--surface);
   padding: 1.25rem 1.5rem;
 }
 
@@ -836,7 +862,7 @@
 
 .graph-wrap {
   border: 1px solid var(--border);
-  background: #fbfaf7;
+  background: var(--surface);
   height: 60vh;
   min-height: 320px;
   position: relative;

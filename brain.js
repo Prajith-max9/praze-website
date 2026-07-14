@@ -1242,6 +1242,23 @@
     reader.readAsText(file);
   }
 
+  /* ---------- Theme ---------- */
+
+  var THEME_KEY = 'praze.brain.theme';
+
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+    var btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = theme === 'dark' ? 'Switch to light' : 'Switch to dark';
+    // the graph paints theme colors at mount — remount if it's on screen
+    if (state.view === 'graph') renderGraph();
+  }
+
   /* ---------- Settings ---------- */
 
   function renderSettings() {
@@ -1446,6 +1463,11 @@
       window.BrainAI.setKey('');
       renderSettings();
       els.apiKeyStatus.textContent = 'Key removed.';
+    });
+    var themeBtn = document.getElementById('theme-toggle');
+    themeBtn.textContent = currentTheme() === 'dark' ? 'Switch to light' : 'Switch to dark';
+    themeBtn.addEventListener('click', function () {
+      applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
     });
 
     render();

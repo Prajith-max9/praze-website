@@ -8,6 +8,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* apply theme before first paint: stored choice, else OS preference */
+(function () {
+  try {
+    var t = localStorage.getItem('praze.brain.theme');
+    if (t !== 'dark' && t !== 'light') {
+      t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+</script>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="brain.css">
 <script src="brain-ai.js" defer></script>
@@ -45,6 +57,10 @@
     <button id="api-key-clear" class="toolbar__btn" type="button" hidden>Remove key</button>
   </div>
   <p id="api-key-status" class="settings__status"></p>
+  <p class="label settings__section">SETTINGS — APPEARANCE</p>
+  <div class="settings__row">
+    <button id="theme-toggle" class="toolbar__btn" type="button">Switch to dark</button>
+  </div>
 </section>
 
 <main class="brain">

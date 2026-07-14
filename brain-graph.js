@@ -4,14 +4,23 @@
 window.BrainGraph = (function () {
   'use strict';
 
-  var COLORS = {
-    bone: '#f5f3ee',
-    ink: '#131313',
-    lime: '#d4ff00',
-    gray: '#6b6b66',
-    edge: 'rgba(19, 19, 19, 0.18)',
-    simEdge: 'rgba(19, 19, 19, 0.30)'
-  };
+  // Colors come from the live CSS variables so the graph follows the theme.
+  // Read at mount time — the graph is remounted on every entry to #graph.
+  function themeColors() {
+    var css = getComputedStyle(document.documentElement);
+    var v = function (name, fallback) {
+      var val = css.getPropertyValue(name).trim();
+      return val || fallback;
+    };
+    return {
+      bone: v('--bone', '#f5f3ee'),
+      ink: v('--ink', '#131313'),
+      lime: v('--lime', '#d4ff00'),
+      gray: v('--gray', '#6b6b66'),
+      edge: v('--graph-edge', 'rgba(19, 19, 19, 0.18)'),
+      simEdge: v('--graph-edge-sim', 'rgba(19, 19, 19, 0.30)')
+    };
+  }
   var LABEL_LIMIT = 40; // draw all labels up to this many nodes; above it, hover only
 
   var state = null; // null when unmounted
@@ -27,6 +36,7 @@ window.BrainGraph = (function () {
   function mount(canvas, data, onNodeClick) {
     destroy();
 
+    var COLORS = themeColors();
     var dpr = window.devicePixelRatio || 1;
     var rect = canvas.getBoundingClientRect();
     var W = Math.max(rect.width, 200);

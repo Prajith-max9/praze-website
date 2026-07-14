@@ -8,6 +8,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* apply theme before first paint: stored choice, else OS preference */
+(function () {
+  try {
+    var t = localStorage.getItem('praze.brain.theme');
+    if (t !== 'dark' && t !== 'light') {
+      t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+</script>
 <style>
 /* --- styles.css --- */
 :root {
@@ -346,6 +358,28 @@ a {
 /* --- brain.css --- */
 /* Second Brain app styles — layered on styles.css tokens */
 
+/* App-only tokens (styles.css owns the base four) + dark theme overrides.
+   Theme is applied as data-theme on <html>; a head script sets it pre-paint. */
+:root {
+  --surface: #fbfaf7;
+  --text-soft: #2c2c2a;
+  --danger: #b30000;
+  --graph-edge: rgba(19, 19, 19, 0.18);
+  --graph-edge-sim: rgba(19, 19, 19, 0.30);
+}
+
+[data-theme="dark"] {
+  --bone: #131313;
+  --ink: #f5f3ee;
+  --gray: #9b9b94;
+  --border: rgba(245, 243, 238, 0.16);
+  --surface: #1b1b19;
+  --text-soft: #d8d6cf;
+  --danger: #ff7a6b;
+  --graph-edge: rgba(245, 243, 238, 0.20);
+  --graph-edge-sim: rgba(245, 243, 238, 0.34);
+}
+
 .brain {
   padding: 2.5rem 1.5rem 4rem;
   max-width: 760px;
@@ -390,7 +424,7 @@ a {
 
 .capture {
   border: 1px solid var(--border);
-  background: #fbfaf7;
+  background: var(--surface);
   padding: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -577,7 +611,7 @@ a {
 
 .note {
   border: 1px solid var(--border);
-  background: #fbfaf7;
+  background: var(--surface);
   padding: 1.5rem;
 }
 
@@ -606,7 +640,7 @@ a {
 
 .note__body {
   font-size: 0.95rem;
-  color: #2c2c2a;
+  color: var(--text-soft);
   white-space: pre-wrap;
   overflow-wrap: break-word;
   margin-bottom: 1rem;
@@ -685,7 +719,7 @@ a {
 
 @keyframes note-flash {
   from { background: var(--lime); }
-  to { background: #fbfaf7; }
+  to { background: var(--surface); }
 }
 
 .note--flash {
@@ -739,7 +773,7 @@ a {
 }
 
 .note__action--danger:hover {
-  color: #b30000;
+  color: var(--danger);
 }
 
 /* Inline edit form */
@@ -901,7 +935,7 @@ a {
 
 .settings {
   padding: 1.5rem;
-  background: #fbfaf7;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   max-width: 760px;
 }
@@ -933,6 +967,10 @@ a {
 
 .settings__row input:focus {
   border-color: var(--ink);
+}
+
+.settings__section {
+  margin-top: 1.5rem;
 }
 
 .settings__status {
@@ -991,7 +1029,7 @@ a {
 
 .reflect__text {
   font-size: 0.9rem;
-  color: #2c2c2a;
+  color: var(--text-soft);
   font-style: italic;
   margin: 0.25rem 0 0.5rem;
 }
@@ -1095,7 +1133,7 @@ a {
 
 .goal {
   border: 1px solid var(--border);
-  background: #fbfaf7;
+  background: var(--surface);
   padding: 1.25rem 1.5rem;
 }
 
@@ -1182,7 +1220,7 @@ a {
 
 .graph-wrap {
   border: 1px solid var(--border);
-  background: #fbfaf7;
+  background: var(--surface);
   height: 60vh;
   min-height: 320px;
   position: relative;
@@ -1279,6 +1317,10 @@ a {
     <button id="api-key-clear" class="toolbar__btn" type="button" hidden>Remove key</button>
   </div>
   <p id="api-key-status" class="settings__status"></p>
+  <p class="label settings__section">SETTINGS — APPEARANCE</p>
+  <div class="settings__row">
+    <button id="theme-toggle" class="toolbar__btn" type="button">Switch to dark</button>
+  </div>
 </section>
 
 <main class="brain">
@@ -1664,14 +1706,23 @@ window.BrainAI = (function () {
 window.BrainGraph = (function () {
   'use strict';
 
-  var COLORS = {
-    bone: '#f5f3ee',
-    ink: '#131313',
-    lime: '#d4ff00',
-    gray: '#6b6b66',
-    edge: 'rgba(19, 19, 19, 0.18)',
-    simEdge: 'rgba(19, 19, 19, 0.30)'
-  };
+  // Colors come from the live CSS variables so the graph follows the theme.
+  // Read at mount time — the graph is remounted on every entry to #graph.
+  function themeColors() {
+    var css = getComputedStyle(document.documentElement);
+    var v = function (name, fallback) {
+      var val = css.getPropertyValue(name).trim();
+      return val || fallback;
+    };
+    return {
+      bone: v('--bone', '#f5f3ee'),
+      ink: v('--ink', '#131313'),
+      lime: v('--lime', '#d4ff00'),
+      gray: v('--gray', '#6b6b66'),
+      edge: v('--graph-edge', 'rgba(19, 19, 19, 0.18)'),
+      simEdge: v('--graph-edge-sim', 'rgba(19, 19, 19, 0.30)')
+    };
+  }
   var LABEL_LIMIT = 40; // draw all labels up to this many nodes; above it, hover only
 
   var state = null; // null when unmounted
@@ -1687,6 +1738,7 @@ window.BrainGraph = (function () {
   function mount(canvas, data, onNodeClick) {
     destroy();
 
+    var COLORS = themeColors();
     var dpr = window.devicePixelRatio || 1;
     var rect = canvas.getBoundingClientRect();
     var W = Math.max(rect.width, 200);
@@ -3204,6 +3256,23 @@ window.BrainGraph = (function () {
     reader.readAsText(file);
   }
 
+  /* ---------- Theme ---------- */
+
+  var THEME_KEY = 'praze.brain.theme';
+
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+    var btn = document.getElementById('theme-toggle');
+    if (btn) btn.textContent = theme === 'dark' ? 'Switch to light' : 'Switch to dark';
+    // the graph paints theme colors at mount — remount if it's on screen
+    if (state.view === 'graph') renderGraph();
+  }
+
   /* ---------- Settings ---------- */
 
   function renderSettings() {
@@ -3408,6 +3477,11 @@ window.BrainGraph = (function () {
       window.BrainAI.setKey('');
       renderSettings();
       els.apiKeyStatus.textContent = 'Key removed.';
+    });
+    var themeBtn = document.getElementById('theme-toggle');
+    themeBtn.textContent = currentTheme() === 'dark' ? 'Switch to light' : 'Switch to dark';
+    themeBtn.addEventListener('click', function () {
+      applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
     });
 
     render();
