@@ -884,6 +884,83 @@
   transform: translateY(-50%);
 }
 
+/* Command palette */
+
+.palette {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.palette[hidden] {
+  display: none;
+}
+
+.palette__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.palette__box {
+  position: relative;
+  max-width: 560px;
+  margin: 12vh 1rem 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+@media (min-width: 600px) {
+  .palette__box {
+    margin: 12vh auto 0;
+  }
+}
+
+.palette__box input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  color: var(--ink);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  outline: none;
+}
+
+.palette__list {
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.palette__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  color: var(--ink);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+
+.palette__item--active {
+  background: rgba(212, 255, 0, 0.12);
+  border-left-color: var(--lime);
+}
+
+.palette__hint {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  white-space: nowrap;
+}
+
 /* Celebration */
 
 .confetti {

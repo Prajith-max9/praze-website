@@ -1242,6 +1242,86 @@
     reader.readAsText(file);
   }
 
+  /* ---------- Command palette (Cmd/Ctrl+K) ---------- */
+
+  var palette = { open: false, items: [], sel: 0 };
+
+  function paletteCommands() {
+    return [
+      { label: 'New idea', hint: 'command', run: function () { setView('ideas'); els.captureBody.focus(); } },
+      { label: 'New diary entry', hint: 'command', run: function () { setView('diary'); els.diaryBody.focus(); } },
+      { label: 'Go to Ideas', hint: 'go', run: function () { setView('ideas'); } },
+      { label: 'Go to Diary', hint: 'go', run: function () { setView('diary'); } },
+      { label: 'Go to Clips', hint: 'go', run: function () { setView('clips'); } },
+      { label: 'Go to Goals', hint: 'go', run: function () { setView('goals'); } },
+      { label: 'Go to Graph', hint: 'go', run: function () { setView('graph'); } },
+      { label: 'Export backup', hint: 'command', run: exportNotes },
+      { label: 'Import backup', hint: 'command', run: function () { document.getElementById('import-file').click(); } },
+      { label: 'Open Settings', hint: 'command', run: function () { openSettings(true); } }
+    ];
+  }
+
+  // subsequence match: every query char appears in order
+  function subsequence(query, text) {
+    var qi = 0;
+    for (var i = 0; i < text.length && qi < query.length; i++) {
+      if (text[i] === query[qi]) qi++;
+    }
+    return qi === query.length;
+  }
+
+  function paletteFilter(query) {
+    var q = query.trim().toLowerCase();
+    var noteItems = store.notes
+      .slice()
+      .sort(function (a, b) { return b.createdAt - a.createdAt; })
+      .map(function (n) { return { label: noteLabel(n), hint: n.kind, noteId: n.id }; });
+
+    if (!q) return paletteCommands().concat(noteItems.slice(0, 5));
+
+    var ranked = [];
+    paletteCommands().concat(noteItems).forEach(function (item) {
+      var text = item.label.toLowerCase();
+      if (text.indexOf(q) !== -1) ranked.push({ rank: 0, item: item });
+      else if (subsequence(q, text)) ranked.push({ rank: 1, item: item });
+    });
+    ranked.sort(function (a, b) {
+      return a.rank - b.rank || a.item.label.length - b.item.label.length;
+    });
+    return ranked.slice(0, 12).map(function (r) { return r.item; });
+  }
+
+  function renderPalette() {
+    els.paletteList.innerHTML = palette.items.map(function (item, i) {
+      return '<li class="palette__item' + (i === palette.sel ? ' palette__item--active' : '') +
+        '" data-idx="' + i + '">' +
+        '<span>' + escapeHtml(item.label) + '</span>' +
+        '<span class="palette__hint">' + escapeHtml(item.hint) + '</span></li>';
+    }).join('') || '<li class="palette__item"><span class="palette__hint">No matches</span></li>';
+  }
+
+  function openPalette() {
+    palette.open = true;
+    palette.sel = 0;
+    palette.items = paletteFilter('');
+    els.palette.hidden = false;
+    els.paletteInput.value = '';
+    renderPalette();
+    els.paletteInput.focus();
+  }
+
+  function closePalette() {
+    palette.open = false;
+    els.palette.hidden = true;
+  }
+
+  function runPaletteItem(item) {
+    if (!item) return;
+    closePalette();
+    if (item.noteId) openNote(item.noteId);
+    else item.run();
+  }
+
   /* ---------- Theme ---------- */
 
   var THEME_KEY = 'praze.brain.theme';
@@ -1464,6 +1544,45 @@
       renderSettings();
       els.apiKeyStatus.textContent = 'Key removed.';
     });
+    // command palette
+    els.palette = document.getElementById('palette');
+    els.paletteInput = document.getElementById('palette-input');
+    els.paletteList = document.getElementById('palette-list');
+
+    document.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        if (palette.open) closePalette(); else openPalette();
+      }
+    });
+    els.paletteInput.addEventListener('input', function () {
+      palette.items = paletteFilter(els.paletteInput.value);
+      palette.sel = 0;
+      renderPalette();
+    });
+    els.paletteInput.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        palette.sel = Math.min(palette.sel + 1, palette.items.length - 1);
+        renderPalette();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        palette.sel = Math.max(palette.sel - 1, 0);
+        renderPalette();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        runPaletteItem(palette.items[palette.sel]);
+      } else if (e.key === 'Escape') {
+        e.stopPropagation();
+        closePalette();
+      }
+    });
+    els.paletteList.addEventListener('click', function (e) {
+      var li = e.target.closest('[data-idx]');
+      if (li) runPaletteItem(palette.items[+li.getAttribute('data-idx')]);
+    });
+    document.getElementById('palette-backdrop').addEventListener('click', closePalette);
+
     var themeBtn = document.getElementById('theme-toggle');
     themeBtn.textContent = currentTheme() === 'dark' ? 'Switch to light' : 'Switch to dark';
     themeBtn.addEventListener('click', function () {
