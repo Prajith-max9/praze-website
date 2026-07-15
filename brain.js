@@ -870,6 +870,97 @@
       .slice(0, 3);
   }
 
+  /* ---------- Echoes: what you keep circling back to this week ---------- */
+
+  var ECHO_WINDOW_MS = 7 * DAY_MS;
+  var ECHO_MIN_NOTES_IN_WINDOW = 5; // small samples produce garbage echoes
+  var ECHO_MIN_HITS = 3;
+  var ECHO_TOP = 2;
+
+  // A term echoes when it appears in ≥3 distinct notes from the last 7 days.
+  // Tags count as appearances too, but a term every matching note already
+  // carries as a tag is old news — you tagged it, you know.
+  function computeEchoes() {
+    var cutoff = Date.now() - ECHO_WINDOW_MS;
+    var windowNotes = store.notes.filter(function (n) { return n.createdAt >= cutoff; });
+    if (windowNotes.length < ECHO_MIN_NOTES_IN_WINDOW) return [];
+
+    var docs = windowNotes.map(function (n) {
+      var stream = window.BrainAI.tokenize(n.title + ' ' + n.body);
+      var terms = {};
+      stream.forEach(function (t) { terms[t] = true; });
+      n.tags.forEach(function (t) { terms[t] = true; });
+      return { note: n, stream: stream, terms: terms };
+    });
+
+    var counts = {};
+    docs.forEach(function (d) {
+      Object.keys(d.terms).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
+    });
+
+    var echoes = [];
+    Object.keys(counts).forEach(function (term) {
+      if (counts[term] < ECHO_MIN_HITS) return;
+      var matched = docs.filter(function (d) { return d.terms[term]; });
+      var display = echoPhrase(term, matched);
+      // already tagged on every match — as the token, the joined phrase, or any
+      // word of the phrase — means you noticed the theme yourself → old news
+      var known = [term, display].concat(display.split(' '));
+      var allTagged = matched.every(function (d) {
+        return known.some(function (k) { return d.note.tags.indexOf(k) !== -1; });
+      });
+      if (allTagged) return;
+      echoes.push({
+        term: term,
+        display: display,
+        notes: matched.map(function (d) { return d.note; }),
+        count: matched.length
+      });
+    });
+
+    echoes.sort(function (a, b) { return b.count - a.count || (a.term < b.term ? -1 : 1); });
+    // both halves of a joined phrase qualify on their own — show the phrase once
+    var seenDisplay = {};
+    echoes = echoes.filter(function (e) {
+      if (seenDisplay[e.display]) return false;
+      seenDisplay[e.display] = true;
+      return true;
+    });
+    return echoes.slice(0, ECHO_TOP);
+  }
+
+  // If the same neighbor token sits next to the term in every matching note,
+  // display the phrase ("financial freedom") instead of the bare token.
+  function echoPhrase(term, matched) {
+    function partnerEverywhere(offset) {
+      var survivors = null;
+      for (var i = 0; i < matched.length; i++) {
+        var stream = matched[i].stream;
+        var neighbors = {};
+        for (var j = 0; j < stream.length; j++) {
+          if (stream[j] === term && stream[j + offset]) neighbors[stream[j + offset]] = true;
+        }
+        var keys = Object.keys(neighbors);
+        if (!keys.length) return null; // tag-only match, or term at the edge
+        if (survivors === null) {
+          survivors = neighbors;
+        } else {
+          var next = {};
+          keys.forEach(function (k) { if (survivors[k]) next[k] = true; });
+          survivors = next;
+          if (!Object.keys(survivors).length) return null;
+        }
+      }
+      var left = Object.keys(survivors || {});
+      return left.length ? left[0] : null;
+    }
+    var after = partnerEverywhere(1);
+    if (after) return term + ' ' + after;
+    var before = partnerEverywhere(-1);
+    if (before) return before + ' ' + term;
+    return term;
+  }
+
   /* ---------- DASHBOARD view ---------- */
 
   function renderDashboard() {
@@ -904,6 +995,23 @@
             ' · because you wrote about ' + escapeHtml(noteLabel(r.seed)) + '</span></button>' +
             '<button type="button" class="resurface-dismiss" data-action="resurface-dismiss" data-note-id="' +
             escapeHtml(r.note.id) + '" title="Dismiss" aria-label="Dismiss">✕</button>' +
+            '</div>';
+        }).join('') + '</div>';
+    }
+
+    var echoes = computeEchoes();
+    if (echoes.length) {
+      html += '<div class="dash-card"><p class="label">ECHOES</p>' +
+        echoes.map(function (e) {
+          return '<div class="echo">' +
+            '<p class="echo__copy">You’ve written about “' + escapeHtml(e.display) +
+            '” in ' + e.count + ' notes this week.</p>' +
+            e.notes.map(function (n) {
+              return '<button type="button" class="dash-row" data-action="open-note" data-note-id="' +
+                escapeHtml(n.id) + '">' + escapeHtml(noteLabel(n)) + '</button>';
+            }).join('') +
+            '<button type="button" class="echo__link" data-action="echo-link" data-term="' +
+            escapeHtml(e.term) + '">LINK THESE</button>' +
             '</div>';
         }).join('') + '</div>';
     }
@@ -1204,6 +1312,27 @@
 
     if (action === 'resurface-dismiss') {
       dismissResurfaced(btn.getAttribute('data-note-id'));
+      render();
+      return;
+    }
+
+    if (action === 'echo-link') {
+      var term = btn.getAttribute('data-term');
+      var echo = computeEchoes().filter(function (e) { return e.term === term; })[0];
+      if (!echo) return;
+      // the tag is the phrase the user was shown, not the internal token
+      var linked = 0;
+      echo.notes.forEach(function (n) {
+        if (n.tags.indexOf(echo.display) === -1) {
+          n.tags.push(echo.display);
+          n.updatedAt = Date.now();
+          linked++;
+        }
+      });
+      if (linked) {
+        saveStore();
+        showBanner('Linked ' + echo.notes.length + ' notes with #' + echo.display);
+      }
       render();
       return;
     }

@@ -273,6 +273,7 @@ window.BrainAI = (function () {
   return {
     SIMILARITY_THRESHOLD: SIMILARITY_THRESHOLD,
     MIN_NOTES_FOR_LINKS: MIN_NOTES_FOR_LINKS,
+    tokenize: tokenizeText,
     analyze: analyze,
     suggestTags: suggestTags,
     getKey: getKey,

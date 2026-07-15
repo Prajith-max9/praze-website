@@ -1054,6 +1054,38 @@
   margin-top: 0.2rem;
 }
 
+.echo + .echo {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.echo__copy {
+  font-family: var(--body);
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  margin-bottom: 0.35rem;
+}
+
+.echo__link {
+  display: inline-block;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--ink);
+  cursor: pointer;
+}
+
+.echo__link:hover {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #131313;
+}
+
 .resurface-row {
   display: flex;
   align-items: center;
