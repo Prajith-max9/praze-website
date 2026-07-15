@@ -1363,6 +1363,20 @@ textarea:focus-visible,
   outline-offset: 2px;
 }
 
+/* Polish §4 — honour the OS "reduce motion" setting. Collapses the existing
+   animations (note-flash, mic pulse, goal-bar fill) and transitions to
+   near-instant; no new motion is introduced. Confetti is already JS-guarded. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Tablet+ */
 
 @media (min-width: 640px) {
