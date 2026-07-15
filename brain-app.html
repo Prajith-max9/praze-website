@@ -1705,6 +1705,22 @@ a {
   font-size: 16px;
 }
 
+/* Polish §7 — visible keyboard focus. :focus-visible only, so mouse/touch
+   clicks stay ringless; --ink keeps it visible in both light and dark. Listed
+   after the input rules that set `outline: none` so this wins on source order;
+   the edit-field selectors are named explicitly to out-specify theirs. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+.note--editing .note__edit-title:focus-visible,
+.note--editing .note__edit-body:focus-visible,
+.note--editing .note__edit-tags:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 /* Tablet+ */
 
 @media (min-width: 640px) {
