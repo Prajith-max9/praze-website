@@ -310,6 +310,8 @@
   white-space: pre-wrap;
   overflow-wrap: break-word;
   margin-bottom: 1rem;
+  /* cap measure for readability; wider than any phone, so no effect on mobile */
+  max-width: 70ch;
 }
 
 .note__body mark,
@@ -946,7 +948,7 @@
 
 .win__title {
   font-family: var(--display);
-  font-size: 0.9rem;
+  font-size: 1rem; /* Archivo Black floor — 0.9rem turned muddy */
 }
 
 .win__meta {
@@ -997,7 +999,7 @@
 
 .graph-tooltip__title {
   font-family: var(--display);
-  font-size: 0.75rem;
+  font-size: 1rem; /* Archivo Black floor — 0.75rem was unreadable */
   margin-bottom: 0.25rem;
   overflow-wrap: break-word;
 }
