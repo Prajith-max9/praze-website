@@ -8,8 +8,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* apply theme before first paint: stored choice, else OS preference */
+(function () {
+  try {
+    var t = localStorage.getItem('praze.brain.theme');
+    if (t !== 'dark' && t !== 'light') {
+      t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+</script>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="brain.css">
+<script src="brain-ai.js" defer></script>
+<script src="brain-graph.js" defer></script>
 <script src="brain.js" defer></script>
 </head>
 <body>
@@ -19,47 +33,155 @@
   <a class="navbar__cta" href="index.html">&larr; site</a>
 </header>
 
+<nav class="tabs" id="tabs">
+  <button type="button" class="tabs__tab" data-view="dashboard">HOME</button>
+  <button type="button" class="tabs__tab" data-view="ideas">IDEAS</button>
+  <button type="button" class="tabs__tab" data-view="diary">DIARY</button>
+  <button type="button" class="tabs__tab" data-view="clips">CLIPS</button>
+  <button type="button" class="tabs__tab" data-view="goals">GOALS</button>
+  <button type="button" class="tabs__tab" data-view="graph">GRAPH</button>
+  <button type="button" class="tabs__gear" id="settings-toggle" aria-label="Settings">&#9881;</button>
+</nav>
+
 <div id="banner" class="banner" hidden>
   <span id="banner-text"></span>
   <button id="banner-dismiss" class="banner__dismiss" type="button" aria-label="Dismiss">&times;</button>
 </div>
 
+<section id="settings-panel" class="settings" hidden>
+  <p class="label">SETTINGS — AI</p>
+  <p class="settings__text">Paste your Anthropic API key to unlock real AI: smart tagging for ideas and reflections on diary entries. The key is stored <b>only in this browser</b> — it never appears in exports and is never sent anywhere except directly to Claude.</p>
+  <div class="settings__row">
+    <input id="api-key-input" type="password" placeholder="sk-ant-…" autocomplete="off">
+    <button id="api-key-save" class="toolbar__btn" type="button">Save</button>
+    <button id="api-key-test" class="toolbar__btn" type="button">Test</button>
+    <button id="api-key-clear" class="toolbar__btn" type="button" hidden>Remove key</button>
+  </div>
+  <p id="api-key-status" class="settings__status"></p>
+  <div class="settings__row" id="model-row">
+    <span class="settings__inline-label">AI quality</span>
+    <button class="toolbar__btn" data-model="fast" type="button">Fast</button>
+    <button class="toolbar__btn" data-model="balanced" type="button">Balanced</button>
+    <button class="toolbar__btn" data-model="best" type="button">Best</button>
+  </div>
+  <p class="label settings__section">SETTINGS — APPEARANCE</p>
+  <div class="settings__row">
+    <button id="theme-toggle" class="toolbar__btn" type="button">Switch to dark</button>
+  </div>
+</section>
+
 <main class="brain">
 
-  <section class="capture">
-    <p class="label">CAPTURE</p>
-    <form id="capture-form">
-      <input id="capture-title" class="capture__title" type="text" placeholder="Title (optional)" autocomplete="off">
-      <textarea id="capture-body" class="capture__body" rows="4" placeholder="What's on your mind?" required></textarea>
-      <input id="capture-tags" class="capture__tags" type="text" placeholder="tags: training, content" autocomplete="off">
-      <div class="capture__actions">
-        <button class="btn" type="submit">CAPTURE</button>
-        <span class="capture__hint">Ctrl/Cmd + Enter</span>
+  <!-- DASHBOARD -->
+  <section id="view-dashboard" class="view" hidden>
+    <div id="dash" class="dash"></div>
+  </section>
+
+  <!-- IDEAS -->
+  <section id="view-ideas" class="view">
+    <section class="capture">
+      <p class="label">CAPTURE</p>
+      <form id="capture-form">
+        <input id="capture-title" class="capture__title" type="text" placeholder="Title (optional)" autocomplete="off">
+        <textarea id="capture-body" class="capture__body" rows="4" placeholder="What's on your mind? Link notes with [[Title]]" required></textarea>
+        <input id="capture-tags" class="capture__tags" type="text" placeholder="tags: training, content" autocomplete="off">
+        <div id="tag-suggest" class="tag-suggest"></div>
+        <div class="capture__actions">
+          <button class="btn" type="submit">CAPTURE</button>
+          <span class="capture__hint">Ctrl/Cmd + Enter</span>
+          <span id="capture-streak" class="capture__streak"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="toolbar">
+      <div class="toolbar__search">
+        <input id="search" type="search" placeholder="Search your brain&hellip; ( / )" autocomplete="off">
+        <span id="note-count" class="toolbar__count">0 NOTES</span>
       </div>
-    </form>
+      <div class="toolbar__actions">
+        <button id="export-btn" class="toolbar__btn" type="button">Export</button>
+        <button id="import-btn" class="toolbar__btn" type="button">Import</button>
+        <input id="import-file" type="file" accept=".json,application/json" hidden>
+      </div>
+    </section>
+
+    <div id="tag-rail" class="tag-rail"></div>
+    <ol id="note-list" class="note-list"></ol>
   </section>
 
-  <section class="toolbar">
-    <div class="toolbar__search">
-      <input id="search" type="search" placeholder="Search your brain&hellip;" autocomplete="off">
-      <span id="note-count" class="toolbar__count">0 NOTES</span>
-    </div>
-    <div class="toolbar__actions">
-      <button id="export-btn" class="toolbar__btn" type="button">Export</button>
-      <button id="import-btn" class="toolbar__btn" type="button">Import</button>
-      <input id="import-file" type="file" accept=".json,application/json" hidden>
-    </div>
+  <!-- DIARY -->
+  <section id="view-diary" class="view" hidden>
+    <section class="capture">
+      <p class="label">DIARY <span id="diary-streak" class="capture__streak"></span></p>
+      <form id="diary-form">
+        <textarea id="diary-body" class="capture__body" rows="4" placeholder="How was today?" required></textarea>
+        <div class="capture__actions">
+          <button class="btn" type="submit">SAVE ENTRY</button>
+          <span class="capture__hint">Ctrl/Cmd + Enter</span>
+        </div>
+      </form>
+    </section>
+    <ol id="diary-list" class="note-list"></ol>
   </section>
 
-  <div id="tag-rail" class="tag-rail"></div>
+  <!-- CLIPS -->
+  <section id="view-clips" class="view" hidden>
+    <section class="capture">
+      <p class="label">SAVE A CLIP</p>
+      <form id="clip-form">
+        <input id="clip-url" class="capture__title" type="url" placeholder="Paste a video link (Instagram, TikTok, YouTube…)" required autocomplete="off">
+        <textarea id="clip-note" class="capture__body" rows="2" placeholder="Why save it? (optional)"></textarea>
+        <input id="clip-tags" class="capture__tags" type="text" placeholder="tags: inspo, editing" autocomplete="off">
+        <div class="capture__actions">
+          <button class="btn" type="submit">SAVE CLIP</button>
+        </div>
+      </form>
+    </section>
+    <ol id="clip-list" class="clip-list"></ol>
+  </section>
 
-  <ol id="note-list" class="note-list"></ol>
+  <!-- GOALS -->
+  <section id="view-goals" class="view" hidden>
+    <div id="streaks" class="streaks"></div>
+    <section class="capture">
+      <p class="label">SET A GOAL</p>
+      <form id="goal-form">
+        <div class="goal-form__row">
+          <input id="goal-title" class="capture__title" type="text" placeholder="Post 12 reels" required autocomplete="off">
+          <input id="goal-target" class="capture__title goal-form__target" type="number" min="1" step="1" placeholder="12" required>
+        </div>
+        <div class="capture__actions">
+          <button class="btn" type="submit">SET GOAL</button>
+        </div>
+      </form>
+    </section>
+    <div id="goal-list" class="goal-list"></div>
+    <div id="wins" class="wins"></div>
+  </section>
+
+  <!-- GRAPH -->
+  <section id="view-graph" class="view view--graph" hidden>
+    <p class="label">THE WEB <span class="graph-legend">&#9679; idea &nbsp; <span class="graph-legend__diary">&#9679;</span> diary &nbsp; &#9675; clip &nbsp; — [[link]] &nbsp; &#183;&#183;&#183; similar</span></p>
+    <div class="graph-wrap">
+      <canvas id="graph-canvas"></canvas>
+      <p id="graph-empty" class="empty__text" hidden>Capture a few ideas and the web appears here.</p>
+    </div>
+  </section>
 
   <noscript>
     <p class="noscript">This app needs JavaScript — your notes live in this browser, nothing is sent anywhere.</p>
   </noscript>
 
 </main>
+
+<div id="palette" class="palette" hidden>
+  <div class="palette__backdrop" id="palette-backdrop"></div>
+  <div class="palette__box">
+    <input id="palette-input" type="text" placeholder="Type a command or search notes&hellip;" autocomplete="off">
+    <ol id="palette-list" class="palette__list"></ol>
+  </div>
+</div>
 
 <footer class="brain-footer">
   <p>Notes are stored only in this browser (localStorage). No account, no server, no sync — export regularly to keep a backup.</p>
