@@ -51,6 +51,26 @@
   color: var(--bone);
 }
 
+#banner-text {
+  flex: 1;
+}
+
+.banner__action {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: none;
+  color: inherit;
+  border: 1px solid currentColor;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.banner__action[hidden] {
+  display: none;
+}
+
 .banner__dismiss {
   font-family: var(--mono);
   font-size: 1rem;

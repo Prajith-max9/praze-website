@@ -233,7 +233,8 @@
     aiSuggest: {},   // note id -> suggested tags from Claude
     aiReflect: {},   // note id -> {themes, reflection} from Claude
     digest: null,    // {pattern, tension, question} — render-time only, never stored
-    digestBusy: false
+    digestBusy: false,
+    lastDeleted: null // {kind, item, index} — in-memory undo, never persisted or exported
   };
 
   /* ---------- Search (ideas) ---------- */
@@ -1225,17 +1226,46 @@
     else if (state.view === 'graph') renderGraph();
   }
 
-  function showBanner(text, type, persistent) {
+  // action (optional): { label, fn } renders a button in the banner (e.g. Undo).
+  function showBanner(text, type, persistent, action) {
     var banner = els.banner || document.getElementById('banner');
     var bannerText = els.bannerText || document.getElementById('banner-text');
+    var bannerAction = els.bannerAction || document.getElementById('banner-action');
     if (!banner || !bannerText) return;
     bannerText.textContent = text;
     banner.className = 'banner' + (type === 'error' ? ' banner--error' : '');
+    if (bannerAction) {
+      if (action && action.label && typeof action.fn === 'function') {
+        bannerAction.textContent = action.label;
+        bannerAction.hidden = false;
+        showBanner._action = action.fn;
+      } else {
+        bannerAction.hidden = true;
+        showBanner._action = null;
+      }
+    }
     banner.hidden = false;
+    clearTimeout(showBanner._t);
     if (!persistent) {
-      clearTimeout(showBanner._t);
       showBanner._t = setTimeout(function () { banner.hidden = true; }, 6000);
     }
+  }
+
+  // Restore the most recently deleted note or goal at its original position.
+  // The buffer lives only in memory (state.lastDeleted) — nothing is read from
+  // or written to the persisted store beyond re-inserting the same object.
+  function undoDelete() {
+    var d = state.lastDeleted;
+    if (!d) return;
+    state.lastDeleted = null;
+    if (d.kind === 'note') {
+      store.notes.splice(Math.max(0, Math.min(d.index, store.notes.length)), 0, d.item);
+    } else if (d.kind === 'goal') {
+      store.goals.splice(Math.max(0, Math.min(d.index, store.goals.length)), 0, d.item);
+    }
+    saveStore();
+    render();
+    showBanner((d.kind === 'note' ? 'Note' : 'Goal') + ' restored.');
   }
 
   /* ---------- Navigation to a note ---------- */
@@ -1272,6 +1302,7 @@
     els.captureBody.style.height = '';
     render();
     els.captureBody.focus();
+    showBanner('Idea captured.');
   }
 
   function handleDiarySubmit(e) {
@@ -1285,6 +1316,7 @@
     els.diaryBody.style.height = '';
     render();
     els.diaryBody.focus();
+    showBanner('Entry saved.');
   }
 
   function handleClipSubmit(e) {
@@ -1298,6 +1330,7 @@
     saveStore();
     els.clipForm.reset();
     render();
+    showBanner('Clip saved.');
   }
 
   function handleGoalSubmit(e) {
@@ -1316,6 +1349,7 @@
     saveStore();
     els.goalForm.reset();
     render();
+    showBanner('Goal set.');
   }
 
   function findNoteFromEvent(btn) {
@@ -1471,10 +1505,13 @@
         state.confirmingGoalId = goalId;
         render();
       } else if (action === 'goal-del-yes') {
+        var goalIdx = store.goals.indexOf(goal);
         store.goals = store.goals.filter(function (g) { return g.id !== goalId; });
         state.confirmingGoalId = null;
+        state.lastDeleted = { kind: 'goal', item: goal, index: goalIdx };
         saveStore();
         render();
+        showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
       } else if (action === 'goal-del-no') {
         state.confirmingGoalId = null;
         render();
@@ -1551,10 +1588,13 @@
         render();
         break;
       case 'delete-yes':
+        var noteIdx = store.notes.indexOf(note);
         store.notes = store.notes.filter(function (n) { return n.id !== note.id; });
         state.confirmingDeleteId = null;
+        state.lastDeleted = { kind: 'note', item: note, index: noteIdx };
         saveStore();
         render();
+        showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
         break;
       case 'delete-no':
         state.confirmingDeleteId = null;
@@ -1584,6 +1624,7 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    showBanner('Exported ' + store.notes.length + ' notes.');
   }
 
   function importNotes(file) {
@@ -1887,6 +1928,7 @@
   function init() {
     els.banner = document.getElementById('banner');
     els.bannerText = document.getElementById('banner-text');
+    els.bannerAction = document.getElementById('banner-action');
     els.tabs = document.getElementById('tabs');
     els.views = {
       dashboard: document.getElementById('view-dashboard'),
@@ -2036,6 +2078,13 @@
 
     document.getElementById('banner-dismiss').addEventListener('click', function () {
       els.banner.hidden = true;
+    });
+
+    els.bannerAction.addEventListener('click', function () {
+      var fn = showBanner._action;
+      showBanner._action = null;
+      els.banner.hidden = true;
+      if (fn) fn();
     });
 
     // settings
