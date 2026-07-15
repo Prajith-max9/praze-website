@@ -4,6 +4,7 @@
 
   var STORAGE_KEY = 'praze.brain.v1';
   var PRE_MIGRATION_KEY = 'praze.brain.v1.pre-migration';
+  var RESURFACE_DISMISSED_KEY = 'praze.brain.resurface.dismissed'; // UI state — never in store or exports
   var SCHEMA_VERSION = 2;
   var VIEWS = ['dashboard', 'ideas', 'diary', 'clips', 'goals', 'graph'];
 
@@ -49,6 +50,25 @@
     var daysAgo = Math.floor((startOfToday - ms) / DAY_MS) + 1;
     if (daysAgo < 7) return daysAgo + 'd ago';
     return formatDate(ms);
+  }
+
+  // Plain-words age for old notes ("4 months ago"). formatRelative switches to an
+  // absolute date after a week, which reads wrong when the point is distance in time.
+  function formatAge(ms) {
+    var days = Math.floor((Date.now() - ms) / DAY_MS);
+    if (days < 1) return 'today';
+    if (days < 2) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    if (days < 30) {
+      var weeks = Math.floor(days / 7);
+      return weeks + (weeks === 1 ? ' week ago' : ' weeks ago');
+    }
+    if (days < 365) {
+      var months = Math.floor(days / 30);
+      return months + (months === 1 ? ' month ago' : ' months ago');
+    }
+    var years = Math.floor(days / 365);
+    return years + (years === 1 ? ' year ago' : ' years ago');
   }
 
   function autoGrow(el) {
@@ -794,6 +814,62 @@
     })();
   }
 
+  /* ---------- Resurface: old similar notes next to what you're writing now ---------- */
+
+  var RESURFACE_MIN_AGE_MS = 30 * DAY_MS;
+  var RESURFACE_DISMISSED_MAX = 100;
+
+  function getResurfaceDismissed() {
+    try {
+      var arr = JSON.parse(localStorage.getItem(RESURFACE_DISMISSED_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function dismissResurfaced(id) {
+    var arr = getResurfaceDismissed();
+    if (arr.indexOf(id) === -1) arr.push(id);
+    if (arr.length > RESURFACE_DISMISSED_MAX) arr = arr.slice(arr.length - RESURFACE_DISMISSED_MAX);
+    try { localStorage.setItem(RESURFACE_DISMISSED_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+
+  // Seeds = the 3 most recent notes. A candidate resurfaces when the similarity
+  // engine already relates it to a seed, it's over 30 days old, the pair isn't
+  // wiki-linked in either direction, and it hasn't been dismissed.
+  function computeResurface() {
+    var related = getAnalysis().related;
+    var byId = notesById();
+    var now = Date.now();
+    var dismissed = getResurfaceDismissed();
+    var backlinks = buildLinkIndexes().backlinks;
+    var seeds = store.notes.slice()
+      .sort(function (a, b) { return b.createdAt - a.createdAt; })
+      .slice(0, 3);
+
+    function wikiLinked(aId, bId) {
+      return (backlinks[aId] || []).some(function (n) { return n.id === bId; }) ||
+             (backlinks[bId] || []).some(function (n) { return n.id === aId; });
+    }
+
+    var best = {};
+    seeds.forEach(function (seed) {
+      (related[seed.id] || []).forEach(function (r) {
+        var cand = byId[r.id];
+        if (!cand) return;
+        if (now - cand.createdAt <= RESURFACE_MIN_AGE_MS) return;
+        if (dismissed.indexOf(cand.id) !== -1) return;
+        if (wikiLinked(seed.id, cand.id)) return;
+        if (!best[cand.id] || r.score > best[cand.id].score) {
+          best[cand.id] = { note: cand, seed: seed, score: r.score };
+        }
+      });
+    });
+
+    return Object.keys(best).map(function (id) { return best[id]; })
+      .sort(function (a, b) { return b.score - a.score; })
+      .slice(0, 3);
+  }
+
   /* ---------- DASHBOARD view ---------- */
 
   function renderDashboard() {
@@ -816,6 +892,21 @@
       '<p class="dash-tagline">BUILT NOT BORN.</p>' +
       '<button type="button" class="btn" data-action="dash-capture">CAPTURE AN IDEA</button>' +
       '</div>';
+
+    var resurfaced = computeResurface();
+    if (resurfaced.length) {
+      html += '<div class="dash-card"><p class="label">RESURFACED</p>' +
+        resurfaced.map(function (r) {
+          return '<div class="resurface-row">' +
+            '<button type="button" class="dash-row" data-action="open-note" data-note-id="' +
+            escapeHtml(r.note.id) + '">' + escapeHtml(noteLabel(r.note)) +
+            '<span class="dash-row__meta">' + formatAge(r.note.createdAt) +
+            ' · because you wrote about ' + escapeHtml(noteLabel(r.seed)) + '</span></button>' +
+            '<button type="button" class="resurface-dismiss" data-action="resurface-dismiss" data-note-id="' +
+            escapeHtml(r.note.id) + '" title="Dismiss" aria-label="Dismiss">✕</button>' +
+            '</div>';
+        }).join('') + '</div>';
+    }
 
     html += '<div class="dash-card">' +
       '<p class="label">STREAKS</p>' +
@@ -1108,6 +1199,12 @@
 
     if (action === 'goto') {
       setView(btn.getAttribute('data-go'));
+      return;
+    }
+
+    if (action === 'resurface-dismiss') {
+      dismissResurfaced(btn.getAttribute('data-note-id'));
+      render();
       return;
     }
 

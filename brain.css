@@ -1054,6 +1054,38 @@
   margin-top: 0.2rem;
 }
 
+.resurface-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.resurface-row:last-child {
+  border-bottom: none;
+}
+
+.resurface-row .dash-row {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.resurface-dismiss {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--gray);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.resurface-dismiss:hover {
+  color: var(--danger);
+}
+
 .dash-bar {
   display: block;
   height: 6px;
