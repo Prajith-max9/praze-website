@@ -231,7 +231,9 @@
     confirmingGoalId: null,
     aiBusy: {},
     aiSuggest: {},   // note id -> suggested tags from Claude
-    aiReflect: {}    // note id -> {themes, reflection} from Claude
+    aiReflect: {},   // note id -> {themes, reflection} from Claude
+    digest: null,    // {pattern, tension, question} — render-time only, never stored
+    digestBusy: false
   };
 
   /* ---------- Search (ideas) ---------- */
@@ -623,6 +625,79 @@
     els.diaryStreak.textContent = streak.current > 0
       ? '🔥 ' + streak.current + '-day streak · best ' + streak.best
       : '';
+
+    renderDigest();
+  }
+
+  /* ---------- Weekly diary digest (Claude, optional key) ---------- */
+
+  var DIGEST_MIN_ENTRIES = 3;
+  var DIGEST_MAX_CHARS = 6000; // a heavy week must not blow up the request or the bill
+
+  function weekDiaryEntries() {
+    var cutoff = Date.now() - 7 * DAY_MS;
+    return store.notes
+      .filter(function (n) { return n.kind === 'diary' && n.createdAt >= cutoff; })
+      .sort(function (a, b) { return a.createdAt - b.createdAt; });
+  }
+
+  // Entries concatenated with dates, oldest dropped first when over budget
+  function buildDigestInput(entries) {
+    var blocks = entries.map(function (n) {
+      return formatDate(n.createdAt) + ':\n' + n.body;
+    });
+    var kept = [];
+    var total = 0;
+    for (var i = blocks.length - 1; i >= 0; i--) {
+      total += blocks[i].length + 2;
+      if (total > DIGEST_MAX_CHARS && kept.length) break;
+      kept.unshift(blocks[i]);
+    }
+    var joined = kept.join('\n\n');
+    // a single oversized entry still gets clipped, keeping its latest words
+    return joined.length > DIGEST_MAX_CHARS ? joined.slice(joined.length - DIGEST_MAX_CHARS) : joined;
+  }
+
+  function renderDigest() {
+    var count = weekDiaryEntries().length;
+    els.digestBtn.disabled = state.digestBusy || count < DIGEST_MIN_ENTRIES;
+    els.digestBtn.textContent = state.digestBusy ? 'DIGESTING…' : 'DIGEST THIS WEEK';
+    els.digestHint.hidden = count >= DIGEST_MIN_ENTRIES;
+
+    if (state.digest) {
+      var d = state.digest;
+      var rows = '<p class="digest__row"><span class="digest__label">PATTERN</span>' + escapeHtml(d.pattern) + '</p>';
+      if (d.tension) rows += '<p class="digest__row"><span class="digest__label">TENSION</span>' + escapeHtml(d.tension) + '</p>';
+      rows += '<p class="digest__row"><span class="digest__label">QUESTION</span>' + escapeHtml(d.question) + '</p>';
+      els.digestResult.innerHTML = rows;
+      els.digestResult.hidden = false;
+    } else {
+      els.digestResult.innerHTML = '';
+      els.digestResult.hidden = true;
+    }
+  }
+
+  function runDigest() {
+    if (state.digestBusy) return;
+    if (!window.BrainAI.hasKey()) {
+      showBanner('Add your Claude API key in Settings (⚙) to enable AI.');
+      openSettings(true);
+      return;
+    }
+    var entries = weekDiaryEntries();
+    if (entries.length < DIGEST_MIN_ENTRIES) return;
+    state.digestBusy = true;
+    state.digest = null;
+    render();
+    window.BrainAI.digestWeek(buildDigestInput(entries)).then(function (result) {
+      state.digestBusy = false;
+      state.digest = result; // shown, never stored — same as AI reflect
+      render();
+    }).catch(function (err) {
+      state.digestBusy = false;
+      showBanner(err.message || 'AI request failed.', 'error');
+      render();
+    });
   }
 
   /* ---------- CLIPS view ---------- */
@@ -1316,6 +1391,11 @@
       return;
     }
 
+    if (action === 'digest-week') {
+      runDigest();
+      return;
+    }
+
     if (action === 'echo-link') {
       var term = btn.getAttribute('data-term');
       var echo = computeEchoes().filter(function (e) { return e.term === term; })[0];
@@ -1830,6 +1910,9 @@
     els.diaryBody = document.getElementById('diary-body');
     els.diaryList = document.getElementById('diary-list');
     els.diaryStreak = document.getElementById('diary-streak');
+    els.digestBtn = document.getElementById('digest-btn');
+    els.digestHint = document.getElementById('digest-hint');
+    els.digestResult = document.getElementById('digest-result');
     els.clipForm = document.getElementById('clip-form');
     els.clipUrl = document.getElementById('clip-url');
     els.clipNote = document.getElementById('clip-note');

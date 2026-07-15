@@ -1054,6 +1054,61 @@
   margin-top: 0.2rem;
 }
 
+/* Weekly diary digest */
+
+.digest {
+  margin-bottom: 1.5rem;
+}
+
+#digest-btn {
+  padding: 0.45rem 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--ink);
+  cursor: pointer;
+}
+
+#digest-btn:hover:not(:disabled) {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #131313;
+}
+
+#digest-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#digest-hint {
+  margin-left: 0.75rem;
+}
+
+#digest-result {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1rem 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.digest__row {
+  font-family: var(--body);
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  margin: 0.4rem 0;
+}
+
+.digest__label {
+  display: inline-block;
+  min-width: 5.5rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--gray);
+}
+
 .echo + .echo {
   margin-top: 1.25rem;
   padding-top: 1rem;
