@@ -1147,12 +1147,28 @@
   /* ---------- GRAPH view ---------- */
 
   function renderGraph() {
-    var hasNotes = store.notes.length > 0;
-    els.graphEmpty.hidden = hasNotes;
-    els.graphCanvas.style.display = hasNotes ? 'block' : 'none';
-    if (!hasNotes) {
+    var total = store.notes.length;
+    els.graphEmpty.hidden = total > 0;
+    els.graphCanvas.style.display = total ? 'block' : 'none';
+    if (!total) {
+      if (els.graphCold) els.graphCold.hidden = true;
       window.BrainGraph.destroy();
       return;
+    }
+
+    // Below the similarity cold-start gate the canvas still draws nodes and any
+    // wiki-links, but no dashed similarity edges — say why instead of leaving a
+    // sparse graph unexplained. Gate matches BrainAI (non-clip notes ≥ min).
+    var eligible = store.notes.filter(function (n) { return n.kind !== 'clip'; }).length;
+    var min = window.BrainAI.MIN_NOTES_FOR_LINKS;
+    if (els.graphCold) {
+      if (eligible < min) {
+        els.graphCold.textContent = 'Similar-idea links switch on at ' + min + ' notes — you have ' +
+          eligible + '. Wiki-links [[like this]] show as soon as you write them.';
+        els.graphCold.hidden = false;
+      } else {
+        els.graphCold.hidden = true;
+      }
     }
 
     var nodes = store.notes.map(function (n) {
@@ -1967,6 +1983,7 @@
     els.streaks = document.getElementById('streaks');
     els.wins = document.getElementById('wins');
     els.graphCanvas = document.getElementById('graph-canvas');
+    els.graphCold = document.getElementById('graph-cold');
     els.graphEmpty = document.getElementById('graph-empty');
     els.dash = document.getElementById('dash');
     els.settingsPanel = document.getElementById('settings-panel');

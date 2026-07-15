@@ -1018,6 +1018,29 @@
   transform: translateY(-50%);
 }
 
+/* Cold-start hint: a note count below the similarity gate. Bottom strip,
+   non-interactive so node dragging in the canvas passes straight through. */
+.graph-cold {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0.6rem 1rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--gray);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.graph-cold[hidden] {
+  display: none;
+}
+
 /* Dashboard */
 
 .dash {
