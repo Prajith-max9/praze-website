@@ -51,6 +51,26 @@
   color: var(--bone);
 }
 
+#banner-text {
+  flex: 1;
+}
+
+.banner__action {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: none;
+  color: inherit;
+  border: 1px solid currentColor;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.banner__action[hidden] {
+  display: none;
+}
+
 .banner__dismiss {
   font-family: var(--mono);
   font-size: 1rem;
@@ -194,6 +214,10 @@
   color: var(--ink);
   border: 1px solid var(--border);
   padding: 0.55rem 1rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
 }
@@ -286,6 +310,8 @@
   white-space: pre-wrap;
   overflow-wrap: break-word;
   margin-bottom: 1rem;
+  /* cap measure for readability; wider than any phone, so no effect on mobile */
+  max-width: 70ch;
 }
 
 .note__body mark,
@@ -566,7 +592,12 @@
   font-size: 1rem;
   color: var(--gray);
   cursor: pointer;
-  padding: 0.5rem 0.25rem;
+  /* 44px tap target (was 22×43); stretches the tab row so tabs reach 44 too */
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tabs__gear:hover {
@@ -917,7 +948,7 @@
 
 .win__title {
   font-family: var(--display);
-  font-size: 0.9rem;
+  font-size: 1rem; /* Archivo Black floor — 0.9rem turned muddy */
 }
 
 .win__meta {
@@ -968,7 +999,7 @@
 
 .graph-tooltip__title {
   font-family: var(--display);
-  font-size: 0.75rem;
+  font-size: 1rem; /* Archivo Black floor — 0.75rem was unreadable */
   margin-bottom: 0.25rem;
   overflow-wrap: break-word;
 }
@@ -987,6 +1018,29 @@
   right: 0;
   text-align: center;
   transform: translateY(-50%);
+}
+
+/* Cold-start hint: a note count below the similarity gate. Bottom strip,
+   non-interactive so node dragging in the canvas passes straight through. */
+.graph-cold {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0.6rem 1rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--gray);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.graph-cold[hidden] {
+  display: none;
 }
 
 /* Dashboard */
@@ -1052,6 +1106,128 @@
   text-transform: uppercase;
   color: var(--gray);
   margin-top: 0.2rem;
+}
+
+/* Weekly diary digest */
+
+.digest {
+  margin-bottom: 1.5rem;
+}
+
+#digest-btn {
+  padding: 0.5rem 1rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--ink);
+  cursor: pointer;
+}
+
+#digest-btn:hover:not(:disabled) {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #131313;
+}
+
+#digest-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#digest-hint {
+  margin-left: 0.75rem;
+}
+
+#digest-result {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1rem 1.25rem;
+  margin-top: 0.75rem;
+}
+
+.digest__row {
+  font-family: var(--body);
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  margin: 0.4rem 0;
+}
+
+.digest__label {
+  display: inline-block;
+  min-width: 5.5rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--gray);
+}
+
+.echo + .echo {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.echo__copy {
+  font-family: var(--body);
+  font-size: 0.9rem;
+  color: var(--text-soft);
+  margin-bottom: 0.35rem;
+}
+
+.echo__link {
+  display: inline-block;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.75rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--ink);
+  cursor: pointer;
+}
+
+.echo__link:hover {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #131313;
+}
+
+.resurface-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.resurface-row:last-child {
+  border-bottom: none;
+}
+
+.resurface-row .dash-row {
+  flex: 1;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.resurface-dismiss {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--gray);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.resurface-dismiss:hover {
+  color: var(--danger);
 }
 
 .dash-bar {
@@ -1162,6 +1338,68 @@
   inset: 0;
   pointer-events: none;
   z-index: 100;
+}
+
+/* Polish §6 — mobile tap targets + 16px inputs (brain page only; brain.css
+   isn't loaded by the landing page, so overrides here stay scoped to the app). */
+
+/* "← site" back-link: 44px tap target. Swap the border-bottom accent for a text
+   underline so the lime line stays tight to the text while the box grows. */
+.navbar__cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  border-bottom: none;
+  text-decoration: underline;
+  text-decoration-color: var(--lime);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* Every text-entry field at 16px so iOS Safari doesn't zoom the page on focus.
+   Same selectors as the rules that set the smaller sizes, placed later to win
+   on source order (the duplicated input blocks are intentionally left as-is). */
+.capture__title,
+.capture__body,
+.capture__tags,
+.toolbar__search input,
+.settings__row input,
+.palette__box input,
+.note--editing .note__edit-title,
+.note--editing .note__edit-body,
+.note--editing .note__edit-tags {
+  font-size: 16px;
+}
+
+/* Polish §7 — visible keyboard focus. :focus-visible only, so mouse/touch
+   clicks stay ringless; --ink keeps it visible in both light and dark. Listed
+   after the input rules that set `outline: none` so this wins on source order;
+   the edit-field selectors are named explicitly to out-specify theirs. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+.note--editing .note__edit-title:focus-visible,
+.note--editing .note__edit-body:focus-visible,
+.note--editing .note__edit-tags:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Polish §4 — honour the OS "reduce motion" setting. Collapses the existing
+   animations (note-flash, mic pulse, goal-bar fill) and transitions to
+   near-instant; no new motion is introduced. Confetti is already JS-guarded. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Tablet+ */

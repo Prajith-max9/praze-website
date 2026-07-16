@@ -265,6 +265,38 @@ window.BrainAI = (function () {
     };
   }
 
+  // Digest a week of diary entries: one pattern, one tension, one question
+  async function digestWeek(entriesText) {
+    var prompt =
+      'You are reading a week of private diary entries from a 16-year-old who trains seriously ' +
+      'and is building a fitness brand called PRAZE.\n\n' +
+      'Entries:\n' + entriesText + '\n\n' +
+      'Respond with ONLY a JSON object, no markdown fences:\n' +
+      '{"pattern": "...", "tension": "...", "question": "..."}\n\n' +
+      'Rules:\n' +
+      '- "pattern": one thing that genuinely repeats across entries. Concrete, drawn from what\'s written. Not a compliment.\n' +
+      '- "tension": one thing pulling against another in these entries (e.g. two goals competing for time). If there\'s no real tension, use an empty string.\n' +
+      '- "question": one sharp question worth sitting with. Not rhetorical, not advice.\n' +
+      '- Each field under 30 words. Never diagnose, never mention being an AI, never praise for the sake of it. If the week is thin, say so plainly rather than inventing depth.';
+
+    var text = await callClaude(prompt, 500);
+    var parsed;
+    try {
+      parsed = parseJson(text);
+    } catch (e) {
+      throw new Error('AI response was malformed — try again.');
+    }
+    if (!parsed || typeof parsed.pattern !== 'string' ||
+        typeof parsed.tension !== 'string' || typeof parsed.question !== 'string') {
+      throw new Error('AI response was malformed — try again.');
+    }
+    return {
+      pattern: parsed.pattern.trim(),
+      tension: parsed.tension.trim(),
+      question: parsed.question.trim()
+    };
+  }
+
   async function testKey() {
     await callClaude('Reply with exactly: ok', 10);
     return true;
@@ -273,6 +305,7 @@ window.BrainAI = (function () {
   return {
     SIMILARITY_THRESHOLD: SIMILARITY_THRESHOLD,
     MIN_NOTES_FOR_LINKS: MIN_NOTES_FOR_LINKS,
+    tokenize: tokenizeText,
     analyze: analyze,
     suggestTags: suggestTags,
     getKey: getKey,
@@ -283,6 +316,7 @@ window.BrainAI = (function () {
     maskedKey: maskedKey,
     organizeNote: organizeNote,
     reflectEntry: reflectEntry,
+    digestWeek: digestWeek,
     testKey: testKey
   };
 })();

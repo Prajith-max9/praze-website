@@ -4,6 +4,7 @@
 
   var STORAGE_KEY = 'praze.brain.v1';
   var PRE_MIGRATION_KEY = 'praze.brain.v1.pre-migration';
+  var RESURFACE_DISMISSED_KEY = 'praze.brain.resurface.dismissed'; // UI state — never in store or exports
   var SCHEMA_VERSION = 2;
   var VIEWS = ['dashboard', 'ideas', 'diary', 'clips', 'goals', 'graph'];
 
@@ -49,6 +50,25 @@
     var daysAgo = Math.floor((startOfToday - ms) / DAY_MS) + 1;
     if (daysAgo < 7) return daysAgo + 'd ago';
     return formatDate(ms);
+  }
+
+  // Plain-words age for old notes ("4 months ago"). formatRelative switches to an
+  // absolute date after a week, which reads wrong when the point is distance in time.
+  function formatAge(ms) {
+    var days = Math.floor((Date.now() - ms) / DAY_MS);
+    if (days < 1) return 'today';
+    if (days < 2) return 'yesterday';
+    if (days < 7) return days + ' days ago';
+    if (days < 30) {
+      var weeks = Math.floor(days / 7);
+      return weeks + (weeks === 1 ? ' week ago' : ' weeks ago');
+    }
+    if (days < 365) {
+      var months = Math.floor(days / 30);
+      return months + (months === 1 ? ' month ago' : ' months ago');
+    }
+    var years = Math.floor(days / 365);
+    return years + (years === 1 ? ' year ago' : ' years ago');
   }
 
   function autoGrow(el) {
@@ -211,7 +231,10 @@
     confirmingGoalId: null,
     aiBusy: {},
     aiSuggest: {},   // note id -> suggested tags from Claude
-    aiReflect: {}    // note id -> {themes, reflection} from Claude
+    aiReflect: {},   // note id -> {themes, reflection} from Claude
+    digest: null,    // {pattern, tension, question} — render-time only, never stored
+    digestBusy: false,
+    lastDeleted: null // {kind, item, index} — in-memory undo, never persisted or exported
   };
 
   /* ---------- Search (ideas) ---------- */
@@ -603,6 +626,79 @@
     els.diaryStreak.textContent = streak.current > 0
       ? '🔥 ' + streak.current + '-day streak · best ' + streak.best
       : '';
+
+    renderDigest();
+  }
+
+  /* ---------- Weekly diary digest (Claude, optional key) ---------- */
+
+  var DIGEST_MIN_ENTRIES = 3;
+  var DIGEST_MAX_CHARS = 6000; // a heavy week must not blow up the request or the bill
+
+  function weekDiaryEntries() {
+    var cutoff = Date.now() - 7 * DAY_MS;
+    return store.notes
+      .filter(function (n) { return n.kind === 'diary' && n.createdAt >= cutoff; })
+      .sort(function (a, b) { return a.createdAt - b.createdAt; });
+  }
+
+  // Entries concatenated with dates, oldest dropped first when over budget
+  function buildDigestInput(entries) {
+    var blocks = entries.map(function (n) {
+      return formatDate(n.createdAt) + ':\n' + n.body;
+    });
+    var kept = [];
+    var total = 0;
+    for (var i = blocks.length - 1; i >= 0; i--) {
+      total += blocks[i].length + 2;
+      if (total > DIGEST_MAX_CHARS && kept.length) break;
+      kept.unshift(blocks[i]);
+    }
+    var joined = kept.join('\n\n');
+    // a single oversized entry still gets clipped, keeping its latest words
+    return joined.length > DIGEST_MAX_CHARS ? joined.slice(joined.length - DIGEST_MAX_CHARS) : joined;
+  }
+
+  function renderDigest() {
+    var count = weekDiaryEntries().length;
+    els.digestBtn.disabled = state.digestBusy || count < DIGEST_MIN_ENTRIES;
+    els.digestBtn.textContent = state.digestBusy ? 'DIGESTING…' : 'DIGEST THIS WEEK';
+    els.digestHint.hidden = count >= DIGEST_MIN_ENTRIES;
+
+    if (state.digest) {
+      var d = state.digest;
+      var rows = '<p class="digest__row"><span class="digest__label">PATTERN</span>' + escapeHtml(d.pattern) + '</p>';
+      if (d.tension) rows += '<p class="digest__row"><span class="digest__label">TENSION</span>' + escapeHtml(d.tension) + '</p>';
+      rows += '<p class="digest__row"><span class="digest__label">QUESTION</span>' + escapeHtml(d.question) + '</p>';
+      els.digestResult.innerHTML = rows;
+      els.digestResult.hidden = false;
+    } else {
+      els.digestResult.innerHTML = '';
+      els.digestResult.hidden = true;
+    }
+  }
+
+  function runDigest() {
+    if (state.digestBusy) return;
+    if (!window.BrainAI.hasKey()) {
+      showBanner('Add your Claude API key in Settings (⚙) to enable AI.');
+      openSettings(true);
+      return;
+    }
+    var entries = weekDiaryEntries();
+    if (entries.length < DIGEST_MIN_ENTRIES) return;
+    state.digestBusy = true;
+    state.digest = null;
+    render();
+    window.BrainAI.digestWeek(buildDigestInput(entries)).then(function (result) {
+      state.digestBusy = false;
+      state.digest = result; // shown, never stored — same as AI reflect
+      render();
+    }).catch(function (err) {
+      state.digestBusy = false;
+      showBanner(err.message || 'AI request failed.', 'error');
+      render();
+    });
   }
 
   /* ---------- CLIPS view ---------- */
@@ -794,6 +890,153 @@
     })();
   }
 
+  /* ---------- Resurface: old similar notes next to what you're writing now ---------- */
+
+  var RESURFACE_MIN_AGE_MS = 30 * DAY_MS;
+  var RESURFACE_DISMISSED_MAX = 100;
+
+  function getResurfaceDismissed() {
+    try {
+      var arr = JSON.parse(localStorage.getItem(RESURFACE_DISMISSED_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function dismissResurfaced(id) {
+    var arr = getResurfaceDismissed();
+    if (arr.indexOf(id) === -1) arr.push(id);
+    if (arr.length > RESURFACE_DISMISSED_MAX) arr = arr.slice(arr.length - RESURFACE_DISMISSED_MAX);
+    try { localStorage.setItem(RESURFACE_DISMISSED_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+
+  // Seeds = the 3 most recent notes. A candidate resurfaces when the similarity
+  // engine already relates it to a seed, it's over 30 days old, the pair isn't
+  // wiki-linked in either direction, and it hasn't been dismissed.
+  function computeResurface() {
+    var related = getAnalysis().related;
+    var byId = notesById();
+    var now = Date.now();
+    var dismissed = getResurfaceDismissed();
+    var backlinks = buildLinkIndexes().backlinks;
+    var seeds = store.notes.slice()
+      .sort(function (a, b) { return b.createdAt - a.createdAt; })
+      .slice(0, 3);
+
+    function wikiLinked(aId, bId) {
+      return (backlinks[aId] || []).some(function (n) { return n.id === bId; }) ||
+             (backlinks[bId] || []).some(function (n) { return n.id === aId; });
+    }
+
+    var best = {};
+    seeds.forEach(function (seed) {
+      (related[seed.id] || []).forEach(function (r) {
+        var cand = byId[r.id];
+        if (!cand) return;
+        if (now - cand.createdAt <= RESURFACE_MIN_AGE_MS) return;
+        if (dismissed.indexOf(cand.id) !== -1) return;
+        if (wikiLinked(seed.id, cand.id)) return;
+        if (!best[cand.id] || r.score > best[cand.id].score) {
+          best[cand.id] = { note: cand, seed: seed, score: r.score };
+        }
+      });
+    });
+
+    return Object.keys(best).map(function (id) { return best[id]; })
+      .sort(function (a, b) { return b.score - a.score; })
+      .slice(0, 3);
+  }
+
+  /* ---------- Echoes: what you keep circling back to this week ---------- */
+
+  var ECHO_WINDOW_MS = 7 * DAY_MS;
+  var ECHO_MIN_NOTES_IN_WINDOW = 5; // small samples produce garbage echoes
+  var ECHO_MIN_HITS = 3;
+  var ECHO_TOP = 2;
+
+  // A term echoes when it appears in ≥3 distinct notes from the last 7 days.
+  // Tags count as appearances too, but a term every matching note already
+  // carries as a tag is old news — you tagged it, you know.
+  function computeEchoes() {
+    var cutoff = Date.now() - ECHO_WINDOW_MS;
+    var windowNotes = store.notes.filter(function (n) { return n.createdAt >= cutoff; });
+    if (windowNotes.length < ECHO_MIN_NOTES_IN_WINDOW) return [];
+
+    var docs = windowNotes.map(function (n) {
+      var stream = window.BrainAI.tokenize(n.title + ' ' + n.body);
+      var terms = {};
+      stream.forEach(function (t) { terms[t] = true; });
+      n.tags.forEach(function (t) { terms[t] = true; });
+      return { note: n, stream: stream, terms: terms };
+    });
+
+    var counts = {};
+    docs.forEach(function (d) {
+      Object.keys(d.terms).forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
+    });
+
+    var echoes = [];
+    Object.keys(counts).forEach(function (term) {
+      if (counts[term] < ECHO_MIN_HITS) return;
+      var matched = docs.filter(function (d) { return d.terms[term]; });
+      var display = echoPhrase(term, matched);
+      // already tagged on every match — as the token, the joined phrase, or any
+      // word of the phrase — means you noticed the theme yourself → old news
+      var known = [term, display].concat(display.split(' '));
+      var allTagged = matched.every(function (d) {
+        return known.some(function (k) { return d.note.tags.indexOf(k) !== -1; });
+      });
+      if (allTagged) return;
+      echoes.push({
+        term: term,
+        display: display,
+        notes: matched.map(function (d) { return d.note; }),
+        count: matched.length
+      });
+    });
+
+    echoes.sort(function (a, b) { return b.count - a.count || (a.term < b.term ? -1 : 1); });
+    // both halves of a joined phrase qualify on their own — show the phrase once
+    var seenDisplay = {};
+    echoes = echoes.filter(function (e) {
+      if (seenDisplay[e.display]) return false;
+      seenDisplay[e.display] = true;
+      return true;
+    });
+    return echoes.slice(0, ECHO_TOP);
+  }
+
+  // If the same neighbor token sits next to the term in every matching note,
+  // display the phrase ("financial freedom") instead of the bare token.
+  function echoPhrase(term, matched) {
+    function partnerEverywhere(offset) {
+      var survivors = null;
+      for (var i = 0; i < matched.length; i++) {
+        var stream = matched[i].stream;
+        var neighbors = {};
+        for (var j = 0; j < stream.length; j++) {
+          if (stream[j] === term && stream[j + offset]) neighbors[stream[j + offset]] = true;
+        }
+        var keys = Object.keys(neighbors);
+        if (!keys.length) return null; // tag-only match, or term at the edge
+        if (survivors === null) {
+          survivors = neighbors;
+        } else {
+          var next = {};
+          keys.forEach(function (k) { if (survivors[k]) next[k] = true; });
+          survivors = next;
+          if (!Object.keys(survivors).length) return null;
+        }
+      }
+      var left = Object.keys(survivors || {});
+      return left.length ? left[0] : null;
+    }
+    var after = partnerEverywhere(1);
+    if (after) return term + ' ' + after;
+    var before = partnerEverywhere(-1);
+    if (before) return before + ' ' + term;
+    return term;
+  }
+
   /* ---------- DASHBOARD view ---------- */
 
   function renderDashboard() {
@@ -816,6 +1059,38 @@
       '<p class="dash-tagline">BUILT NOT BORN.</p>' +
       '<button type="button" class="btn" data-action="dash-capture">CAPTURE AN IDEA</button>' +
       '</div>';
+
+    var resurfaced = computeResurface();
+    if (resurfaced.length) {
+      html += '<div class="dash-card"><p class="label">RESURFACED</p>' +
+        resurfaced.map(function (r) {
+          return '<div class="resurface-row">' +
+            '<button type="button" class="dash-row" data-action="open-note" data-note-id="' +
+            escapeHtml(r.note.id) + '">' + escapeHtml(noteLabel(r.note)) +
+            '<span class="dash-row__meta">' + formatAge(r.note.createdAt) +
+            ' · because you wrote about ' + escapeHtml(noteLabel(r.seed)) + '</span></button>' +
+            '<button type="button" class="resurface-dismiss" data-action="resurface-dismiss" data-note-id="' +
+            escapeHtml(r.note.id) + '" title="Dismiss" aria-label="Dismiss">✕</button>' +
+            '</div>';
+        }).join('') + '</div>';
+    }
+
+    var echoes = computeEchoes();
+    if (echoes.length) {
+      html += '<div class="dash-card"><p class="label">ECHOES</p>' +
+        echoes.map(function (e) {
+          return '<div class="echo">' +
+            '<p class="echo__copy">You’ve written about “' + escapeHtml(e.display) +
+            '” in ' + e.count + ' notes this week.</p>' +
+            e.notes.map(function (n) {
+              return '<button type="button" class="dash-row" data-action="open-note" data-note-id="' +
+                escapeHtml(n.id) + '">' + escapeHtml(noteLabel(n)) + '</button>';
+            }).join('') +
+            '<button type="button" class="echo__link" data-action="echo-link" data-term="' +
+            escapeHtml(e.term) + '">LINK THESE</button>' +
+            '</div>';
+        }).join('') + '</div>';
+    }
 
     html += '<div class="dash-card">' +
       '<p class="label">STREAKS</p>' +
@@ -872,12 +1147,28 @@
   /* ---------- GRAPH view ---------- */
 
   function renderGraph() {
-    var hasNotes = store.notes.length > 0;
-    els.graphEmpty.hidden = hasNotes;
-    els.graphCanvas.style.display = hasNotes ? 'block' : 'none';
-    if (!hasNotes) {
+    var total = store.notes.length;
+    els.graphEmpty.hidden = total > 0;
+    els.graphCanvas.style.display = total ? 'block' : 'none';
+    if (!total) {
+      if (els.graphCold) els.graphCold.hidden = true;
       window.BrainGraph.destroy();
       return;
+    }
+
+    // Below the similarity cold-start gate the canvas still draws nodes and any
+    // wiki-links, but no dashed similarity edges — say why instead of leaving a
+    // sparse graph unexplained. Gate matches BrainAI (non-clip notes ≥ min).
+    var eligible = store.notes.filter(function (n) { return n.kind !== 'clip'; }).length;
+    var min = window.BrainAI.MIN_NOTES_FOR_LINKS;
+    if (els.graphCold) {
+      if (eligible < min) {
+        els.graphCold.textContent = 'Similar-idea links switch on at ' + min + ' notes — you have ' +
+          eligible + '. Wiki-links [[like this]] show as soon as you write them.';
+        els.graphCold.hidden = false;
+      } else {
+        els.graphCold.hidden = true;
+      }
     }
 
     var nodes = store.notes.map(function (n) {
@@ -951,17 +1242,46 @@
     else if (state.view === 'graph') renderGraph();
   }
 
-  function showBanner(text, type, persistent) {
+  // action (optional): { label, fn } renders a button in the banner (e.g. Undo).
+  function showBanner(text, type, persistent, action) {
     var banner = els.banner || document.getElementById('banner');
     var bannerText = els.bannerText || document.getElementById('banner-text');
+    var bannerAction = els.bannerAction || document.getElementById('banner-action');
     if (!banner || !bannerText) return;
     bannerText.textContent = text;
     banner.className = 'banner' + (type === 'error' ? ' banner--error' : '');
+    if (bannerAction) {
+      if (action && action.label && typeof action.fn === 'function') {
+        bannerAction.textContent = action.label;
+        bannerAction.hidden = false;
+        showBanner._action = action.fn;
+      } else {
+        bannerAction.hidden = true;
+        showBanner._action = null;
+      }
+    }
     banner.hidden = false;
+    clearTimeout(showBanner._t);
     if (!persistent) {
-      clearTimeout(showBanner._t);
       showBanner._t = setTimeout(function () { banner.hidden = true; }, 6000);
     }
+  }
+
+  // Restore the most recently deleted note or goal at its original position.
+  // The buffer lives only in memory (state.lastDeleted) — nothing is read from
+  // or written to the persisted store beyond re-inserting the same object.
+  function undoDelete() {
+    var d = state.lastDeleted;
+    if (!d) return;
+    state.lastDeleted = null;
+    if (d.kind === 'note') {
+      store.notes.splice(Math.max(0, Math.min(d.index, store.notes.length)), 0, d.item);
+    } else if (d.kind === 'goal') {
+      store.goals.splice(Math.max(0, Math.min(d.index, store.goals.length)), 0, d.item);
+    }
+    saveStore();
+    render();
+    showBanner((d.kind === 'note' ? 'Note' : 'Goal') + ' restored.');
   }
 
   /* ---------- Navigation to a note ---------- */
@@ -998,6 +1318,7 @@
     els.captureBody.style.height = '';
     render();
     els.captureBody.focus();
+    showBanner('Idea captured.');
   }
 
   function handleDiarySubmit(e) {
@@ -1011,6 +1332,7 @@
     els.diaryBody.style.height = '';
     render();
     els.diaryBody.focus();
+    showBanner('Entry saved.');
   }
 
   function handleClipSubmit(e) {
@@ -1024,6 +1346,7 @@
     saveStore();
     els.clipForm.reset();
     render();
+    showBanner('Clip saved.');
   }
 
   function handleGoalSubmit(e) {
@@ -1042,6 +1365,7 @@
     saveStore();
     els.goalForm.reset();
     render();
+    showBanner('Goal set.');
   }
 
   function findNoteFromEvent(btn) {
@@ -1111,6 +1435,38 @@
       return;
     }
 
+    if (action === 'resurface-dismiss') {
+      dismissResurfaced(btn.getAttribute('data-note-id'));
+      render();
+      return;
+    }
+
+    if (action === 'digest-week') {
+      runDigest();
+      return;
+    }
+
+    if (action === 'echo-link') {
+      var term = btn.getAttribute('data-term');
+      var echo = computeEchoes().filter(function (e) { return e.term === term; })[0];
+      if (!echo) return;
+      // the tag is the phrase the user was shown, not the internal token
+      var linked = 0;
+      echo.notes.forEach(function (n) {
+        if (n.tags.indexOf(echo.display) === -1) {
+          n.tags.push(echo.display);
+          n.updatedAt = Date.now();
+          linked++;
+        }
+      });
+      if (linked) {
+        saveStore();
+        showBanner('Linked ' + echo.notes.length + ' notes with #' + echo.display);
+      }
+      render();
+      return;
+    }
+
     if (action === 'dash-capture') {
       setView('ideas');
       els.captureBody.focus();
@@ -1165,10 +1521,13 @@
         state.confirmingGoalId = goalId;
         render();
       } else if (action === 'goal-del-yes') {
+        var goalIdx = store.goals.indexOf(goal);
         store.goals = store.goals.filter(function (g) { return g.id !== goalId; });
         state.confirmingGoalId = null;
+        state.lastDeleted = { kind: 'goal', item: goal, index: goalIdx };
         saveStore();
         render();
+        showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
       } else if (action === 'goal-del-no') {
         state.confirmingGoalId = null;
         render();
@@ -1245,10 +1604,13 @@
         render();
         break;
       case 'delete-yes':
+        var noteIdx = store.notes.indexOf(note);
         store.notes = store.notes.filter(function (n) { return n.id !== note.id; });
         state.confirmingDeleteId = null;
+        state.lastDeleted = { kind: 'note', item: note, index: noteIdx };
         saveStore();
         render();
+        showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
         break;
       case 'delete-no':
         state.confirmingDeleteId = null;
@@ -1278,6 +1640,7 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    showBanner('Exported ' + store.notes.length + ' notes.');
   }
 
   function importNotes(file) {
@@ -1581,6 +1944,7 @@
   function init() {
     els.banner = document.getElementById('banner');
     els.bannerText = document.getElementById('banner-text');
+    els.bannerAction = document.getElementById('banner-action');
     els.tabs = document.getElementById('tabs');
     els.views = {
       dashboard: document.getElementById('view-dashboard'),
@@ -1604,6 +1968,9 @@
     els.diaryBody = document.getElementById('diary-body');
     els.diaryList = document.getElementById('diary-list');
     els.diaryStreak = document.getElementById('diary-streak');
+    els.digestBtn = document.getElementById('digest-btn');
+    els.digestHint = document.getElementById('digest-hint');
+    els.digestResult = document.getElementById('digest-result');
     els.clipForm = document.getElementById('clip-form');
     els.clipUrl = document.getElementById('clip-url');
     els.clipNote = document.getElementById('clip-note');
@@ -1616,6 +1983,7 @@
     els.streaks = document.getElementById('streaks');
     els.wins = document.getElementById('wins');
     els.graphCanvas = document.getElementById('graph-canvas');
+    els.graphCold = document.getElementById('graph-cold');
     els.graphEmpty = document.getElementById('graph-empty');
     els.dash = document.getElementById('dash');
     els.settingsPanel = document.getElementById('settings-panel');
@@ -1727,6 +2095,13 @@
 
     document.getElementById('banner-dismiss').addEventListener('click', function () {
       els.banner.hidden = true;
+    });
+
+    els.bannerAction.addEventListener('click', function () {
+      var fn = showBanner._action;
+      showBanner._action = null;
+      els.banner.hidden = true;
+      if (fn) fn();
     });
 
     // settings

@@ -45,6 +45,7 @@
 
 <div id="banner" class="banner" hidden>
   <span id="banner-text"></span>
+  <button id="banner-action" class="banner__action" type="button" hidden></button>
   <button id="banner-dismiss" class="banner__dismiss" type="button" aria-label="Dismiss">&times;</button>
 </div>
 
@@ -122,6 +123,11 @@
         </div>
       </form>
     </section>
+    <section class="digest">
+      <button id="digest-btn" type="button" data-action="digest-week">DIGEST THIS WEEK</button>
+      <span id="digest-hint" class="capture__hint" hidden>Write a few more entries first</span>
+      <div id="digest-result" hidden></div>
+    </section>
     <ol id="diary-list" class="note-list"></ol>
   </section>
 
@@ -166,6 +172,7 @@
     <div class="graph-wrap">
       <canvas id="graph-canvas"></canvas>
       <p id="graph-empty" class="empty__text" hidden>Capture a few ideas and the web appears here.</p>
+      <p id="graph-cold" class="graph-cold" hidden></p>
     </div>
   </section>
 
