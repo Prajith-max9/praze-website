@@ -1244,6 +1244,29 @@
   background: var(--lime);
 }
 
+/* Ask */
+
+.ask-result {
+  margin-top: 1.5rem;
+}
+
+.ask-answer {
+  font-family: var(--body);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  max-width: 70ch;
+  color: var(--ink);
+  margin-bottom: 1rem;
+}
+
+.ask-cite {
+  vertical-align: baseline;
+}
+
+.ask-keyless-hint {
+  margin-top: 1rem;
+}
+
 /* Timeline */
 
 .timeline-filters {

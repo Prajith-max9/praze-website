@@ -35,6 +35,7 @@
 
 <nav class="tabs" id="tabs">
   <button type="button" class="tabs__tab" data-view="dashboard">HOME</button>
+  <button type="button" class="tabs__tab" data-view="ask">ASK</button>
   <button type="button" class="tabs__tab" data-view="ideas">IDEAS</button>
   <button type="button" class="tabs__tab" data-view="diary">DIARY</button>
   <button type="button" class="tabs__tab" data-view="timeline">TIMELINE</button>
@@ -77,6 +78,21 @@
   <!-- DASHBOARD -->
   <section id="view-dashboard" class="view" hidden>
     <div id="dash" class="dash"></div>
+  </section>
+
+  <!-- ASK -->
+  <section id="view-ask" class="view" hidden>
+    <section class="capture">
+      <p class="label">ASK YOUR BRAIN</p>
+      <form id="ask-form">
+        <textarea id="ask-input" class="capture__body" rows="2" placeholder="What have I written about protein? What keeps coming up?" required></textarea>
+        <div class="capture__actions">
+          <button id="ask-btn" class="btn" type="submit">ASK</button>
+          <span class="capture__hint">Answers come only from your own notes</span>
+        </div>
+      </form>
+    </section>
+    <div id="ask-result" class="ask-result"></div>
   </section>
 
   <!-- IDEAS -->
