@@ -1244,6 +1244,27 @@
   background: var(--lime);
 }
 
+/* First run */
+
+.onboard-unlocks {
+  padding: 0 1.5rem;
+}
+
+.onboard-unlocks__line {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--gray);
+  padding: 0.35rem 0;
+}
+
+.dash-linkline {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--gray);
+}
+
 /* Why — explain a similarity link */
 
 .why-btn {
@@ -1411,6 +1432,11 @@
   }
 
   .dash-card--hero {
+    grid-column: 1 / -1;
+  }
+
+  .onboard-unlocks,
+  .dash-linkline {
     grid-column: 1 / -1;
   }
 }

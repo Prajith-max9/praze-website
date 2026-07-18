@@ -1261,9 +1261,65 @@
     return term;
   }
 
+  /* ---------- First-run milestones ---------- */
+
+  // UI state only — never in the store or exports (same rule as resurface.dismissed).
+  // '' = fresh, '1' = first note saved (panel gone forever), '2' = connect banner fired.
+  var ONBOARD_KEY = 'praze.brain.onboarded';
+
+  function onboardStage() {
+    // storage unreadable → act fully onboarded rather than nag every load
+    try { return localStorage.getItem(ONBOARD_KEY) || ''; } catch (e) { return '2'; }
+  }
+
+  function setOnboardStage(s) {
+    try { localStorage.setItem(ONBOARD_KEY, s); } catch (e) {}
+  }
+
+  function eligibleNoteCount() {
+    return store.notes.filter(function (n) { return n.kind !== 'clip'; }).length;
+  }
+
+  // Called after every note save. Sets the first-note flag, and fires the
+  // one-time "brain connected" banner when a save crosses the similarity
+  // gate (non-clip count 4 → 5) — the app's best moment shouldn't be silent.
+  function recordNoteSaved(prevEligible) {
+    var stage = onboardStage();
+    if (!stage) {
+      setOnboardStage('1');
+      stage = '1';
+    }
+    if (stage !== '2' && prevEligible === 4 && eligibleNoteCount() === 5) {
+      setOnboardStage('2');
+      showBanner('Your brain just connected.', null, true, {
+        label: 'SEE THE GRAPH',
+        fn: function () { setView('graph'); }
+      });
+    }
+  }
+
   /* ---------- DASHBOARD view ---------- */
 
   function renderDashboard() {
+    // first run: zero notes and none ever saved → the panel replaces the cards
+    if (!store.notes.length && !onboardStage()) {
+      els.dash.innerHTML =
+        '<div class="dash-card dash-card--hero">' +
+        '<p class="dash-greeting">PRAZE Brain</p>' +
+        '<p class="dash-tagline">I remember what you don’t.</p>' +
+        '<button type="button" class="btn" data-action="dash-capture">CAPTURE YOUR FIRST IDEA</button>' +
+        '</div>' +
+        '<div class="onboard-unlocks">' +
+        '<p class="onboard-unlocks__line">1 note — your brain starts</p>' +
+        '<p class="onboard-unlocks__line">5 notes — connections appear</p>' +
+        '<p class="onboard-unlocks__line">Write daily — patterns emerge</p>' +
+        '</div>';
+      return;
+    }
+    renderDashboardCards();
+  }
+
+  function renderDashboardCards() {
     var h = new Date().getHours();
     var greeting = h < 12 ? 'Morning.' : h < 18 ? 'Afternoon.' : 'Evening.';
     var ideaStreak = computeStreak('idea');
@@ -1283,6 +1339,15 @@
       '<p class="dash-tagline">BUILT NOT BORN.</p>' +
       '<button type="button" class="btn" data-action="dash-capture">CAPTURE AN IDEA</button>' +
       '</div>';
+
+    // below the similarity gate, one quiet line where ECHOES/RESURFACED will live
+    var eligible = eligibleNoteCount();
+    var minLinks = window.BrainAI.MIN_NOTES_FOR_LINKS;
+    if (eligible < minLinks) {
+      var left = minLinks - eligible;
+      html += '<p class="dash-linkline">' + left + ' more note' + (left === 1 ? '' : 's') +
+        ' until your ideas start linking.</p>';
+    }
 
     var resurfaced = computeResurface();
     if (resurfaced.length) {
@@ -1537,6 +1602,7 @@
     e.preventDefault();
     var body = els.captureBody.value.trim();
     if (!body) return;
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value, 'idea'));
     saveStore();
     clearDraft();
@@ -1545,6 +1611,7 @@
     render();
     els.captureBody.focus();
     showBanner('Idea captured.');
+    recordNoteSaved(prevEligible); // after the save banner so the connect moment wins the slot
   }
 
   function handleDiarySubmit(e) {
@@ -1552,6 +1619,7 @@
     stopDictation(); // if the mic is hot, end it before the normal submit runs
     var body = els.diaryBody.value.trim();
     if (!body) return;
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
     saveStore();
     els.diaryForm.reset();
@@ -1559,6 +1627,7 @@
     render();
     els.diaryBody.focus();
     showBanner('Entry saved.');
+    recordNoteSaved(prevEligible);
   }
 
   function handleClipSubmit(e) {
@@ -1568,11 +1637,13 @@
       showBanner('That link doesn\'t look right — it needs to start with http(s).', 'error');
       return;
     }
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote('', els.clipNote.value.trim(), els.clipTags.value, 'clip', url));
     saveStore();
     els.clipForm.reset();
     render();
     showBanner('Clip saved.');
+    recordNoteSaved(prevEligible); // clips don't move the eligible count, but they do count as a first note
   }
 
   function handleGoalSubmit(e) {
