@@ -37,6 +37,7 @@
   <button type="button" class="tabs__tab" data-view="dashboard">HOME</button>
   <button type="button" class="tabs__tab" data-view="ideas">IDEAS</button>
   <button type="button" class="tabs__tab" data-view="diary">DIARY</button>
+  <button type="button" class="tabs__tab" data-view="timeline">TIMELINE</button>
   <button type="button" class="tabs__tab" data-view="clips">CLIPS</button>
   <button type="button" class="tabs__tab" data-view="goals">GOALS</button>
   <button type="button" class="tabs__tab" data-view="graph">GRAPH</button>
@@ -129,6 +130,14 @@
       <div id="digest-result" hidden></div>
     </section>
     <ol id="diary-list" class="note-list"></ol>
+  </section>
+
+  <!-- TIMELINE -->
+  <section id="view-timeline" class="view" hidden>
+    <p class="label">TIMELINE</p>
+    <div id="timeline-filters" class="timeline-filters"></div>
+    <ol id="timeline-list" class="timeline-list"></ol>
+    <div id="timeline-sentinel" hidden></div>
   </section>
 
   <!-- CLIPS -->

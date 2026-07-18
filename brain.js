@@ -6,7 +6,7 @@
   var PRE_MIGRATION_KEY = 'praze.brain.v1.pre-migration';
   var RESURFACE_DISMISSED_KEY = 'praze.brain.resurface.dismissed'; // UI state — never in store or exports
   var SCHEMA_VERSION = 2;
-  var VIEWS = ['dashboard', 'ideas', 'diary', 'clips', 'goals', 'graph'];
+  var VIEWS = ['dashboard', 'ideas', 'diary', 'timeline', 'clips', 'goals', 'graph'];
 
   /* ---------- Utils ---------- */
 
@@ -234,7 +234,9 @@
     aiReflect: {},   // note id -> {themes, reflection} from Claude
     digest: null,    // {pattern, tension, question} — render-time only, never stored
     digestBusy: false,
-    lastDeleted: null // {kind, item, index} — in-memory undo, never persisted or exported
+    lastDeleted: null, // {kind, item, index} — in-memory undo, never persisted or exported
+    timelineFilter: 'all', // all | idea | diary | clip
+    timelineShown: 50      // lazy-render window; grows as the sentinel comes into view
   };
 
   /* ---------- Search (ideas) ---------- */
@@ -699,6 +701,86 @@
       showBanner(err.message || 'AI request failed.', 'error');
       render();
     });
+  }
+
+  /* ---------- TIMELINE view ---------- */
+
+  var TIMELINE_PAGE = 50;
+  var timelineObserver = null;
+
+  // Bucket labels from local-time calendar days — same startOfToday/DAY_MS logic
+  // formatRelative uses, and dayKeyOf-style component comparison for months.
+  function timelineBucket(ms) {
+    var now = new Date();
+    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (ms >= startOfToday) return 'TODAY';
+    if (ms >= startOfToday - DAY_MS) return 'YESTERDAY';
+    if (ms >= startOfToday - 6 * DAY_MS) return 'THIS WEEK';
+    var d = new Date(ms);
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return 'THIS MONTH';
+    var monthsBack = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+    if (monthsBack <= 12) return MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    return String(d.getFullYear());
+  }
+
+  function renderTimelineRow(n) {
+    var preview = n.body.slice(0, 90) + (n.body.length > 90 ? '…' : '');
+    var tagsHtml = n.tags.length
+      ? '<span class="tl-row__tags">' + n.tags.map(function (t) { return '#' + escapeHtml(t); }).join(' ') + '</span>'
+      : '';
+    return '<li class="tl-item"><button type="button" class="tl-row" data-action="open-note" data-note-id="' +
+      escapeHtml(n.id) + '">' +
+      '<span class="clip__badge tl-row__badge tl-row__badge--' + escapeHtml(n.kind) + '">' + escapeHtml(n.kind).toUpperCase() + '</span>' +
+      '<span class="tl-row__main">' +
+      (n.title ? '<span class="tl-row__title">' + escapeHtml(n.title) + '</span>' : '') +
+      (preview ? '<span class="tl-row__preview">' + escapeHtml(preview) + '</span>' : '') +
+      tagsHtml +
+      '</span>' +
+      '<span class="tl-row__age">' + formatAge(n.createdAt) + '</span>' +
+      '</button></li>';
+  }
+
+  function renderTimeline() {
+    var filter = state.timelineFilter;
+    var kinds = [['all', 'ALL'], ['idea', 'IDEAS'], ['diary', 'DIARY'], ['clip', 'CLIPS']];
+    els.timelineFilters.innerHTML = kinds.map(function (k) {
+      return '<button type="button" class="tag-chip' + (filter === k[0] ? ' tag-chip--active' : '') +
+        '" data-action="tl-filter" data-kind="' + k[0] + '">' + k[1] + '</button>';
+    }).join('');
+
+    if (!store.notes.length) {
+      els.timelineList.innerHTML = '<li class="empty"><p class="empty__title">Nothing here yet.</p>' +
+        '<p class="empty__text">Capture your first thought in Ideas and it shows up here.</p></li>';
+      els.timelineSentinel.hidden = true;
+      if (timelineObserver) timelineObserver.disconnect();
+      return;
+    }
+
+    var filtered = store.notes
+      .filter(function (n) { return filter === 'all' || n.kind === filter; })
+      .sort(function (a, b) { return b.createdAt - a.createdAt; });
+    var visible = filtered.slice(0, state.timelineShown);
+
+    var html = '';
+    var lastBucket = null;
+    visible.forEach(function (n) {
+      var bucket = timelineBucket(n.createdAt);
+      if (bucket !== lastBucket) {
+        html += '<li class="timeline-bucket">' + escapeHtml(bucket) + '</li>';
+        lastBucket = bucket;
+      }
+      html += renderTimelineRow(n);
+    });
+    els.timelineList.innerHTML = html ||
+      '<li class="empty"><p class="empty__text">No ' + escapeHtml(filter) + ' notes yet.</p></li>';
+
+    // sentinel drives lazy append: only observed while there are unrendered rows
+    var more = filtered.length > visible.length;
+    els.timelineSentinel.hidden = !more;
+    if (timelineObserver) {
+      timelineObserver.disconnect();
+      if (more) timelineObserver.observe(els.timelineSentinel);
+    }
   }
 
   /* ---------- CLIPS view ---------- */
@@ -1237,6 +1319,7 @@
     if (state.view === 'dashboard') renderDashboard();
     else if (state.view === 'ideas') renderIdeas();
     else if (state.view === 'diary') renderDiary();
+    else if (state.view === 'timeline') renderTimeline();
     else if (state.view === 'clips') renderClips();
     else if (state.view === 'goals') renderGoals();
     else if (state.view === 'graph') renderGraph();
@@ -1432,6 +1515,13 @@
 
     if (action === 'goto') {
       setView(btn.getAttribute('data-go'));
+      return;
+    }
+
+    if (action === 'tl-filter') {
+      state.timelineFilter = btn.getAttribute('data-kind');
+      state.timelineShown = TIMELINE_PAGE;
+      renderTimeline();
       return;
     }
 
@@ -1731,6 +1821,7 @@
       { label: 'New diary entry', hint: 'command', run: function () { setView('diary'); els.diaryBody.focus(); } },
       { label: 'Go to Ideas', hint: 'go', run: function () { setView('ideas'); } },
       { label: 'Go to Diary', hint: 'go', run: function () { setView('diary'); } },
+      { label: 'Go to Timeline', hint: 'go', run: function () { setView('timeline'); } },
       { label: 'Go to Clips', hint: 'go', run: function () { setView('clips'); } },
       { label: 'Go to Goals', hint: 'go', run: function () { setView('goals'); } },
       { label: 'Go to Graph', hint: 'go', run: function () { setView('graph'); } },
@@ -1950,6 +2041,7 @@
       dashboard: document.getElementById('view-dashboard'),
       ideas: document.getElementById('view-ideas'),
       diary: document.getElementById('view-diary'),
+      timeline: document.getElementById('view-timeline'),
       clips: document.getElementById('view-clips'),
       goals: document.getElementById('view-goals'),
       graph: document.getElementById('view-graph')
@@ -1971,6 +2063,18 @@
     els.digestBtn = document.getElementById('digest-btn');
     els.digestHint = document.getElementById('digest-hint');
     els.digestResult = document.getElementById('digest-result');
+    els.timelineFilters = document.getElementById('timeline-filters');
+    els.timelineList = document.getElementById('timeline-list');
+    els.timelineSentinel = document.getElementById('timeline-sentinel');
+    if (window.IntersectionObserver) {
+      timelineObserver = new IntersectionObserver(function (entries) {
+        if (state.view !== 'timeline') return;
+        if (entries.some(function (en) { return en.isIntersecting; })) {
+          state.timelineShown += TIMELINE_PAGE;
+          renderTimeline();
+        }
+      }, { rootMargin: '400px' });
+    }
     els.clipForm = document.getElementById('clip-form');
     els.clipUrl = document.getElementById('clip-url');
     els.clipNote = document.getElementById('clip-note');
