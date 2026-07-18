@@ -239,7 +239,11 @@
     timelineShown: 50,     // lazy-render window; grows as the sentinel comes into view
     ask: null,   // {busy, question, sources, answer, keyless} — render-time only, never stored
     whyBusy: {}, // pair key -> in-flight flag
-    whyText: {}  // pair key -> one-sentence explanation — render-time only, never stored
+    whyText: {}, // pair key -> one-sentence explanation — render-time only, never stored
+    selectMode: false,   // IDEAS multi-select for synthesize
+    selected: {},        // note id -> true
+    synthChoosing: false, // format chooser open in the bottom bar
+    synth: null          // {busy, format, text} — render-time only, never stored unless saved
   };
 
   /* ---------- Search (ideas) ---------- */
@@ -510,7 +514,13 @@
 
     var pinnedMark = note.pinned ? '<span class="note__pinned">Pinned</span> ' : '';
 
-    return '<li class="note' + (note.pinned ? ' note--pinned' : '') + '" data-id="' + escapeHtml(note.id) + '">' +
+    var selectCls = state.selectMode
+      ? ' note--selectable' + (state.selected[note.id] ? ' note--selected' : '')
+      : '';
+    var checkHtml = state.selectMode ? '<span class="note__check" aria-hidden="true"></span>' : '';
+
+    return '<li class="note' + (note.pinned ? ' note--pinned' : '') + selectCls + '" data-id="' + escapeHtml(note.id) + '">' +
+      checkHtml +
       titleHtml +
       '<p class="note__body">' + renderBody(bodySnippet(note.body, tokens), tokens, links.titleIndex) + '</p>' +
       tagsHtml +
@@ -564,6 +574,144 @@
 
     var streak = computeStreak('idea');
     els.captureStreak.textContent = streak.current > 0 ? '🔥 ' + streak.current + '-day streak' : '';
+
+    var selBtn = document.getElementById('select-toggle');
+    selBtn.textContent = state.selectMode ? 'Done' : 'Select';
+    selBtn.classList.toggle('toolbar__btn--active', state.selectMode);
+    renderSynthBar();
+    renderSynthResult();
+  }
+
+  /* ---------- Synthesize: selected notes → short-form content ---------- */
+
+  var SYNTH_MAX_NOTES = 4;
+  var SYNTH_BODY_CHARS = 1200;
+  var SYNTH_LABELS = { reel: 'Reel script', hooks: 'Hook ideas', post: 'Post' };
+
+  function selectedCount() {
+    return Object.keys(state.selected).length;
+  }
+
+  function exitSelectMode() {
+    state.selectMode = false;
+    state.selected = {};
+    state.synthChoosing = false;
+  }
+
+  function toggleSelect(id) {
+    if (state.selected[id]) {
+      delete state.selected[id];
+    } else if (selectedCount() >= SYNTH_MAX_NOTES) {
+      showBanner('Four notes max — deselect one first.');
+      return;
+    } else {
+      state.selected[id] = true;
+    }
+    state.synthChoosing = false;
+    render();
+  }
+
+  function runSynthesize(format) {
+    if (state.synth && state.synth.busy) return;
+    var byId = notesById();
+    var notes = Object.keys(state.selected)
+      .map(function (id) { return byId[id]; })
+      .filter(Boolean);
+    if (notes.length < 2) return;
+
+    var blocks = notes.map(function (n) {
+      var body = n.body.length > SYNTH_BODY_CHARS ? n.body.slice(0, SYNTH_BODY_CHARS) + '…' : n.body;
+      return '[' + n.kind + '] ' + (n.title || '(untitled)') + ' (' + formatDate(n.createdAt) + '): ' + body;
+    });
+
+    state.synthChoosing = false;
+    state.synth = { busy: true, format: format };
+    render();
+    window.BrainAI.synthesize(blocks.join('\n\n'), format).then(function (text) {
+      state.synth = { format: format, text: text };
+      render();
+    }).catch(function (err) {
+      state.synth = null;
+      showBanner(err.message || 'AI request failed.', 'error');
+      render();
+    });
+  }
+
+  function copySynth() {
+    var text = state.synth && state.synth.text;
+    if (!text) return;
+    function done() { showBanner('Copied to clipboard.'); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      ta.remove();
+      if (ok) done();
+      else showBanner('Copy failed — select the text manually.', 'error');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  function saveSynthAsIdea() {
+    var s = state.synth;
+    if (!s || !s.text) return;
+    var prevEligible = eligibleNoteCount();
+    store.notes.push(createNote(SYNTH_LABELS[s.format] + ' — ' + formatDate(Date.now()), s.text, 'content', 'idea'));
+    saveStore();
+    state.synth = null;
+    exitSelectMode();
+    render();
+    showBanner('Saved as idea.');
+    recordNoteSaved(prevEligible);
+  }
+
+  function renderSynthBar() {
+    var bar = els.synthBar;
+    var count = selectedCount();
+    if (!state.selectMode || count < 2) {
+      bar.hidden = true;
+      return;
+    }
+    bar.hidden = false;
+    if (state.synth && state.synth.busy) {
+      bar.innerHTML = '<span class="synth-bar__count">SYNTHESIZING…</span>';
+    } else if (state.synthChoosing) {
+      bar.innerHTML =
+        '<button type="button" class="synth-bar__btn" data-action="synth-run" data-format="reel">REEL SCRIPT</button>' +
+        '<button type="button" class="synth-bar__btn" data-action="synth-run" data-format="hooks">HOOK IDEAS</button>' +
+        '<button type="button" class="synth-bar__btn" data-action="synth-run" data-format="post">POST</button>' +
+        '<button type="button" class="synth-bar__cancel" data-action="synth-cancel" aria-label="Cancel">&times;</button>';
+    } else {
+      bar.innerHTML =
+        '<span class="synth-bar__count">' + count + ' selected</span>' +
+        '<button type="button" class="synth-bar__btn" data-action="synth-open">SYNTHESIZE</button>';
+    }
+  }
+
+  function renderSynthResult() {
+    var s = state.synth;
+    if (!s || !s.text) {
+      els.synthResult.hidden = true;
+      els.synthResult.innerHTML = '';
+      return;
+    }
+    els.synthResult.hidden = false;
+    els.synthResult.innerHTML =
+      '<div class="synth-result__head"><span class="label">' +
+      escapeHtml(SYNTH_LABELS[s.format].toUpperCase()) + '</span>' +
+      '<span class="synth-result__actions">' +
+      '<button type="button" class="toolbar__btn" data-action="synth-copy">Copy</button>' +
+      '<button type="button" class="toolbar__btn" data-action="synth-save">Save as idea</button>' +
+      '<button type="button" class="banner__dismiss" data-action="synth-dismiss" aria-label="Dismiss">&times;</button>' +
+      '</span></div>' +
+      '<p class="synth-result__text">' + escapeHtml(s.text) + '</p>';
   }
 
   /* ---------- DIARY view ---------- */
@@ -1692,9 +1840,65 @@
   }
 
   function handleMainClick(e) {
+    // select mode: any tap inside a note card toggles selection and swallows
+    // the card's inner actions (pin/edit/chips) — tap-to-select, nothing else
+    if (state.selectMode && state.view === 'ideas') {
+      var selCard = e.target.closest('#note-list [data-id]');
+      if (selCard) {
+        e.preventDefault();
+        toggleSelect(selCard.getAttribute('data-id'));
+        return;
+      }
+    }
+
     var btn = e.target.closest('[data-action]');
     if (!btn) return;
     var action = btn.getAttribute('data-action');
+
+    if (action === 'select-toggle') {
+      if (state.selectMode) exitSelectMode();
+      else state.selectMode = true;
+      render();
+      return;
+    }
+
+    if (action === 'synth-open') {
+      if (!window.BrainAI.hasKey()) {
+        showBanner('Add your Claude API key in Settings (⚙) to enable AI.');
+        openSettings(true);
+        return;
+      }
+      state.synthChoosing = true;
+      render();
+      return;
+    }
+
+    if (action === 'synth-cancel') {
+      state.synthChoosing = false;
+      render();
+      return;
+    }
+
+    if (action === 'synth-run') {
+      runSynthesize(btn.getAttribute('data-format'));
+      return;
+    }
+
+    if (action === 'synth-copy') {
+      copySynth();
+      return;
+    }
+
+    if (action === 'synth-save') {
+      saveSynthAsIdea();
+      return;
+    }
+
+    if (action === 'synth-dismiss') {
+      state.synth = null;
+      render();
+      return;
+    }
 
     if (action === 'clear-filters') {
       state.query = '';
@@ -2290,6 +2494,8 @@
     els.tagRail = document.getElementById('tag-rail');
     els.tagSuggest = document.getElementById('tag-suggest');
     els.noteList = document.getElementById('note-list');
+    els.synthBar = document.getElementById('synth-bar');
+    els.synthResult = document.getElementById('synth-result');
     els.diaryForm = document.getElementById('diary-form');
     els.diaryBody = document.getElementById('diary-body');
     els.diaryList = document.getElementById('diary-list');
@@ -2396,6 +2602,10 @@
       }
       if (e.key === 'Escape' && !els.settingsPanel.hidden) {
         els.settingsPanel.hidden = true;
+      }
+      if (e.key === 'Escape' && state.selectMode) {
+        exitSelectMode();
+        render();
       }
     });
 

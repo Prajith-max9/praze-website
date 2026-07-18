@@ -125,6 +125,7 @@
         <span id="note-count" class="toolbar__count">0 NOTES</span>
       </div>
       <div class="toolbar__actions">
+        <button id="select-toggle" class="toolbar__btn" type="button" data-action="select-toggle">Select</button>
         <button id="export-btn" class="toolbar__btn" type="button">Export</button>
         <button id="import-btn" class="toolbar__btn" type="button">Import</button>
         <input id="import-file" type="file" accept=".json,application/json" hidden>
@@ -132,7 +133,9 @@
     </section>
 
     <div id="tag-rail" class="tag-rail"></div>
+    <div id="synth-result" class="synth-result" hidden></div>
     <ol id="note-list" class="note-list"></ol>
+    <div id="synth-bar" class="synth-bar" hidden></div>
   </section>
 
   <!-- DIARY -->
