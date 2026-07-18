@@ -1437,7 +1437,10 @@
       setOnboardStage('1');
       stage = '1';
     }
-    if (stage !== '2' && prevEligible === 4 && eligibleNoteCount() === 5) {
+    // "crossed the gate" not "landed exactly on 5" — a brain-dump save can add
+    // several notes at once and jump straight past the threshold
+    var min = window.BrainAI.MIN_NOTES_FOR_LINKS;
+    if (stage !== '2' && prevEligible < min && eligibleNoteCount() >= min) {
       setOnboardStage('2');
       showBanner('Your brain just connected.', null, true, {
         label: 'SEE THE GRAPH',
@@ -1649,6 +1652,7 @@
   }
 
   function setView(view) {
+    if (dump.open) closeDump(); // tab switch never leaves the mic hot behind an overlay
     if (state.view === 'graph' && view !== 'graph') window.BrainGraph.destroy();
     state.view = view;
     if (location.hash !== '#' + view) {
@@ -2368,13 +2372,83 @@
     if (!els.settingsPanel.hidden) renderSettings();
   }
 
+  /* ---------- Speech recognition (shared wiring) ---------- */
+
+  // One home for the SpeechRecognition setup and the cumulative-results trap:
+  // e.results is cumulative for the session, so the transcript is rebuilt from
+  // scratch on every event — a re-sent final never double-counts and interim
+  // keeps replacing itself. Used by diary dictation and the brain dump.
+  function makeRecognizer(opts) {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    var recog = new SR();
+    recog.lang = 'en-IN';
+    recog.continuous = true;
+    recog.interimResults = true;
+
+    var finalTranscript = '';
+    var lastInterim = '';
+    var r = { listening: false };
+
+    recog.onresult = function (e) {
+      var interim = '';
+      var finals = '';
+      for (var i = 0; i < e.results.length; i++) {
+        var chunk = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finals += chunk;
+        else interim += chunk;
+      }
+      finalTranscript = finals;
+      lastInterim = interim;
+      opts.onText(finalTranscript, interim);
+    };
+
+    recog.onerror = function (e) {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        showBanner('Microphone access denied — allow it in your browser to dictate.', 'error');
+      }
+      // 'no-speech' / 'aborted' are normal — reset silently
+      r.listening = false;
+      if (opts.onIdle) opts.onIdle();
+    };
+
+    recog.onend = function () {
+      // fold any trailing interim into the final text so nothing is lost
+      finalTranscript += lastInterim;
+      lastInterim = '';
+      opts.onText(finalTranscript, '');
+      r.listening = false;
+      if (opts.onIdle) opts.onIdle();
+      if (opts.onEnd) opts.onEnd(finalTranscript);
+    };
+
+    r.start = function () {
+      finalTranscript = '';
+      lastInterim = '';
+      try {
+        recog.start();
+      } catch (err) {
+        return false; // guard double-start: start() throws if already running
+      }
+      r.listening = true;
+      return true;
+    };
+
+    r.stop = function () {
+      if (r.listening) recog.stop();
+    };
+
+    return r;
+  }
+
   /* ---------- Diary voice dictation (browser-native, online-only) ---------- */
 
-  var dictation = { supported: false, listening: false };
+  var dictation = { supported: false, recognizer: null };
 
   function setupDictation() {
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return; // unsupported (e.g. Firefox): no button, diary works as before
+    if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
+      return; // unsupported (e.g. Firefox): no button, diary works as before
+    }
     dictation.supported = true;
 
     var micBtn = document.createElement('button');
@@ -2388,75 +2462,30 @@
     actions.insertBefore(micBtn, hint || null);
     dictation.btn = micBtn;
 
-    var recog = new SR();
-    recog.lang = 'en-IN';
-    recog.continuous = true;
-    recog.interimResults = true;
-    dictation.recog = recog;
-
     var baseText = '';
     var separator = '';
-    var finalTranscript = '';
-    var lastInterim = '';
 
-    function setIdle() {
-      dictation.listening = false;
-      micBtn.textContent = '🎤 Dictate';
-      micBtn.classList.remove('diary-mic--live');
-    }
-
-    function repaint(interim) {
-      els.diaryBody.value = baseText + separator + finalTranscript + interim;
-      autoGrow(els.diaryBody);
-      els.diaryBody.selectionStart = els.diaryBody.selectionEnd = els.diaryBody.value.length;
-    }
-
-    recog.onresult = function (e) {
-      // e.results is cumulative for the session — rebuild from scratch so a
-      // re-sent final never double-counts and interim keeps replacing itself
-      var interim = '';
-      var finals = '';
-      for (var i = 0; i < e.results.length; i++) {
-        var chunk = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finals += chunk;
-        else interim += chunk;
+    var recognizer = makeRecognizer({
+      onText: function (finalText, interim) {
+        els.diaryBody.value = baseText + separator + finalText + interim;
+        autoGrow(els.diaryBody);
+        els.diaryBody.selectionStart = els.diaryBody.selectionEnd = els.diaryBody.value.length;
+      },
+      onIdle: function () {
+        micBtn.textContent = '🎤 Dictate';
+        micBtn.classList.remove('diary-mic--live');
       }
-      finalTranscript = finals;
-      lastInterim = interim;
-      repaint(interim);
-    };
-
-    recog.onerror = function (e) {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        showBanner('Microphone access denied — allow it in your browser to dictate.', 'error');
-      }
-      // 'no-speech' / 'aborted' are normal — reset silently
-      setIdle();
-    };
-
-    recog.onend = function () {
-      // fold any trailing interim into the saved value so nothing is lost
-      finalTranscript += lastInterim;
-      lastInterim = '';
-      repaint('');
-      setIdle();
-    };
+    });
+    dictation.recognizer = recognizer;
 
     micBtn.addEventListener('click', function () {
-      if (dictation.listening) {
-        recog.stop();
+      if (recognizer.listening) {
+        recognizer.stop();
         return;
       }
       baseText = els.diaryBody.value;
       separator = (baseText && !/\s$/.test(baseText)) ? ' ' : '';
-      finalTranscript = '';
-      lastInterim = '';
-      try {
-        recog.start();
-      } catch (err) {
-        return; // guard double-start: start() throws if already running
-      }
-      dictation.listening = true;
+      if (!recognizer.start()) return;
       micBtn.textContent = '⏹ Stop';
       micBtn.classList.add('diary-mic--live');
       els.diaryBody.focus();
@@ -2464,7 +2493,193 @@
   }
 
   function stopDictation() {
-    if (dictation.listening && dictation.recog) dictation.recog.stop();
+    if (dictation.recognizer) dictation.recognizer.stop();
+  }
+
+  /* ---------- Brain dump: talk long, get split notes ---------- */
+
+  var DUMP_MIN_SPLIT_WORDS = 40; // under this, splitting would waste a call
+
+  // The recognizer is created lazily on first open, NOT at init — the diary
+  // recognizer must stay the only one constructed on page load.
+  var dump = {
+    recog: null, open: false, phase: null, // live | busy | review | short | keyless | fallback
+    transcript: '', interim: '', proposals: [], startedAt: 0, timer: null
+  };
+
+  function openDump() {
+    if (!dump.recog) {
+      dump.recog = makeRecognizer({
+        onText: function (finalText, interim) {
+          dump.transcript = finalText;
+          dump.interim = interim;
+          if (dump.open && dump.phase === 'live') renderDump();
+        },
+        onEnd: function (finalText) {
+          dump.transcript = finalText;
+          dump.interim = '';
+          if (dump.open && dump.phase === 'live') afterDumpStop();
+        }
+      });
+      if (!dump.recog) return;
+    }
+    dump.open = true;
+    dump.phase = 'live';
+    dump.transcript = '';
+    dump.interim = '';
+    dump.proposals = [];
+    dump.startedAt = Date.now();
+    clearInterval(dump.timer);
+    dump.timer = setInterval(updateDumpTime, 1000);
+    els.dumpOverlay.hidden = false;
+    updateDumpTime();
+    dump.recog.start();
+    renderDump();
+  }
+
+  function closeDump() {
+    // open goes false BEFORE stop(): stop fires onend synchronously in some
+    // implementations, and the onEnd handler must see the overlay as closed
+    dump.open = false;
+    dump.phase = null;
+    clearInterval(dump.timer);
+    if (dump.recog) dump.recog.stop();
+    els.dumpOverlay.hidden = true;
+  }
+
+  function updateDumpTime() {
+    var s = Math.max(0, Math.floor((Date.now() - dump.startedAt) / 1000));
+    els.dumpTime.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function afterDumpStop() {
+    clearInterval(dump.timer);
+    var trimmed = dump.transcript.trim();
+    var words = trimmed ? trimmed.split(/\s+/).length : 0;
+    if (!words) {
+      closeDump();
+      return;
+    }
+    if (words < DUMP_MIN_SPLIT_WORDS) {
+      dump.phase = 'short';
+      renderDump();
+      return;
+    }
+    if (!window.BrainAI.hasKey()) {
+      dump.phase = 'keyless';
+      renderDump();
+      return;
+    }
+    dump.phase = 'busy';
+    renderDump();
+    window.BrainAI.splitDump(trimmed).then(function (notes) {
+      if (!dump.open) return;
+      dump.proposals = notes.map(function (n) {
+        return { title: n.title, body: n.body, tags: n.tags, checked: true };
+      });
+      dump.phase = 'review';
+      renderDump();
+    }).catch(function (err) {
+      if (!dump.open) return;
+      showBanner(err.message || 'AI request failed.', 'error');
+      dump.phase = 'fallback'; // transcript stays intact — never silently lost
+      renderDump();
+    });
+  }
+
+  function saveDumpAsOne() {
+    var text = dump.transcript.trim();
+    if (!text) return;
+    var prevEligible = eligibleNoteCount();
+    store.notes.push(createNote('Brain dump — ' + formatDate(Date.now()), text, '', 'idea'));
+    saveStore();
+    closeDump();
+    render();
+    showBanner('Saved as one note.');
+    recordNoteSaved(prevEligible);
+  }
+
+  function saveDumpChecked() {
+    var chosen = dump.proposals.filter(function (p) { return p.checked; });
+    if (!chosen.length) return;
+    var prevEligible = eligibleNoteCount();
+    chosen.forEach(function (p) {
+      store.notes.push(createNote(p.title, p.body, p.tags.join(', '), 'idea'));
+    });
+    saveStore();
+    closeDump();
+    render();
+    showBanner('Saved ' + chosen.length + ' note' + (chosen.length === 1 ? '' : 's') + '.');
+    recordNoteSaved(prevEligible);
+  }
+
+  function dumpTranscriptHtml() {
+    return '<div class="dump__transcript">' + escapeHtml(dump.transcript) +
+      (dump.interim ? '<span class="dump__interim">' + escapeHtml(dump.interim) + '</span>' : '') +
+      '</div>';
+  }
+
+  function renderDump() {
+    if (!dump.open) return;
+    var body = '';
+    var actions = '';
+    if (dump.phase === 'live') {
+      body = dumpTranscriptHtml() +
+        '<p class="dump__hint">Talk it all out — separate thoughts get split into separate notes.</p>';
+      actions = '<button type="button" class="btn" data-action="dump-stop">STOP</button>';
+    } else if (dump.phase === 'busy') {
+      body = dumpTranscriptHtml() + '<p class="dump__hint">Splitting into notes…</p>';
+    } else if (dump.phase === 'review') {
+      body = '<ol class="dump__list">' + dump.proposals.map(function (p, i) {
+        return '<li class="dump__item' + (p.checked ? ' dump__item--checked' : '') +
+          '" data-action="dump-check" data-idx="' + i + '">' +
+          '<span class="note__check" aria-hidden="true"></span>' +
+          '<span class="dump__item-main">' +
+          '<span class="dump__item-title">' + escapeHtml(p.title) + '</span>' +
+          '<span class="dump__item-body">' + escapeHtml(p.body.slice(0, 90)) + (p.body.length > 90 ? '…' : '') + '</span>' +
+          (p.tags.length
+            ? '<span class="tl-row__tags">' + p.tags.map(function (t) { return '#' + escapeHtml(t); }).join(' ') + '</span>'
+            : '') +
+          '</span></li>';
+      }).join('') + '</ol>';
+      var n = dump.proposals.filter(function (p) { return p.checked; }).length;
+      actions =
+        '<button type="button" class="btn" data-action="dump-save-checked"' + (n ? '' : ' disabled') + '>' +
+        'SAVE ' + n + ' NOTE' + (n === 1 ? '' : 'S') + '</button>' +
+        '<button type="button" class="toolbar__btn" data-action="dump-save-one">SAVE AS ONE NOTE</button>' +
+        '<button type="button" class="toolbar__btn" data-action="dump-discard">DISCARD</button>';
+    } else { // short | keyless | fallback
+      var hint = dump.phase === 'short' ? 'Too short to split — save it whole.'
+        : dump.phase === 'keyless' ? 'Add your API key in Settings to split this into separate notes.'
+        : 'Splitting failed — your words are safe below.';
+      body = dumpTranscriptHtml() + '<p class="dump__hint">' + escapeHtml(hint) + '</p>';
+      actions =
+        '<button type="button" class="btn" data-action="dump-save-one">SAVE AS ONE NOTE</button>' +
+        '<button type="button" class="toolbar__btn" data-action="dump-discard">DISCARD</button>';
+    }
+    els.dumpBody.innerHTML = body;
+    els.dumpActions.innerHTML = actions;
+  }
+
+  function handleDumpClick(e) {
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    var action = el.getAttribute('data-action');
+    if (action === 'dump-stop') {
+      if (dump.recog) dump.recog.stop();
+    } else if (action === 'dump-close' || action === 'dump-discard') {
+      closeDump();
+    } else if (action === 'dump-save-one') {
+      saveDumpAsOne();
+    } else if (action === 'dump-save-checked') {
+      saveDumpChecked();
+    } else if (action === 'dump-check') {
+      var p = dump.proposals[+el.getAttribute('data-idx')];
+      if (p) {
+        p.checked = !p.checked;
+        renderDump();
+      }
+    }
   }
 
   /* ---------- Init ---------- */
@@ -2603,6 +2818,10 @@
       if (e.key === 'Escape' && !els.settingsPanel.hidden) {
         els.settingsPanel.hidden = true;
       }
+      if (e.key === 'Escape' && dump.open) {
+        closeDump();
+        return;
+      }
       if (e.key === 'Escape' && state.selectMode) {
         exitSelectMode();
         render();
@@ -2636,6 +2855,7 @@
     window.addEventListener('hashchange', function () {
       var v = currentViewFromHash();
       if (v !== state.view) {
+        if (dump.open) closeDump();
         if (state.view === 'graph') window.BrainGraph.destroy();
         state.view = v;
         render();
@@ -2752,6 +2972,18 @@
     themeBtn.addEventListener('click', function () {
       applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
     });
+
+    // brain dump overlay (button only appears when SpeechRecognition exists)
+    els.dumpOverlay = document.getElementById('dump-overlay');
+    els.dumpBody = document.getElementById('dump-body');
+    els.dumpActions = document.getElementById('dump-actions');
+    els.dumpTime = document.getElementById('dump-time');
+    els.dumpOverlay.addEventListener('click', handleDumpClick);
+    var dumpBtn = document.getElementById('dump-btn');
+    if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+      dumpBtn.hidden = false;
+      dumpBtn.addEventListener('click', openDump);
+    }
 
     setupDictation();
     render();

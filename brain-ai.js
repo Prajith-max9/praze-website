@@ -355,6 +355,51 @@ window.BrainAI = (function () {
     return text;
   }
 
+  /* Brain dump: one long spoken transcript → 1-6 separate tagged notes */
+
+  var DUMP_CHARS = 6000;
+
+  async function splitDump(transcript) {
+    var t = transcript.length > DUMP_CHARS ? transcript.slice(0, DUMP_CHARS) + '…' : transcript;
+    var prompt =
+      'A person spoke a stream of thoughts into their notes app. Split it into separate notes.\n\n' +
+      'Transcript:\n' + t + '\n\n' +
+      'Respond with ONLY a JSON array, no markdown fences:\n' +
+      '[{"title": "...", "body": "...", "tags": ["tag1"]}]\n\n' +
+      'Rules:\n' +
+      '- 1 to 6 notes. Split only where the topic genuinely changes; do not over-fragment.\n' +
+      '- Titles under 8 words, drawn from the content.\n' +
+      '- Bodies are the speaker\'s words lightly cleaned (remove filler like "um", fix obvious ' +
+      'transcription stumbles) — do NOT rewrite, summarize, or add anything they didn\'t say.\n' +
+      '- 1-2 lowercase single-word tags per note.';
+
+    var text = await callClaude(prompt, 800);
+    var parsed;
+    try {
+      parsed = parseJson(text);
+    } catch (e) {
+      throw new Error('AI response was malformed — try again.');
+    }
+    if (!Array.isArray(parsed)) throw new Error('AI response was malformed — try again.');
+    var notes = parsed
+      .filter(function (n) {
+        return n && typeof n.title === 'string' && typeof n.body === 'string' && n.body.trim();
+      })
+      .map(function (n) {
+        return {
+          title: n.title.trim().slice(0, 120),
+          body: n.body.trim(),
+          tags: (Array.isArray(n.tags) ? n.tags : [])
+            .filter(function (t) { return typeof t === 'string' && t.trim(); })
+            .map(function (t) { return t.trim().toLowerCase(); })
+            .slice(0, 2)
+        };
+      })
+      .slice(0, 6);
+    if (!notes.length) throw new Error('AI response was malformed — try again.');
+    return notes;
+  }
+
   var WHY_BODY_CHARS = 1500;
 
   function clipBody(body) {
@@ -419,6 +464,7 @@ window.BrainAI = (function () {
     askBrain: askBrain,
     explainLink: explainLink,
     synthesize: synthesize,
+    splitDump: splitDump,
     testKey: testKey
   };
 })();

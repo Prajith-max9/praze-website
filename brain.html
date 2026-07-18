@@ -113,6 +113,7 @@
         <div id="tag-suggest" class="tag-suggest"></div>
         <div class="capture__actions">
           <button class="btn" type="submit">CAPTURE</button>
+          <button id="dump-btn" class="toolbar__btn" type="button" hidden>&#127908; Brain dump</button>
           <span class="capture__hint">Ctrl/Cmd + Enter</span>
           <span id="capture-streak" class="capture__streak"></span>
         </div>
@@ -216,6 +217,19 @@
   </noscript>
 
 </main>
+
+<div id="dump-overlay" class="dump" hidden>
+  <div class="dump__backdrop"></div>
+  <div class="dump__box">
+    <div class="dump__head">
+      <p class="label">BRAIN DUMP</p>
+      <span id="dump-time" class="dump__time">0:00</span>
+      <button type="button" class="banner__dismiss" data-action="dump-close" aria-label="Close">&times;</button>
+    </div>
+    <div id="dump-body" class="dump__body"></div>
+    <div id="dump-actions" class="dump__actions"></div>
+  </div>
+</div>
 
 <div id="palette" class="palette" hidden>
   <div class="palette__backdrop" id="palette-backdrop"></div>
