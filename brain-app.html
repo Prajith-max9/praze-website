@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
 <title>PRAZE — Brain</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#131313">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Brain">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -2176,6 +2183,16 @@ textarea:focus-visible,
   <p>Notes are stored only in this browser (localStorage). No account, no server, no sync — export regularly to keep a backup.</p>
 </footer>
 
+<script>
+/* Register the service worker so the app installs and runs offline.
+   Guarded + best-effort: on a plain file:// open or an older browser it
+   simply no-ops, and never blocks the app. */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('brain-sw.js').catch(function () {});
+  });
+}
+</script>
 
 <script>
 /* PRAZE Second Brain — intelligence layer.
