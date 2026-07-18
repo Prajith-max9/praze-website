@@ -237,7 +237,9 @@
     lastDeleted: null, // {kind, item, index} — in-memory undo, never persisted or exported
     timelineFilter: 'all', // all | idea | diary | clip
     timelineShown: 50,     // lazy-render window; grows as the sentinel comes into view
-    ask: null // {busy, question, sources, answer, keyless} — render-time only, never stored
+    ask: null,   // {busy, question, sources, answer, keyless} — render-time only, never stored
+    whyBusy: {}, // pair key -> in-flight flag
+    whyText: {}  // pair key -> one-sentence explanation — render-time only, never stored
   };
 
   /* ---------- Search (ideas) ---------- */
@@ -327,17 +329,35 @@
     return note.title || note.body.slice(0, 32) + (note.body.length > 32 ? '…' : '');
   }
 
+  function whyPairKey(aId, bId) {
+    return aId < bId ? aId + '|' + bId : bId + '|' + aId;
+  }
+
   function renderRelatedRow(note, byId) {
     var entries = getAnalysis().related[note.id];
     if (!entries || !entries.length) return '';
-    var chips = entries.map(function (r) {
+    var hasKey = window.BrainAI.hasKey(); // keyless → no WHY? at all, not a dead button
+    var chips = '';
+    var whys = '';
+    entries.forEach(function (r) {
       var other = byId[r.id];
-      if (!other) return '';
-      return '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
+      if (!other) return;
+      chips += '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
         escapeHtml(other.id) + '">' + escapeHtml(noteLabel(other)) + '</button>';
-    }).join('');
+      if (hasKey) {
+        var key = whyPairKey(note.id, other.id);
+        var busy = state.whyBusy[key];
+        chips += '<button type="button" class="why-btn" data-action="why-link" data-other-id="' +
+          escapeHtml(other.id) + '"' + (busy ? ' disabled' : '') + '>' + (busy ? '…' : 'why?') + '</button>';
+        if (state.whyText[key]) {
+          whys += '<p class="why-text"><span class="why-text__pair">↔ ' + escapeHtml(noteLabel(other)) +
+            '</span> ' + escapeHtml(state.whyText[key]) + '</p>';
+        }
+      }
+    });
     if (!chips) return '';
-    return '<div class="note__backlinks note__related"><span class="note__backlinks-label">Related</span>' + chips + '</div>';
+    return '<div class="note__backlinks note__related"><span class="note__backlinks-label">Related</span>' +
+      chips + '</div>' + whys;
   }
 
   function renderSimTagRow(note, byId) {
@@ -1778,6 +1798,24 @@
             state.aiSuggest[note.id] = tags;
             if (!tags.length) showBanner('AI had no new tags to suggest — your tagging is on point.');
           });
+        });
+        break;
+      case 'why-link':
+        var otherId = btn.getAttribute('data-other-id');
+        var other = notesById()[otherId];
+        if (!other || !window.BrainAI.hasKey()) break;
+        var pairKey = whyPairKey(note.id, otherId);
+        if (state.whyBusy[pairKey]) break;
+        state.whyBusy[pairKey] = true;
+        render();
+        window.BrainAI.explainLink(note, other).then(function (sentence) {
+          delete state.whyBusy[pairKey];
+          state.whyText[pairKey] = sentence; // shown, never stored — same as reflect
+          render();
+        }).catch(function (err) {
+          delete state.whyBusy[pairKey];
+          showBanner(err.message || 'AI request failed.', 'error');
+          render();
         });
         break;
       case 'ai-reflect':

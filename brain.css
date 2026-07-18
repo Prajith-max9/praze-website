@@ -1244,6 +1244,47 @@
   background: var(--lime);
 }
 
+/* Why — explain a similarity link */
+
+.why-btn {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: none;
+  color: var(--gray);
+  border: none;
+  padding: 0.2rem 0.3rem;
+  cursor: pointer;
+}
+
+.why-btn:hover {
+  color: var(--ink);
+}
+
+.why-btn[disabled] {
+  cursor: default;
+}
+
+.why-text {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  border-left: 2px solid var(--lime);
+  padding-left: 0.6rem;
+  margin: 0.5rem 0 0;
+  max-width: 70ch;
+}
+
+.why-text__pair {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-bottom: 0.15rem;
+}
+
 /* Ask */
 
 .ask-result {

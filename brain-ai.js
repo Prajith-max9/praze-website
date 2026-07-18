@@ -327,6 +327,28 @@ window.BrainAI = (function () {
     };
   }
 
+  var WHY_BODY_CHARS = 1500;
+
+  function clipBody(body) {
+    return body.length > WHY_BODY_CHARS ? body.slice(0, WHY_BODY_CHARS) + '…' : body;
+  }
+
+  // One concrete sentence on what two similarity-linked notes actually share.
+  // "If the connection is weak, say so" is load-bearing: a WHY that manufactures
+  // profundity for a coincidental token overlap is worse than no WHY.
+  async function explainLink(noteA, noteB) {
+    var prompt =
+      'Two notes from a personal knowledge base were flagged as related by a similarity algorithm.\n\n' +
+      'Note A: ' + (noteA.title || '(untitled)') + '\n' + clipBody(noteA.body) + '\n\n' +
+      'Note B: ' + (noteB.title || '(untitled)') + '\n' + clipBody(noteB.body) + '\n\n' +
+      'In one sentence under 25 words, state the specific idea these two share. Be concrete — ' +
+      'name the actual concept, don\'t say "both discuss similar themes". ' +
+      'If the connection is weak or coincidental, say so plainly.';
+
+    var text = await callClaude(prompt, 200);
+    return text.trim();
+  }
+
   // Answer a question from retrieved notes only. Context is built by the
   // caller (already truncated and capped); the answer is plain prose.
   async function askBrain(question, context) {
@@ -367,6 +389,7 @@ window.BrainAI = (function () {
     reflectEntry: reflectEntry,
     digestWeek: digestWeek,
     askBrain: askBrain,
+    explainLink: explainLink,
     testKey: testKey
   };
 })();
