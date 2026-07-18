@@ -23,12 +23,18 @@ window.BrainAI = (function () {
 
   var cache = { rev: -1, result: null };
 
-  function computeAll(notes) {
-    var eligible = notes.filter(function (n) { return n.kind !== 'clip'; }).length;
-    if (eligible < MIN_NOTES_FOR_LINKS) {
-      return { related: {}, pairs: [] };
-    }
+  function cosine(a, b) {
+    if (!a.norm || !b.norm) return 0;
+    var dot = 0;
+    var small = Object.keys(a.vec).length <= Object.keys(b.vec).length ? a : b;
+    var other = small === a ? b : a;
+    Object.keys(small.vec).forEach(function (t) {
+      if (other.vec[t]) dot += small.vec[t] * other.vec[t];
+    });
+    return dot / (a.norm * b.norm);
+  }
 
+  function computeAll(notes) {
     // term frequencies per note; title tokens count double (titles are dense signal)
     var docs = notes.map(function (n) {
       var tf = {};
@@ -58,19 +64,18 @@ window.BrainAI = (function () {
       d.norm = Math.sqrt(norm);
     });
 
-    function cosine(a, b) {
-      if (!a.norm || !b.norm) return 0;
-      var dot = 0;
-      var small = Object.keys(a.vec).length <= Object.keys(b.vec).length ? a : b;
-      var other = small === a ? b : a;
-      Object.keys(small.vec).forEach(function (t) {
-        if (other.vec[t]) dot += small.vec[t] * other.vec[t];
-      });
-      return dot / (a.norm * b.norm);
-    }
+    // vectors, df and N stay on the result so search() reuses this exact IDF
+    // table via the same rev-keyed cache instead of building a parallel one
+    var result = { related: {}, pairs: [], docs: docs, df: df, N: N };
 
-    var related = {};
-    var pairs = [];
+    // cold-start gate applies to note-to-note links only, not to search:
+    // below it, IDF is too noisy to declare two notes "related" unprompted,
+    // but ranking against an explicit query is still better than nothing
+    var eligible = notes.filter(function (n) { return n.kind !== 'clip'; }).length;
+    if (eligible < MIN_NOTES_FOR_LINKS) return result;
+
+    var related = result.related;
+    var pairs = result.pairs;
     for (var i = 0; i < docs.length; i++) {
       for (var j = i + 1; j < docs.length; j++) {
         var score = cosine(docs[i], docs[j]);
@@ -86,7 +91,7 @@ window.BrainAI = (function () {
       related[id] = related[id].slice(0, TOP_RELATED);
     });
 
-    return { related: related, pairs: pairs };
+    return result;
   }
 
   function analyze(notes, rev) {
@@ -95,6 +100,31 @@ window.BrainAI = (function () {
       cache.rev = rev;
     }
     return cache.result;
+  }
+
+  // Rank every note against a free-text query with the same TF-IDF + cosine
+  // math the note-to-note links use. Returns [{id, score}] sorted desc.
+  function search(queryText, notes, rev) {
+    var a = analyze(notes, rev);
+    var docs = a.docs || [];
+    if (!docs.length) return [];
+
+    var tf = {};
+    tokenizeText(queryText).forEach(function (t) { tf[t] = (tf[t] || 0) + 1; });
+    var vec = {};
+    var norm = 0;
+    Object.keys(tf).forEach(function (t) {
+      if (!a.df[t]) return; // term absent from the corpus can't match anything
+      var w = tf[t] * Math.log(1 + a.N / a.df[t]);
+      vec[t] = w;
+      norm += w * w;
+    });
+    var q = { vec: vec, norm: Math.sqrt(norm) };
+
+    return docs
+      .map(function (d) { return { id: d.id, score: cosine(q, d) }; })
+      .filter(function (r) { return r.score > 0; })
+      .sort(function (x, y) { return y.score - x.score; });
   }
 
   // Suggest tags the note lacks but ≥2 of its related notes carry
@@ -297,6 +327,46 @@ window.BrainAI = (function () {
     };
   }
 
+  var WHY_BODY_CHARS = 1500;
+
+  function clipBody(body) {
+    return body.length > WHY_BODY_CHARS ? body.slice(0, WHY_BODY_CHARS) + '…' : body;
+  }
+
+  // One concrete sentence on what two similarity-linked notes actually share.
+  // "If the connection is weak, say so" is load-bearing: a WHY that manufactures
+  // profundity for a coincidental token overlap is worse than no WHY.
+  async function explainLink(noteA, noteB) {
+    var prompt =
+      'Two notes from a personal knowledge base were flagged as related by a similarity algorithm.\n\n' +
+      'Note A: ' + (noteA.title || '(untitled)') + '\n' + clipBody(noteA.body) + '\n\n' +
+      'Note B: ' + (noteB.title || '(untitled)') + '\n' + clipBody(noteB.body) + '\n\n' +
+      'In one sentence under 25 words, state the specific idea these two share. Be concrete — ' +
+      'name the actual concept, don\'t say "both discuss similar themes". ' +
+      'If the connection is weak or coincidental, say so plainly.';
+
+    var text = await callClaude(prompt, 200);
+    return text.trim();
+  }
+
+  // Answer a question from retrieved notes only. Context is built by the
+  // caller (already truncated and capped); the answer is plain prose.
+  async function askBrain(question, context) {
+    var prompt =
+      "You are answering questions about a person's private notes. You can only use " +
+      'the notes provided — you have no other knowledge of this person.\n\n' +
+      'Their notes:\n' + context + '\n\n' +
+      'Their question: ' + question + '\n\n' +
+      'Answer in plain prose, under 120 words. Rules:\n' +
+      "- Use only what's in the notes. If the notes don't answer it, say so plainly — do not guess or fill gaps.\n" +
+      '- Cite which notes you drew on by their exact titles, in square brackets, e.g. [Protein brand idea].\n' +
+      '- Never flatter, never pad, never mention being an AI.\n' +
+      '- If the notes contradict each other, say that rather than picking one.';
+
+    var text = await callClaude(prompt, 600);
+    return text.trim();
+  }
+
   async function testKey() {
     await callClaude('Reply with exactly: ok', 10);
     return true;
@@ -307,6 +377,7 @@ window.BrainAI = (function () {
     MIN_NOTES_FOR_LINKS: MIN_NOTES_FOR_LINKS,
     tokenize: tokenizeText,
     analyze: analyze,
+    search: search,
     suggestTags: suggestTags,
     getKey: getKey,
     setKey: setKey,
@@ -317,6 +388,8 @@ window.BrainAI = (function () {
     organizeNote: organizeNote,
     reflectEntry: reflectEntry,
     digestWeek: digestWeek,
+    askBrain: askBrain,
+    explainLink: explainLink,
     testKey: testKey
   };
 })();

@@ -6,7 +6,7 @@
   var PRE_MIGRATION_KEY = 'praze.brain.v1.pre-migration';
   var RESURFACE_DISMISSED_KEY = 'praze.brain.resurface.dismissed'; // UI state — never in store or exports
   var SCHEMA_VERSION = 2;
-  var VIEWS = ['dashboard', 'ideas', 'diary', 'clips', 'goals', 'graph'];
+  var VIEWS = ['dashboard', 'ask', 'ideas', 'diary', 'timeline', 'clips', 'goals', 'graph'];
 
   /* ---------- Utils ---------- */
 
@@ -234,7 +234,12 @@
     aiReflect: {},   // note id -> {themes, reflection} from Claude
     digest: null,    // {pattern, tension, question} — render-time only, never stored
     digestBusy: false,
-    lastDeleted: null // {kind, item, index} — in-memory undo, never persisted or exported
+    lastDeleted: null, // {kind, item, index} — in-memory undo, never persisted or exported
+    timelineFilter: 'all', // all | idea | diary | clip
+    timelineShown: 50,     // lazy-render window; grows as the sentinel comes into view
+    ask: null,   // {busy, question, sources, answer, keyless} — render-time only, never stored
+    whyBusy: {}, // pair key -> in-flight flag
+    whyText: {}  // pair key -> one-sentence explanation — render-time only, never stored
   };
 
   /* ---------- Search (ideas) ---------- */
@@ -324,17 +329,35 @@
     return note.title || note.body.slice(0, 32) + (note.body.length > 32 ? '…' : '');
   }
 
+  function whyPairKey(aId, bId) {
+    return aId < bId ? aId + '|' + bId : bId + '|' + aId;
+  }
+
   function renderRelatedRow(note, byId) {
     var entries = getAnalysis().related[note.id];
     if (!entries || !entries.length) return '';
-    var chips = entries.map(function (r) {
+    var hasKey = window.BrainAI.hasKey(); // keyless → no WHY? at all, not a dead button
+    var chips = '';
+    var whys = '';
+    entries.forEach(function (r) {
       var other = byId[r.id];
-      if (!other) return '';
-      return '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
+      if (!other) return;
+      chips += '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
         escapeHtml(other.id) + '">' + escapeHtml(noteLabel(other)) + '</button>';
-    }).join('');
+      if (hasKey) {
+        var key = whyPairKey(note.id, other.id);
+        var busy = state.whyBusy[key];
+        chips += '<button type="button" class="why-btn" data-action="why-link" data-other-id="' +
+          escapeHtml(other.id) + '"' + (busy ? ' disabled' : '') + '>' + (busy ? '…' : 'why?') + '</button>';
+        if (state.whyText[key]) {
+          whys += '<p class="why-text"><span class="why-text__pair">↔ ' + escapeHtml(noteLabel(other)) +
+            '</span> ' + escapeHtml(state.whyText[key]) + '</p>';
+        }
+      }
+    });
     if (!chips) return '';
-    return '<div class="note__backlinks note__related"><span class="note__backlinks-label">Related</span>' + chips + '</div>';
+    return '<div class="note__backlinks note__related"><span class="note__backlinks-label">Related</span>' +
+      chips + '</div>' + whys;
   }
 
   function renderSimTagRow(note, byId) {
@@ -701,6 +724,207 @@
     });
   }
 
+  /* ---------- ASK view: retrieval-augmented Q&A over your own notes ---------- */
+
+  // The question is a few words, so cosine scores run lower than note-to-note —
+  // hence a floor well under SIMILARITY_THRESHOLD.
+  var ASK_FLOOR = 0.05;
+  var ASK_TOP = 10;
+  var ASK_NOTE_CHARS = 600;    // per-note cap in the context
+  var ASK_CONTEXT_CHARS = 8000; // whole-context cap; lowest-scored notes dropped first
+
+  // Retrieved notes → "[kind] title (date): body" blocks. Walking the desc-sorted
+  // list and stopping at the cap drops the lowest-scored notes first.
+  function buildAskContext(results, byId) {
+    var parts = [];
+    var total = 0;
+    for (var i = 0; i < results.length; i++) {
+      var n = byId[results[i].id];
+      if (!n) continue;
+      var body = n.body.length > ASK_NOTE_CHARS ? n.body.slice(0, ASK_NOTE_CHARS) + '…' : n.body;
+      var block = '[' + n.kind + '] ' + noteLabel(n) + ' (' + formatDate(n.createdAt) + '): ' + body;
+      if (total + block.length + 2 > ASK_CONTEXT_CHARS && parts.length) break;
+      parts.push(block);
+      total += block.length + 2;
+    }
+    return parts.join('\n\n');
+  }
+
+  // [Exact Note Title] in the answer becomes a chip when it matches a retrieved
+  // note; anything else stays plain text — never a dead link for a made-up title.
+  function askAnswerHtml(answer, sources) {
+    var byLabel = {};
+    sources.forEach(function (s) { byLabel[s.label] = s.id; });
+    return answer.split(/\[([^\[\]]+)\]/g).map(function (part, i) {
+      if (i % 2 === 0) return escapeHtml(part);
+      var id = byLabel[part.trim()];
+      if (id) {
+        return '<button type="button" class="backlink ask-cite" data-action="open-note" data-note-id="' +
+          escapeHtml(id) + '">' + escapeHtml(part.trim()) + '</button>';
+      }
+      return escapeHtml('[' + part + ']');
+    }).join('');
+  }
+
+  function askSourceChips(sources) {
+    return sources.map(function (s) {
+      return '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
+        escapeHtml(s.id) + '">' + escapeHtml(s.label) + '</button>';
+    }).join('');
+  }
+
+  function renderAsk() {
+    var a = state.ask;
+    els.askBtn.disabled = !!(a && a.busy);
+    els.askBtn.textContent = a && a.busy ? 'ASKING…' : 'ASK';
+    if (!a) {
+      els.askResult.innerHTML = store.notes.length ? '' :
+        '<p class="empty__text">Nothing to ask yet — capture a few ideas first.</p>';
+      return;
+    }
+    var html = '';
+    if (a.busy) {
+      html = '<p class="empty__text">Reading your notes…</p>';
+    } else if (!a.sources.length) {
+      html = '<p class="empty__title">Nothing in your notes matches that.</p>' +
+        '<p class="empty__text">Try different words — the search reads your actual notes, not the internet.</p>';
+    } else if (a.keyless) {
+      // keyless degrade: the retrieval half is still a useful semantic search
+      html = '<p class="label">CLOSEST NOTES</p>' +
+        a.sources.map(function (s) {
+          return '<button type="button" class="dash-row" data-action="open-note" data-note-id="' +
+            escapeHtml(s.id) + '">' + escapeHtml(s.label) +
+            '<span class="dash-row__meta">' + escapeHtml(s.kind) + '</span></button>';
+        }).join('') +
+        '<p class="empty__text ask-keyless-hint">Add your API key in Settings (⚙) to get an answer.</p>';
+    } else if (a.answer != null) {
+      html = '<p class="label">ANSWER</p>' +
+        '<p class="ask-answer">' + askAnswerHtml(a.answer, a.sources) + '</p>' +
+        '<div class="note__backlinks ask-sources"><span class="note__backlinks-label">Sources</span>' +
+        askSourceChips(a.sources) + '</div>';
+    }
+    els.askResult.innerHTML = html;
+  }
+
+  function handleAsk(e) {
+    e.preventDefault();
+    if (state.ask && state.ask.busy) return;
+    var q = els.askInput.value.trim();
+    if (!q) return;
+
+    var byId = notesById();
+    var results = window.BrainAI.search(q, store.notes, store.rev)
+      .filter(function (r) { return r.score >= ASK_FLOOR; })
+      .slice(0, ASK_TOP);
+    var sources = results.map(function (r) {
+      var n = byId[r.id];
+      return { id: r.id, label: noteLabel(n), kind: n.kind };
+    });
+
+    // zero matches → no API call, ever: never pay for a question the brain can't answer
+    if (!sources.length) {
+      state.ask = { question: q, sources: [] };
+      renderAsk();
+      return;
+    }
+    if (!window.BrainAI.hasKey()) {
+      state.ask = { question: q, sources: sources, keyless: true };
+      renderAsk();
+      return;
+    }
+
+    state.ask = { busy: true, question: q, sources: sources };
+    renderAsk();
+    window.BrainAI.askBrain(q, buildAskContext(results, byId)).then(function (answer) {
+      state.ask = { question: q, sources: sources, answer: answer };
+      renderAsk();
+    }).catch(function (err) {
+      state.ask = null;
+      showBanner(err.message || 'AI request failed.', 'error');
+      renderAsk();
+    });
+  }
+
+  /* ---------- TIMELINE view ---------- */
+
+  var TIMELINE_PAGE = 50;
+  var timelineObserver = null;
+
+  // Bucket labels from local-time calendar days — same startOfToday/DAY_MS logic
+  // formatRelative uses, and dayKeyOf-style component comparison for months.
+  function timelineBucket(ms) {
+    var now = new Date();
+    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (ms >= startOfToday) return 'TODAY';
+    if (ms >= startOfToday - DAY_MS) return 'YESTERDAY';
+    if (ms >= startOfToday - 6 * DAY_MS) return 'THIS WEEK';
+    var d = new Date(ms);
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return 'THIS MONTH';
+    var monthsBack = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+    if (monthsBack <= 12) return MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    return String(d.getFullYear());
+  }
+
+  function renderTimelineRow(n) {
+    var preview = n.body.slice(0, 90) + (n.body.length > 90 ? '…' : '');
+    var tagsHtml = n.tags.length
+      ? '<span class="tl-row__tags">' + n.tags.map(function (t) { return '#' + escapeHtml(t); }).join(' ') + '</span>'
+      : '';
+    return '<li class="tl-item"><button type="button" class="tl-row" data-action="open-note" data-note-id="' +
+      escapeHtml(n.id) + '">' +
+      '<span class="clip__badge tl-row__badge tl-row__badge--' + escapeHtml(n.kind) + '">' + escapeHtml(n.kind).toUpperCase() + '</span>' +
+      '<span class="tl-row__main">' +
+      (n.title ? '<span class="tl-row__title">' + escapeHtml(n.title) + '</span>' : '') +
+      (preview ? '<span class="tl-row__preview">' + escapeHtml(preview) + '</span>' : '') +
+      tagsHtml +
+      '</span>' +
+      '<span class="tl-row__age">' + formatAge(n.createdAt) + '</span>' +
+      '</button></li>';
+  }
+
+  function renderTimeline() {
+    var filter = state.timelineFilter;
+    var kinds = [['all', 'ALL'], ['idea', 'IDEAS'], ['diary', 'DIARY'], ['clip', 'CLIPS']];
+    els.timelineFilters.innerHTML = kinds.map(function (k) {
+      return '<button type="button" class="tag-chip' + (filter === k[0] ? ' tag-chip--active' : '') +
+        '" data-action="tl-filter" data-kind="' + k[0] + '">' + k[1] + '</button>';
+    }).join('');
+
+    if (!store.notes.length) {
+      els.timelineList.innerHTML = '<li class="empty"><p class="empty__title">Nothing here yet.</p>' +
+        '<p class="empty__text">Capture your first thought in Ideas and it shows up here.</p></li>';
+      els.timelineSentinel.hidden = true;
+      if (timelineObserver) timelineObserver.disconnect();
+      return;
+    }
+
+    var filtered = store.notes
+      .filter(function (n) { return filter === 'all' || n.kind === filter; })
+      .sort(function (a, b) { return b.createdAt - a.createdAt; });
+    var visible = filtered.slice(0, state.timelineShown);
+
+    var html = '';
+    var lastBucket = null;
+    visible.forEach(function (n) {
+      var bucket = timelineBucket(n.createdAt);
+      if (bucket !== lastBucket) {
+        html += '<li class="timeline-bucket">' + escapeHtml(bucket) + '</li>';
+        lastBucket = bucket;
+      }
+      html += renderTimelineRow(n);
+    });
+    els.timelineList.innerHTML = html ||
+      '<li class="empty"><p class="empty__text">No ' + escapeHtml(filter) + ' notes yet.</p></li>';
+
+    // sentinel drives lazy append: only observed while there are unrendered rows
+    var more = filtered.length > visible.length;
+    els.timelineSentinel.hidden = !more;
+    if (timelineObserver) {
+      timelineObserver.disconnect();
+      if (more) timelineObserver.observe(els.timelineSentinel);
+    }
+  }
+
   /* ---------- CLIPS view ---------- */
 
   function detectPlatform(url) {
@@ -1037,9 +1261,65 @@
     return term;
   }
 
+  /* ---------- First-run milestones ---------- */
+
+  // UI state only — never in the store or exports (same rule as resurface.dismissed).
+  // '' = fresh, '1' = first note saved (panel gone forever), '2' = connect banner fired.
+  var ONBOARD_KEY = 'praze.brain.onboarded';
+
+  function onboardStage() {
+    // storage unreadable → act fully onboarded rather than nag every load
+    try { return localStorage.getItem(ONBOARD_KEY) || ''; } catch (e) { return '2'; }
+  }
+
+  function setOnboardStage(s) {
+    try { localStorage.setItem(ONBOARD_KEY, s); } catch (e) {}
+  }
+
+  function eligibleNoteCount() {
+    return store.notes.filter(function (n) { return n.kind !== 'clip'; }).length;
+  }
+
+  // Called after every note save. Sets the first-note flag, and fires the
+  // one-time "brain connected" banner when a save crosses the similarity
+  // gate (non-clip count 4 → 5) — the app's best moment shouldn't be silent.
+  function recordNoteSaved(prevEligible) {
+    var stage = onboardStage();
+    if (!stage) {
+      setOnboardStage('1');
+      stage = '1';
+    }
+    if (stage !== '2' && prevEligible === 4 && eligibleNoteCount() === 5) {
+      setOnboardStage('2');
+      showBanner('Your brain just connected.', null, true, {
+        label: 'SEE THE GRAPH',
+        fn: function () { setView('graph'); }
+      });
+    }
+  }
+
   /* ---------- DASHBOARD view ---------- */
 
   function renderDashboard() {
+    // first run: zero notes and none ever saved → the panel replaces the cards
+    if (!store.notes.length && !onboardStage()) {
+      els.dash.innerHTML =
+        '<div class="dash-card dash-card--hero">' +
+        '<p class="dash-greeting">PRAZE Brain</p>' +
+        '<p class="dash-tagline">I remember what you don’t.</p>' +
+        '<button type="button" class="btn" data-action="dash-capture">CAPTURE YOUR FIRST IDEA</button>' +
+        '</div>' +
+        '<div class="onboard-unlocks">' +
+        '<p class="onboard-unlocks__line">1 note — your brain starts</p>' +
+        '<p class="onboard-unlocks__line">5 notes — connections appear</p>' +
+        '<p class="onboard-unlocks__line">Write daily — patterns emerge</p>' +
+        '</div>';
+      return;
+    }
+    renderDashboardCards();
+  }
+
+  function renderDashboardCards() {
     var h = new Date().getHours();
     var greeting = h < 12 ? 'Morning.' : h < 18 ? 'Afternoon.' : 'Evening.';
     var ideaStreak = computeStreak('idea');
@@ -1059,6 +1339,15 @@
       '<p class="dash-tagline">BUILT NOT BORN.</p>' +
       '<button type="button" class="btn" data-action="dash-capture">CAPTURE AN IDEA</button>' +
       '</div>';
+
+    // below the similarity gate, one quiet line where ECHOES/RESURFACED will live
+    var eligible = eligibleNoteCount();
+    var minLinks = window.BrainAI.MIN_NOTES_FOR_LINKS;
+    if (eligible < minLinks) {
+      var left = minLinks - eligible;
+      html += '<p class="dash-linkline">' + left + ' more note' + (left === 1 ? '' : 's') +
+        ' until your ideas start linking.</p>';
+    }
 
     var resurfaced = computeResurface();
     if (resurfaced.length) {
@@ -1235,8 +1524,10 @@
     });
 
     if (state.view === 'dashboard') renderDashboard();
+    else if (state.view === 'ask') renderAsk();
     else if (state.view === 'ideas') renderIdeas();
     else if (state.view === 'diary') renderDiary();
+    else if (state.view === 'timeline') renderTimeline();
     else if (state.view === 'clips') renderClips();
     else if (state.view === 'goals') renderGoals();
     else if (state.view === 'graph') renderGraph();
@@ -1311,6 +1602,7 @@
     e.preventDefault();
     var body = els.captureBody.value.trim();
     if (!body) return;
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value, 'idea'));
     saveStore();
     clearDraft();
@@ -1319,6 +1611,7 @@
     render();
     els.captureBody.focus();
     showBanner('Idea captured.');
+    recordNoteSaved(prevEligible); // after the save banner so the connect moment wins the slot
   }
 
   function handleDiarySubmit(e) {
@@ -1326,6 +1619,7 @@
     stopDictation(); // if the mic is hot, end it before the normal submit runs
     var body = els.diaryBody.value.trim();
     if (!body) return;
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
     saveStore();
     els.diaryForm.reset();
@@ -1333,6 +1627,7 @@
     render();
     els.diaryBody.focus();
     showBanner('Entry saved.');
+    recordNoteSaved(prevEligible);
   }
 
   function handleClipSubmit(e) {
@@ -1342,11 +1637,13 @@
       showBanner('That link doesn\'t look right — it needs to start with http(s).', 'error');
       return;
     }
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote('', els.clipNote.value.trim(), els.clipTags.value, 'clip', url));
     saveStore();
     els.clipForm.reset();
     render();
     showBanner('Clip saved.');
+    recordNoteSaved(prevEligible); // clips don't move the eligible count, but they do count as a first note
   }
 
   function handleGoalSubmit(e) {
@@ -1432,6 +1729,13 @@
 
     if (action === 'goto') {
       setView(btn.getAttribute('data-go'));
+      return;
+    }
+
+    if (action === 'tl-filter') {
+      state.timelineFilter = btn.getAttribute('data-kind');
+      state.timelineShown = TIMELINE_PAGE;
+      renderTimeline();
       return;
     }
 
@@ -1565,6 +1869,24 @@
             state.aiSuggest[note.id] = tags;
             if (!tags.length) showBanner('AI had no new tags to suggest — your tagging is on point.');
           });
+        });
+        break;
+      case 'why-link':
+        var otherId = btn.getAttribute('data-other-id');
+        var other = notesById()[otherId];
+        if (!other || !window.BrainAI.hasKey()) break;
+        var pairKey = whyPairKey(note.id, otherId);
+        if (state.whyBusy[pairKey]) break;
+        state.whyBusy[pairKey] = true;
+        render();
+        window.BrainAI.explainLink(note, other).then(function (sentence) {
+          delete state.whyBusy[pairKey];
+          state.whyText[pairKey] = sentence; // shown, never stored — same as reflect
+          render();
+        }).catch(function (err) {
+          delete state.whyBusy[pairKey];
+          showBanner(err.message || 'AI request failed.', 'error');
+          render();
         });
         break;
       case 'ai-reflect':
@@ -1727,10 +2049,12 @@
 
   function paletteCommands() {
     return [
+      { label: 'Ask my brain', hint: 'command', run: function () { setView('ask'); els.askInput.focus(); } },
       { label: 'New idea', hint: 'command', run: function () { setView('ideas'); els.captureBody.focus(); } },
       { label: 'New diary entry', hint: 'command', run: function () { setView('diary'); els.diaryBody.focus(); } },
       { label: 'Go to Ideas', hint: 'go', run: function () { setView('ideas'); } },
       { label: 'Go to Diary', hint: 'go', run: function () { setView('diary'); } },
+      { label: 'Go to Timeline', hint: 'go', run: function () { setView('timeline'); } },
       { label: 'Go to Clips', hint: 'go', run: function () { setView('clips'); } },
       { label: 'Go to Goals', hint: 'go', run: function () { setView('goals'); } },
       { label: 'Go to Graph', hint: 'go', run: function () { setView('graph'); } },
@@ -1948,8 +2272,10 @@
     els.tabs = document.getElementById('tabs');
     els.views = {
       dashboard: document.getElementById('view-dashboard'),
+      ask: document.getElementById('view-ask'),
       ideas: document.getElementById('view-ideas'),
       diary: document.getElementById('view-diary'),
+      timeline: document.getElementById('view-timeline'),
       clips: document.getElementById('view-clips'),
       goals: document.getElementById('view-goals'),
       graph: document.getElementById('view-graph')
@@ -1971,6 +2297,30 @@
     els.digestBtn = document.getElementById('digest-btn');
     els.digestHint = document.getElementById('digest-hint');
     els.digestResult = document.getElementById('digest-result');
+    els.askForm = document.getElementById('ask-form');
+    els.askInput = document.getElementById('ask-input');
+    els.askBtn = document.getElementById('ask-btn');
+    els.askResult = document.getElementById('ask-result');
+    els.askForm.addEventListener('submit', handleAsk);
+    els.askInput.addEventListener('input', function () { autoGrow(els.askInput); });
+    els.askInput.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleAsk(e);
+      }
+    });
+    els.timelineFilters = document.getElementById('timeline-filters');
+    els.timelineList = document.getElementById('timeline-list');
+    els.timelineSentinel = document.getElementById('timeline-sentinel');
+    if (window.IntersectionObserver) {
+      timelineObserver = new IntersectionObserver(function (entries) {
+        if (state.view !== 'timeline') return;
+        if (entries.some(function (en) { return en.isIntersecting; })) {
+          state.timelineShown += TIMELINE_PAGE;
+          renderTimeline();
+        }
+      }, { rootMargin: '400px' });
+    }
     els.clipForm = document.getElementById('clip-form');
     els.clipUrl = document.getElementById('clip-url');
     els.clipNote = document.getElementById('clip-note');

@@ -1602,12 +1602,199 @@ a {
   background: var(--lime);
 }
 
+/* First run */
+
+.onboard-unlocks {
+  padding: 0 1.5rem;
+}
+
+.onboard-unlocks__line {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--gray);
+  padding: 0.35rem 0;
+}
+
+.dash-linkline {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--gray);
+}
+
+/* Why — explain a similarity link */
+
+.why-btn {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: none;
+  color: var(--gray);
+  border: none;
+  padding: 0.2rem 0.3rem;
+  cursor: pointer;
+}
+
+.why-btn:hover {
+  color: var(--ink);
+}
+
+.why-btn[disabled] {
+  cursor: default;
+}
+
+.why-text {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  border-left: 2px solid var(--lime);
+  padding-left: 0.6rem;
+  margin: 0.5rem 0 0;
+  max-width: 70ch;
+}
+
+.why-text__pair {
+  display: block;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-bottom: 0.15rem;
+}
+
+/* Ask */
+
+.ask-result {
+  margin-top: 1.5rem;
+}
+
+.ask-answer {
+  font-family: var(--body);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  max-width: 70ch;
+  color: var(--ink);
+  margin-bottom: 1rem;
+}
+
+.ask-cite {
+  vertical-align: baseline;
+}
+
+.ask-keyless-hint {
+  margin-top: 1rem;
+}
+
+/* Timeline */
+
+.timeline-filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.timeline-list {
+  list-style: none;
+}
+
+.timeline-bucket {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bone);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--gray);
+  padding: 0.6rem 0 0.4rem;
+  margin-top: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tl-item {
+  list-style: none;
+}
+
+.tl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  font-family: var(--body);
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0.7rem 0;
+  cursor: pointer;
+}
+
+.tl-row:hover {
+  background: rgba(212, 255, 0, 0.10);
+}
+
+.tl-row__badge {
+  flex: none;
+  margin-bottom: 0;
+  margin-top: 0.1rem;
+}
+
+.tl-row__badge--idea { background: var(--ink); color: var(--bone); }
+.tl-row__badge--diary { background: none; color: var(--gray); border-color: var(--border); }
+.tl-row__badge--clip { background: var(--lime); color: #131313; border-color: #131313; }
+
+.tl-row__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tl-row__title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.tl-row__preview {
+  font-size: 0.85rem;
+  color: var(--gray);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tl-row__tags {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  color: var(--gray);
+}
+
+.tl-row__age {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--gray);
+  margin-top: 0.2rem;
+  white-space: nowrap;
+}
+
 @media (min-width: 640px) {
   .dash {
     grid-template-columns: 1fr 1fr;
   }
 
   .dash-card--hero {
+    grid-column: 1 / -1;
+  }
+
+  .onboard-unlocks,
+  .dash-linkline {
     grid-column: 1 / -1;
   }
 }
@@ -1804,8 +1991,10 @@ textarea:focus-visible,
 
 <nav class="tabs" id="tabs">
   <button type="button" class="tabs__tab" data-view="dashboard">HOME</button>
+  <button type="button" class="tabs__tab" data-view="ask">ASK</button>
   <button type="button" class="tabs__tab" data-view="ideas">IDEAS</button>
   <button type="button" class="tabs__tab" data-view="diary">DIARY</button>
+  <button type="button" class="tabs__tab" data-view="timeline">TIMELINE</button>
   <button type="button" class="tabs__tab" data-view="clips">CLIPS</button>
   <button type="button" class="tabs__tab" data-view="goals">GOALS</button>
   <button type="button" class="tabs__tab" data-view="graph">GRAPH</button>
@@ -1845,6 +2034,21 @@ textarea:focus-visible,
   <!-- DASHBOARD -->
   <section id="view-dashboard" class="view" hidden>
     <div id="dash" class="dash"></div>
+  </section>
+
+  <!-- ASK -->
+  <section id="view-ask" class="view" hidden>
+    <section class="capture">
+      <p class="label">ASK YOUR BRAIN</p>
+      <form id="ask-form">
+        <textarea id="ask-input" class="capture__body" rows="2" placeholder="What have I written about protein? What keeps coming up?" required></textarea>
+        <div class="capture__actions">
+          <button id="ask-btn" class="btn" type="submit">ASK</button>
+          <span class="capture__hint">Answers come only from your own notes</span>
+        </div>
+      </form>
+    </section>
+    <div id="ask-result" class="ask-result"></div>
   </section>
 
   <!-- IDEAS -->
@@ -1898,6 +2102,14 @@ textarea:focus-visible,
       <div id="digest-result" hidden></div>
     </section>
     <ol id="diary-list" class="note-list"></ol>
+  </section>
+
+  <!-- TIMELINE -->
+  <section id="view-timeline" class="view" hidden>
+    <p class="label">TIMELINE</p>
+    <div id="timeline-filters" class="timeline-filters"></div>
+    <ol id="timeline-list" class="timeline-list"></ol>
+    <div id="timeline-sentinel" hidden></div>
   </section>
 
   <!-- CLIPS -->
@@ -1990,12 +2202,18 @@ window.BrainAI = (function () {
 
   var cache = { rev: -1, result: null };
 
-  function computeAll(notes) {
-    var eligible = notes.filter(function (n) { return n.kind !== 'clip'; }).length;
-    if (eligible < MIN_NOTES_FOR_LINKS) {
-      return { related: {}, pairs: [] };
-    }
+  function cosine(a, b) {
+    if (!a.norm || !b.norm) return 0;
+    var dot = 0;
+    var small = Object.keys(a.vec).length <= Object.keys(b.vec).length ? a : b;
+    var other = small === a ? b : a;
+    Object.keys(small.vec).forEach(function (t) {
+      if (other.vec[t]) dot += small.vec[t] * other.vec[t];
+    });
+    return dot / (a.norm * b.norm);
+  }
 
+  function computeAll(notes) {
     // term frequencies per note; title tokens count double (titles are dense signal)
     var docs = notes.map(function (n) {
       var tf = {};
@@ -2025,19 +2243,18 @@ window.BrainAI = (function () {
       d.norm = Math.sqrt(norm);
     });
 
-    function cosine(a, b) {
-      if (!a.norm || !b.norm) return 0;
-      var dot = 0;
-      var small = Object.keys(a.vec).length <= Object.keys(b.vec).length ? a : b;
-      var other = small === a ? b : a;
-      Object.keys(small.vec).forEach(function (t) {
-        if (other.vec[t]) dot += small.vec[t] * other.vec[t];
-      });
-      return dot / (a.norm * b.norm);
-    }
+    // vectors, df and N stay on the result so search() reuses this exact IDF
+    // table via the same rev-keyed cache instead of building a parallel one
+    var result = { related: {}, pairs: [], docs: docs, df: df, N: N };
 
-    var related = {};
-    var pairs = [];
+    // cold-start gate applies to note-to-note links only, not to search:
+    // below it, IDF is too noisy to declare two notes "related" unprompted,
+    // but ranking against an explicit query is still better than nothing
+    var eligible = notes.filter(function (n) { return n.kind !== 'clip'; }).length;
+    if (eligible < MIN_NOTES_FOR_LINKS) return result;
+
+    var related = result.related;
+    var pairs = result.pairs;
     for (var i = 0; i < docs.length; i++) {
       for (var j = i + 1; j < docs.length; j++) {
         var score = cosine(docs[i], docs[j]);
@@ -2053,7 +2270,7 @@ window.BrainAI = (function () {
       related[id] = related[id].slice(0, TOP_RELATED);
     });
 
-    return { related: related, pairs: pairs };
+    return result;
   }
 
   function analyze(notes, rev) {
@@ -2062,6 +2279,31 @@ window.BrainAI = (function () {
       cache.rev = rev;
     }
     return cache.result;
+  }
+
+  // Rank every note against a free-text query with the same TF-IDF + cosine
+  // math the note-to-note links use. Returns [{id, score}] sorted desc.
+  function search(queryText, notes, rev) {
+    var a = analyze(notes, rev);
+    var docs = a.docs || [];
+    if (!docs.length) return [];
+
+    var tf = {};
+    tokenizeText(queryText).forEach(function (t) { tf[t] = (tf[t] || 0) + 1; });
+    var vec = {};
+    var norm = 0;
+    Object.keys(tf).forEach(function (t) {
+      if (!a.df[t]) return; // term absent from the corpus can't match anything
+      var w = tf[t] * Math.log(1 + a.N / a.df[t]);
+      vec[t] = w;
+      norm += w * w;
+    });
+    var q = { vec: vec, norm: Math.sqrt(norm) };
+
+    return docs
+      .map(function (d) { return { id: d.id, score: cosine(q, d) }; })
+      .filter(function (r) { return r.score > 0; })
+      .sort(function (x, y) { return y.score - x.score; });
   }
 
   // Suggest tags the note lacks but ≥2 of its related notes carry
@@ -2264,6 +2506,46 @@ window.BrainAI = (function () {
     };
   }
 
+  var WHY_BODY_CHARS = 1500;
+
+  function clipBody(body) {
+    return body.length > WHY_BODY_CHARS ? body.slice(0, WHY_BODY_CHARS) + '…' : body;
+  }
+
+  // One concrete sentence on what two similarity-linked notes actually share.
+  // "If the connection is weak, say so" is load-bearing: a WHY that manufactures
+  // profundity for a coincidental token overlap is worse than no WHY.
+  async function explainLink(noteA, noteB) {
+    var prompt =
+      'Two notes from a personal knowledge base were flagged as related by a similarity algorithm.\n\n' +
+      'Note A: ' + (noteA.title || '(untitled)') + '\n' + clipBody(noteA.body) + '\n\n' +
+      'Note B: ' + (noteB.title || '(untitled)') + '\n' + clipBody(noteB.body) + '\n\n' +
+      'In one sentence under 25 words, state the specific idea these two share. Be concrete — ' +
+      'name the actual concept, don\'t say "both discuss similar themes". ' +
+      'If the connection is weak or coincidental, say so plainly.';
+
+    var text = await callClaude(prompt, 200);
+    return text.trim();
+  }
+
+  // Answer a question from retrieved notes only. Context is built by the
+  // caller (already truncated and capped); the answer is plain prose.
+  async function askBrain(question, context) {
+    var prompt =
+      "You are answering questions about a person's private notes. You can only use " +
+      'the notes provided — you have no other knowledge of this person.\n\n' +
+      'Their notes:\n' + context + '\n\n' +
+      'Their question: ' + question + '\n\n' +
+      'Answer in plain prose, under 120 words. Rules:\n' +
+      "- Use only what's in the notes. If the notes don't answer it, say so plainly — do not guess or fill gaps.\n" +
+      '- Cite which notes you drew on by their exact titles, in square brackets, e.g. [Protein brand idea].\n' +
+      '- Never flatter, never pad, never mention being an AI.\n' +
+      '- If the notes contradict each other, say that rather than picking one.';
+
+    var text = await callClaude(prompt, 600);
+    return text.trim();
+  }
+
   async function testKey() {
     await callClaude('Reply with exactly: ok', 10);
     return true;
@@ -2274,6 +2556,7 @@ window.BrainAI = (function () {
     MIN_NOTES_FOR_LINKS: MIN_NOTES_FOR_LINKS,
     tokenize: tokenizeText,
     analyze: analyze,
+    search: search,
     suggestTags: suggestTags,
     getKey: getKey,
     setKey: setKey,
@@ -2284,6 +2567,8 @@ window.BrainAI = (function () {
     organizeNote: organizeNote,
     reflectEntry: reflectEntry,
     digestWeek: digestWeek,
+    askBrain: askBrain,
+    explainLink: explainLink,
     testKey: testKey
   };
 })();
@@ -2780,7 +3065,7 @@ window.BrainGraph = (function () {
   var PRE_MIGRATION_KEY = 'praze.brain.v1.pre-migration';
   var RESURFACE_DISMISSED_KEY = 'praze.brain.resurface.dismissed'; // UI state — never in store or exports
   var SCHEMA_VERSION = 2;
-  var VIEWS = ['dashboard', 'ideas', 'diary', 'clips', 'goals', 'graph'];
+  var VIEWS = ['dashboard', 'ask', 'ideas', 'diary', 'timeline', 'clips', 'goals', 'graph'];
 
   /* ---------- Utils ---------- */
 
@@ -3008,7 +3293,12 @@ window.BrainGraph = (function () {
     aiReflect: {},   // note id -> {themes, reflection} from Claude
     digest: null,    // {pattern, tension, question} — render-time only, never stored
     digestBusy: false,
-    lastDeleted: null // {kind, item, index} — in-memory undo, never persisted or exported
+    lastDeleted: null, // {kind, item, index} — in-memory undo, never persisted or exported
+    timelineFilter: 'all', // all | idea | diary | clip
+    timelineShown: 50,     // lazy-render window; grows as the sentinel comes into view
+    ask: null,   // {busy, question, sources, answer, keyless} — render-time only, never stored
+    whyBusy: {}, // pair key -> in-flight flag
+    whyText: {}  // pair key -> one-sentence explanation — render-time only, never stored
   };
 
   /* ---------- Search (ideas) ---------- */
@@ -3098,17 +3388,35 @@ window.BrainGraph = (function () {
     return note.title || note.body.slice(0, 32) + (note.body.length > 32 ? '…' : '');
   }
 
+  function whyPairKey(aId, bId) {
+    return aId < bId ? aId + '|' + bId : bId + '|' + aId;
+  }
+
   function renderRelatedRow(note, byId) {
     var entries = getAnalysis().related[note.id];
     if (!entries || !entries.length) return '';
-    var chips = entries.map(function (r) {
+    var hasKey = window.BrainAI.hasKey(); // keyless → no WHY? at all, not a dead button
+    var chips = '';
+    var whys = '';
+    entries.forEach(function (r) {
       var other = byId[r.id];
-      if (!other) return '';
-      return '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
+      if (!other) return;
+      chips += '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
         escapeHtml(other.id) + '">' + escapeHtml(noteLabel(other)) + '</button>';
-    }).join('');
+      if (hasKey) {
+        var key = whyPairKey(note.id, other.id);
+        var busy = state.whyBusy[key];
+        chips += '<button type="button" class="why-btn" data-action="why-link" data-other-id="' +
+          escapeHtml(other.id) + '"' + (busy ? ' disabled' : '') + '>' + (busy ? '…' : 'why?') + '</button>';
+        if (state.whyText[key]) {
+          whys += '<p class="why-text"><span class="why-text__pair">↔ ' + escapeHtml(noteLabel(other)) +
+            '</span> ' + escapeHtml(state.whyText[key]) + '</p>';
+        }
+      }
+    });
     if (!chips) return '';
-    return '<div class="note__backlinks note__related"><span class="note__backlinks-label">Related</span>' + chips + '</div>';
+    return '<div class="note__backlinks note__related"><span class="note__backlinks-label">Related</span>' +
+      chips + '</div>' + whys;
   }
 
   function renderSimTagRow(note, byId) {
@@ -3475,6 +3783,207 @@ window.BrainGraph = (function () {
     });
   }
 
+  /* ---------- ASK view: retrieval-augmented Q&A over your own notes ---------- */
+
+  // The question is a few words, so cosine scores run lower than note-to-note —
+  // hence a floor well under SIMILARITY_THRESHOLD.
+  var ASK_FLOOR = 0.05;
+  var ASK_TOP = 10;
+  var ASK_NOTE_CHARS = 600;    // per-note cap in the context
+  var ASK_CONTEXT_CHARS = 8000; // whole-context cap; lowest-scored notes dropped first
+
+  // Retrieved notes → "[kind] title (date): body" blocks. Walking the desc-sorted
+  // list and stopping at the cap drops the lowest-scored notes first.
+  function buildAskContext(results, byId) {
+    var parts = [];
+    var total = 0;
+    for (var i = 0; i < results.length; i++) {
+      var n = byId[results[i].id];
+      if (!n) continue;
+      var body = n.body.length > ASK_NOTE_CHARS ? n.body.slice(0, ASK_NOTE_CHARS) + '…' : n.body;
+      var block = '[' + n.kind + '] ' + noteLabel(n) + ' (' + formatDate(n.createdAt) + '): ' + body;
+      if (total + block.length + 2 > ASK_CONTEXT_CHARS && parts.length) break;
+      parts.push(block);
+      total += block.length + 2;
+    }
+    return parts.join('\n\n');
+  }
+
+  // [Exact Note Title] in the answer becomes a chip when it matches a retrieved
+  // note; anything else stays plain text — never a dead link for a made-up title.
+  function askAnswerHtml(answer, sources) {
+    var byLabel = {};
+    sources.forEach(function (s) { byLabel[s.label] = s.id; });
+    return answer.split(/\[([^\[\]]+)\]/g).map(function (part, i) {
+      if (i % 2 === 0) return escapeHtml(part);
+      var id = byLabel[part.trim()];
+      if (id) {
+        return '<button type="button" class="backlink ask-cite" data-action="open-note" data-note-id="' +
+          escapeHtml(id) + '">' + escapeHtml(part.trim()) + '</button>';
+      }
+      return escapeHtml('[' + part + ']');
+    }).join('');
+  }
+
+  function askSourceChips(sources) {
+    return sources.map(function (s) {
+      return '<button type="button" class="backlink" data-action="open-note" data-note-id="' +
+        escapeHtml(s.id) + '">' + escapeHtml(s.label) + '</button>';
+    }).join('');
+  }
+
+  function renderAsk() {
+    var a = state.ask;
+    els.askBtn.disabled = !!(a && a.busy);
+    els.askBtn.textContent = a && a.busy ? 'ASKING…' : 'ASK';
+    if (!a) {
+      els.askResult.innerHTML = store.notes.length ? '' :
+        '<p class="empty__text">Nothing to ask yet — capture a few ideas first.</p>';
+      return;
+    }
+    var html = '';
+    if (a.busy) {
+      html = '<p class="empty__text">Reading your notes…</p>';
+    } else if (!a.sources.length) {
+      html = '<p class="empty__title">Nothing in your notes matches that.</p>' +
+        '<p class="empty__text">Try different words — the search reads your actual notes, not the internet.</p>';
+    } else if (a.keyless) {
+      // keyless degrade: the retrieval half is still a useful semantic search
+      html = '<p class="label">CLOSEST NOTES</p>' +
+        a.sources.map(function (s) {
+          return '<button type="button" class="dash-row" data-action="open-note" data-note-id="' +
+            escapeHtml(s.id) + '">' + escapeHtml(s.label) +
+            '<span class="dash-row__meta">' + escapeHtml(s.kind) + '</span></button>';
+        }).join('') +
+        '<p class="empty__text ask-keyless-hint">Add your API key in Settings (⚙) to get an answer.</p>';
+    } else if (a.answer != null) {
+      html = '<p class="label">ANSWER</p>' +
+        '<p class="ask-answer">' + askAnswerHtml(a.answer, a.sources) + '</p>' +
+        '<div class="note__backlinks ask-sources"><span class="note__backlinks-label">Sources</span>' +
+        askSourceChips(a.sources) + '</div>';
+    }
+    els.askResult.innerHTML = html;
+  }
+
+  function handleAsk(e) {
+    e.preventDefault();
+    if (state.ask && state.ask.busy) return;
+    var q = els.askInput.value.trim();
+    if (!q) return;
+
+    var byId = notesById();
+    var results = window.BrainAI.search(q, store.notes, store.rev)
+      .filter(function (r) { return r.score >= ASK_FLOOR; })
+      .slice(0, ASK_TOP);
+    var sources = results.map(function (r) {
+      var n = byId[r.id];
+      return { id: r.id, label: noteLabel(n), kind: n.kind };
+    });
+
+    // zero matches → no API call, ever: never pay for a question the brain can't answer
+    if (!sources.length) {
+      state.ask = { question: q, sources: [] };
+      renderAsk();
+      return;
+    }
+    if (!window.BrainAI.hasKey()) {
+      state.ask = { question: q, sources: sources, keyless: true };
+      renderAsk();
+      return;
+    }
+
+    state.ask = { busy: true, question: q, sources: sources };
+    renderAsk();
+    window.BrainAI.askBrain(q, buildAskContext(results, byId)).then(function (answer) {
+      state.ask = { question: q, sources: sources, answer: answer };
+      renderAsk();
+    }).catch(function (err) {
+      state.ask = null;
+      showBanner(err.message || 'AI request failed.', 'error');
+      renderAsk();
+    });
+  }
+
+  /* ---------- TIMELINE view ---------- */
+
+  var TIMELINE_PAGE = 50;
+  var timelineObserver = null;
+
+  // Bucket labels from local-time calendar days — same startOfToday/DAY_MS logic
+  // formatRelative uses, and dayKeyOf-style component comparison for months.
+  function timelineBucket(ms) {
+    var now = new Date();
+    var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (ms >= startOfToday) return 'TODAY';
+    if (ms >= startOfToday - DAY_MS) return 'YESTERDAY';
+    if (ms >= startOfToday - 6 * DAY_MS) return 'THIS WEEK';
+    var d = new Date(ms);
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) return 'THIS MONTH';
+    var monthsBack = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+    if (monthsBack <= 12) return MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    return String(d.getFullYear());
+  }
+
+  function renderTimelineRow(n) {
+    var preview = n.body.slice(0, 90) + (n.body.length > 90 ? '…' : '');
+    var tagsHtml = n.tags.length
+      ? '<span class="tl-row__tags">' + n.tags.map(function (t) { return '#' + escapeHtml(t); }).join(' ') + '</span>'
+      : '';
+    return '<li class="tl-item"><button type="button" class="tl-row" data-action="open-note" data-note-id="' +
+      escapeHtml(n.id) + '">' +
+      '<span class="clip__badge tl-row__badge tl-row__badge--' + escapeHtml(n.kind) + '">' + escapeHtml(n.kind).toUpperCase() + '</span>' +
+      '<span class="tl-row__main">' +
+      (n.title ? '<span class="tl-row__title">' + escapeHtml(n.title) + '</span>' : '') +
+      (preview ? '<span class="tl-row__preview">' + escapeHtml(preview) + '</span>' : '') +
+      tagsHtml +
+      '</span>' +
+      '<span class="tl-row__age">' + formatAge(n.createdAt) + '</span>' +
+      '</button></li>';
+  }
+
+  function renderTimeline() {
+    var filter = state.timelineFilter;
+    var kinds = [['all', 'ALL'], ['idea', 'IDEAS'], ['diary', 'DIARY'], ['clip', 'CLIPS']];
+    els.timelineFilters.innerHTML = kinds.map(function (k) {
+      return '<button type="button" class="tag-chip' + (filter === k[0] ? ' tag-chip--active' : '') +
+        '" data-action="tl-filter" data-kind="' + k[0] + '">' + k[1] + '</button>';
+    }).join('');
+
+    if (!store.notes.length) {
+      els.timelineList.innerHTML = '<li class="empty"><p class="empty__title">Nothing here yet.</p>' +
+        '<p class="empty__text">Capture your first thought in Ideas and it shows up here.</p></li>';
+      els.timelineSentinel.hidden = true;
+      if (timelineObserver) timelineObserver.disconnect();
+      return;
+    }
+
+    var filtered = store.notes
+      .filter(function (n) { return filter === 'all' || n.kind === filter; })
+      .sort(function (a, b) { return b.createdAt - a.createdAt; });
+    var visible = filtered.slice(0, state.timelineShown);
+
+    var html = '';
+    var lastBucket = null;
+    visible.forEach(function (n) {
+      var bucket = timelineBucket(n.createdAt);
+      if (bucket !== lastBucket) {
+        html += '<li class="timeline-bucket">' + escapeHtml(bucket) + '</li>';
+        lastBucket = bucket;
+      }
+      html += renderTimelineRow(n);
+    });
+    els.timelineList.innerHTML = html ||
+      '<li class="empty"><p class="empty__text">No ' + escapeHtml(filter) + ' notes yet.</p></li>';
+
+    // sentinel drives lazy append: only observed while there are unrendered rows
+    var more = filtered.length > visible.length;
+    els.timelineSentinel.hidden = !more;
+    if (timelineObserver) {
+      timelineObserver.disconnect();
+      if (more) timelineObserver.observe(els.timelineSentinel);
+    }
+  }
+
   /* ---------- CLIPS view ---------- */
 
   function detectPlatform(url) {
@@ -3811,9 +4320,65 @@ window.BrainGraph = (function () {
     return term;
   }
 
+  /* ---------- First-run milestones ---------- */
+
+  // UI state only — never in the store or exports (same rule as resurface.dismissed).
+  // '' = fresh, '1' = first note saved (panel gone forever), '2' = connect banner fired.
+  var ONBOARD_KEY = 'praze.brain.onboarded';
+
+  function onboardStage() {
+    // storage unreadable → act fully onboarded rather than nag every load
+    try { return localStorage.getItem(ONBOARD_KEY) || ''; } catch (e) { return '2'; }
+  }
+
+  function setOnboardStage(s) {
+    try { localStorage.setItem(ONBOARD_KEY, s); } catch (e) {}
+  }
+
+  function eligibleNoteCount() {
+    return store.notes.filter(function (n) { return n.kind !== 'clip'; }).length;
+  }
+
+  // Called after every note save. Sets the first-note flag, and fires the
+  // one-time "brain connected" banner when a save crosses the similarity
+  // gate (non-clip count 4 → 5) — the app's best moment shouldn't be silent.
+  function recordNoteSaved(prevEligible) {
+    var stage = onboardStage();
+    if (!stage) {
+      setOnboardStage('1');
+      stage = '1';
+    }
+    if (stage !== '2' && prevEligible === 4 && eligibleNoteCount() === 5) {
+      setOnboardStage('2');
+      showBanner('Your brain just connected.', null, true, {
+        label: 'SEE THE GRAPH',
+        fn: function () { setView('graph'); }
+      });
+    }
+  }
+
   /* ---------- DASHBOARD view ---------- */
 
   function renderDashboard() {
+    // first run: zero notes and none ever saved → the panel replaces the cards
+    if (!store.notes.length && !onboardStage()) {
+      els.dash.innerHTML =
+        '<div class="dash-card dash-card--hero">' +
+        '<p class="dash-greeting">PRAZE Brain</p>' +
+        '<p class="dash-tagline">I remember what you don’t.</p>' +
+        '<button type="button" class="btn" data-action="dash-capture">CAPTURE YOUR FIRST IDEA</button>' +
+        '</div>' +
+        '<div class="onboard-unlocks">' +
+        '<p class="onboard-unlocks__line">1 note — your brain starts</p>' +
+        '<p class="onboard-unlocks__line">5 notes — connections appear</p>' +
+        '<p class="onboard-unlocks__line">Write daily — patterns emerge</p>' +
+        '</div>';
+      return;
+    }
+    renderDashboardCards();
+  }
+
+  function renderDashboardCards() {
     var h = new Date().getHours();
     var greeting = h < 12 ? 'Morning.' : h < 18 ? 'Afternoon.' : 'Evening.';
     var ideaStreak = computeStreak('idea');
@@ -3833,6 +4398,15 @@ window.BrainGraph = (function () {
       '<p class="dash-tagline">BUILT NOT BORN.</p>' +
       '<button type="button" class="btn" data-action="dash-capture">CAPTURE AN IDEA</button>' +
       '</div>';
+
+    // below the similarity gate, one quiet line where ECHOES/RESURFACED will live
+    var eligible = eligibleNoteCount();
+    var minLinks = window.BrainAI.MIN_NOTES_FOR_LINKS;
+    if (eligible < minLinks) {
+      var left = minLinks - eligible;
+      html += '<p class="dash-linkline">' + left + ' more note' + (left === 1 ? '' : 's') +
+        ' until your ideas start linking.</p>';
+    }
 
     var resurfaced = computeResurface();
     if (resurfaced.length) {
@@ -4009,8 +4583,10 @@ window.BrainGraph = (function () {
     });
 
     if (state.view === 'dashboard') renderDashboard();
+    else if (state.view === 'ask') renderAsk();
     else if (state.view === 'ideas') renderIdeas();
     else if (state.view === 'diary') renderDiary();
+    else if (state.view === 'timeline') renderTimeline();
     else if (state.view === 'clips') renderClips();
     else if (state.view === 'goals') renderGoals();
     else if (state.view === 'graph') renderGraph();
@@ -4085,6 +4661,7 @@ window.BrainGraph = (function () {
     e.preventDefault();
     var body = els.captureBody.value.trim();
     if (!body) return;
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value, 'idea'));
     saveStore();
     clearDraft();
@@ -4093,6 +4670,7 @@ window.BrainGraph = (function () {
     render();
     els.captureBody.focus();
     showBanner('Idea captured.');
+    recordNoteSaved(prevEligible); // after the save banner so the connect moment wins the slot
   }
 
   function handleDiarySubmit(e) {
@@ -4100,6 +4678,7 @@ window.BrainGraph = (function () {
     stopDictation(); // if the mic is hot, end it before the normal submit runs
     var body = els.diaryBody.value.trim();
     if (!body) return;
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
     saveStore();
     els.diaryForm.reset();
@@ -4107,6 +4686,7 @@ window.BrainGraph = (function () {
     render();
     els.diaryBody.focus();
     showBanner('Entry saved.');
+    recordNoteSaved(prevEligible);
   }
 
   function handleClipSubmit(e) {
@@ -4116,11 +4696,13 @@ window.BrainGraph = (function () {
       showBanner('That link doesn\'t look right — it needs to start with http(s).', 'error');
       return;
     }
+    var prevEligible = eligibleNoteCount();
     store.notes.push(createNote('', els.clipNote.value.trim(), els.clipTags.value, 'clip', url));
     saveStore();
     els.clipForm.reset();
     render();
     showBanner('Clip saved.');
+    recordNoteSaved(prevEligible); // clips don't move the eligible count, but they do count as a first note
   }
 
   function handleGoalSubmit(e) {
@@ -4206,6 +4788,13 @@ window.BrainGraph = (function () {
 
     if (action === 'goto') {
       setView(btn.getAttribute('data-go'));
+      return;
+    }
+
+    if (action === 'tl-filter') {
+      state.timelineFilter = btn.getAttribute('data-kind');
+      state.timelineShown = TIMELINE_PAGE;
+      renderTimeline();
       return;
     }
 
@@ -4339,6 +4928,24 @@ window.BrainGraph = (function () {
             state.aiSuggest[note.id] = tags;
             if (!tags.length) showBanner('AI had no new tags to suggest — your tagging is on point.');
           });
+        });
+        break;
+      case 'why-link':
+        var otherId = btn.getAttribute('data-other-id');
+        var other = notesById()[otherId];
+        if (!other || !window.BrainAI.hasKey()) break;
+        var pairKey = whyPairKey(note.id, otherId);
+        if (state.whyBusy[pairKey]) break;
+        state.whyBusy[pairKey] = true;
+        render();
+        window.BrainAI.explainLink(note, other).then(function (sentence) {
+          delete state.whyBusy[pairKey];
+          state.whyText[pairKey] = sentence; // shown, never stored — same as reflect
+          render();
+        }).catch(function (err) {
+          delete state.whyBusy[pairKey];
+          showBanner(err.message || 'AI request failed.', 'error');
+          render();
         });
         break;
       case 'ai-reflect':
@@ -4501,10 +5108,12 @@ window.BrainGraph = (function () {
 
   function paletteCommands() {
     return [
+      { label: 'Ask my brain', hint: 'command', run: function () { setView('ask'); els.askInput.focus(); } },
       { label: 'New idea', hint: 'command', run: function () { setView('ideas'); els.captureBody.focus(); } },
       { label: 'New diary entry', hint: 'command', run: function () { setView('diary'); els.diaryBody.focus(); } },
       { label: 'Go to Ideas', hint: 'go', run: function () { setView('ideas'); } },
       { label: 'Go to Diary', hint: 'go', run: function () { setView('diary'); } },
+      { label: 'Go to Timeline', hint: 'go', run: function () { setView('timeline'); } },
       { label: 'Go to Clips', hint: 'go', run: function () { setView('clips'); } },
       { label: 'Go to Goals', hint: 'go', run: function () { setView('goals'); } },
       { label: 'Go to Graph', hint: 'go', run: function () { setView('graph'); } },
@@ -4722,8 +5331,10 @@ window.BrainGraph = (function () {
     els.tabs = document.getElementById('tabs');
     els.views = {
       dashboard: document.getElementById('view-dashboard'),
+      ask: document.getElementById('view-ask'),
       ideas: document.getElementById('view-ideas'),
       diary: document.getElementById('view-diary'),
+      timeline: document.getElementById('view-timeline'),
       clips: document.getElementById('view-clips'),
       goals: document.getElementById('view-goals'),
       graph: document.getElementById('view-graph')
@@ -4745,6 +5356,30 @@ window.BrainGraph = (function () {
     els.digestBtn = document.getElementById('digest-btn');
     els.digestHint = document.getElementById('digest-hint');
     els.digestResult = document.getElementById('digest-result');
+    els.askForm = document.getElementById('ask-form');
+    els.askInput = document.getElementById('ask-input');
+    els.askBtn = document.getElementById('ask-btn');
+    els.askResult = document.getElementById('ask-result');
+    els.askForm.addEventListener('submit', handleAsk);
+    els.askInput.addEventListener('input', function () { autoGrow(els.askInput); });
+    els.askInput.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleAsk(e);
+      }
+    });
+    els.timelineFilters = document.getElementById('timeline-filters');
+    els.timelineList = document.getElementById('timeline-list');
+    els.timelineSentinel = document.getElementById('timeline-sentinel');
+    if (window.IntersectionObserver) {
+      timelineObserver = new IntersectionObserver(function (entries) {
+        if (state.view !== 'timeline') return;
+        if (entries.some(function (en) { return en.isIntersecting; })) {
+          state.timelineShown += TIMELINE_PAGE;
+          renderTimeline();
+        }
+      }, { rootMargin: '400px' });
+    }
     els.clipForm = document.getElementById('clip-form');
     els.clipUrl = document.getElementById('clip-url');
     els.clipNote = document.getElementById('clip-note');
