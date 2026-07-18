@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
 <title>PRAZE — Brain</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#131313">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Brain">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -106,6 +113,7 @@
         <div id="tag-suggest" class="tag-suggest"></div>
         <div class="capture__actions">
           <button class="btn" type="submit">CAPTURE</button>
+          <button id="dump-btn" class="toolbar__btn" type="button" hidden>&#127908; Brain dump</button>
           <span class="capture__hint">Ctrl/Cmd + Enter</span>
           <span id="capture-streak" class="capture__streak"></span>
         </div>
@@ -118,6 +126,7 @@
         <span id="note-count" class="toolbar__count">0 NOTES</span>
       </div>
       <div class="toolbar__actions">
+        <button id="select-toggle" class="toolbar__btn" type="button" data-action="select-toggle">Select</button>
         <button id="export-btn" class="toolbar__btn" type="button">Export</button>
         <button id="import-btn" class="toolbar__btn" type="button">Import</button>
         <input id="import-file" type="file" accept=".json,application/json" hidden>
@@ -125,7 +134,9 @@
     </section>
 
     <div id="tag-rail" class="tag-rail"></div>
+    <div id="synth-result" class="synth-result" hidden></div>
     <ol id="note-list" class="note-list"></ol>
+    <div id="synth-bar" class="synth-bar" hidden></div>
   </section>
 
   <!-- DIARY -->
@@ -207,6 +218,19 @@
 
 </main>
 
+<div id="dump-overlay" class="dump" hidden>
+  <div class="dump__backdrop"></div>
+  <div class="dump__box">
+    <div class="dump__head">
+      <p class="label">BRAIN DUMP</p>
+      <span id="dump-time" class="dump__time">0:00</span>
+      <button type="button" class="banner__dismiss" data-action="dump-close" aria-label="Close">&times;</button>
+    </div>
+    <div id="dump-body" class="dump__body"></div>
+    <div id="dump-actions" class="dump__actions"></div>
+  </div>
+</div>
+
 <div id="palette" class="palette" hidden>
   <div class="palette__backdrop" id="palette-backdrop"></div>
   <div class="palette__box">
@@ -219,5 +243,15 @@
   <p>Notes are stored only in this browser (localStorage). No account, no server, no sync — export regularly to keep a backup.</p>
 </footer>
 
+<script>
+/* Register the service worker so the app installs and runs offline.
+   Guarded + best-effort: on a plain file:// open or an older browser it
+   simply no-ops, and never blocks the app. */
+if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('brain-sw.js').catch(function () {});
+  });
+}
+</script>
 </body>
 </html>

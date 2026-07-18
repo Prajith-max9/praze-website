@@ -327,6 +327,79 @@ window.BrainAI = (function () {
     };
   }
 
+  /* Synthesize: 2-4 selected notes → short-form content in the creator's voice */
+
+  var SYNTH_TASKS = {
+    reel: 'REEL SCRIPT: a 30-45 second Instagram Reel script. Format: HOOK (first line, under ' +
+      '12 words), then the spoken script in short lines, then one-line CTA. Under 130 words total.',
+    hooks: 'HOOK IDEAS: 5 distinct opening hooks for a Reel about the shared idea. ' +
+      'Each under 12 words. Numbered.',
+    post: 'POST: one Instagram caption, under 120 words, line breaks between thoughts, ' +
+      'ending with a question to the audience.'
+  };
+
+  async function synthesize(notesText, format) {
+    var task = SYNTH_TASKS[format];
+    if (!task) throw new Error('Unknown format.');
+    var prompt =
+      'You are a short-form content writer for a fitness and self-improvement creator building ' +
+      'a personal brand. Voice: direct, grounded, no hype words, no emojis, no hashtag spam.\n\n' +
+      'Source notes from their knowledge base:\n' + notesText + '\n\n' +
+      'Task: ' + task + '\n\n' +
+      'Rules: Draw ONLY from the ideas in the notes — do not invent claims, statistics, or ' +
+      'personal stories that are not in them. If the notes don\'t combine into one coherent ' +
+      'piece, say so in one line instead of forcing it.';
+
+    var text = (await callClaude(prompt, 700)).trim();
+    if (!text) throw new Error('AI returned an empty response — try again.');
+    return text;
+  }
+
+  /* Brain dump: one long spoken transcript → 1-6 separate tagged notes */
+
+  var DUMP_CHARS = 6000;
+
+  async function splitDump(transcript) {
+    var t = transcript.length > DUMP_CHARS ? transcript.slice(0, DUMP_CHARS) + '…' : transcript;
+    var prompt =
+      'A person spoke a stream of thoughts into their notes app. Split it into separate notes.\n\n' +
+      'Transcript:\n' + t + '\n\n' +
+      'Respond with ONLY a JSON array, no markdown fences:\n' +
+      '[{"title": "...", "body": "...", "tags": ["tag1"]}]\n\n' +
+      'Rules:\n' +
+      '- 1 to 6 notes. Split only where the topic genuinely changes; do not over-fragment.\n' +
+      '- Titles under 8 words, drawn from the content.\n' +
+      '- Bodies are the speaker\'s words lightly cleaned (remove filler like "um", fix obvious ' +
+      'transcription stumbles) — do NOT rewrite, summarize, or add anything they didn\'t say.\n' +
+      '- 1-2 lowercase single-word tags per note.';
+
+    var text = await callClaude(prompt, 800);
+    var parsed;
+    try {
+      parsed = parseJson(text);
+    } catch (e) {
+      throw new Error('AI response was malformed — try again.');
+    }
+    if (!Array.isArray(parsed)) throw new Error('AI response was malformed — try again.');
+    var notes = parsed
+      .filter(function (n) {
+        return n && typeof n.title === 'string' && typeof n.body === 'string' && n.body.trim();
+      })
+      .map(function (n) {
+        return {
+          title: n.title.trim().slice(0, 120),
+          body: n.body.trim(),
+          tags: (Array.isArray(n.tags) ? n.tags : [])
+            .filter(function (t) { return typeof t === 'string' && t.trim(); })
+            .map(function (t) { return t.trim().toLowerCase(); })
+            .slice(0, 2)
+        };
+      })
+      .slice(0, 6);
+    if (!notes.length) throw new Error('AI response was malformed — try again.');
+    return notes;
+  }
+
   var WHY_BODY_CHARS = 1500;
 
   function clipBody(body) {
@@ -390,6 +463,8 @@ window.BrainAI = (function () {
     digestWeek: digestWeek,
     askBrain: askBrain,
     explainLink: explainLink,
+    synthesize: synthesize,
+    splitDump: splitDump,
     testKey: testKey
   };
 })();
