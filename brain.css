@@ -1950,6 +1950,23 @@ textarea:focus-visible,
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 }
 
+/* §5 banner entrance: slide-up + fade on show (unhiding restarts the
+   animation via the display flip). Dismissal stays instant. */
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.banner {
+  animation: banner-in 0.18s ease-out;
+}
+
 /* the press state replaces the mobile gray tap flash — ours is better */
 button,
 a {
