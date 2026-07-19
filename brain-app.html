@@ -2257,6 +2257,31 @@ textarea:focus-visible,
   opacity: 0.8;
 }
 
+/* §2 sliding tab indicator: replaces the per-tab static underline. JS
+   positions it under the active tab; the slide class is applied only on
+   physical clicks — hash-driven jumps stay instant. */
+.tabs {
+  position: relative;
+}
+
+.tabs__indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--lime);
+  pointer-events: none;
+}
+
+.tabs__indicator--slide {
+  transition: transform 0.15s ease-out, width 0.15s ease-out;
+}
+
+.tabs__tab--active {
+  border-bottom-color: transparent; /* the indicator is the underline now */
+}
+
 /* the press state replaces the mobile gray tap flash — ours is better */
 button,
 a {
@@ -2327,6 +2352,7 @@ a {
   <button type="button" class="tabs__tab" data-view="goals">GOALS</button>
   <button type="button" class="tabs__tab" data-view="graph">GRAPH</button>
   <button type="button" class="tabs__gear" id="settings-toggle" aria-label="Settings">&#9881;</button>
+  <span id="tabs-indicator" class="tabs__indicator" aria-hidden="true"></span>
 </nav>
 
 <div id="banner" class="banner" hidden>
@@ -5135,6 +5161,25 @@ window.BrainGraph = (function () {
 
   /* ---------- Router + render dispatcher ---------- */
 
+  // The slide animates only when the change came from a physical tab click —
+  // that's the movement the eye tracks. Palette/hash jumps reposition instantly.
+  var tabClickPending = false;
+
+  function positionTabIndicator() {
+    var ind = els.tabsIndicator;
+    if (!ind) return;
+    var animate = tabClickPending;
+    tabClickPending = false;
+    var active = els.tabs.querySelector('.tabs__tab--active');
+    if (!active) {
+      ind.style.width = '0px';
+      return;
+    }
+    ind.classList.toggle('tabs__indicator--slide', animate);
+    ind.style.width = active.offsetWidth + 'px';
+    ind.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+  }
+
   function currentViewFromHash() {
     var h = location.hash.replace('#', '');
     return VIEWS.indexOf(h) !== -1 ? h : 'dashboard';
@@ -5159,6 +5204,7 @@ window.BrainGraph = (function () {
     for (var i = 0; i < tabs.length; i++) {
       tabs[i].classList.toggle('tabs__tab--active', tabs[i].getAttribute('data-view') === state.view);
     }
+    positionTabIndicator();
     // view visibility
     VIEWS.forEach(function (v) {
       els.views[v].hidden = v !== state.view;
@@ -6178,6 +6224,7 @@ window.BrainGraph = (function () {
     els.bannerText = document.getElementById('banner-text');
     els.bannerAction = document.getElementById('banner-action');
     els.tabs = document.getElementById('tabs');
+    els.tabsIndicator = document.getElementById('tabs-indicator');
     els.views = {
       dashboard: document.getElementById('view-dashboard'),
       ask: document.getElementById('view-ask'),
@@ -6339,8 +6386,12 @@ window.BrainGraph = (function () {
     // tabs + routing
     els.tabs.addEventListener('click', function (e) {
       var tab = e.target.closest('[data-view]');
-      if (tab) setView(tab.getAttribute('data-view'));
+      if (tab) {
+        tabClickPending = true;
+        setView(tab.getAttribute('data-view'));
+      }
     });
+    window.addEventListener('resize', debounce(positionTabIndicator, 100));
     window.addEventListener('hashchange', function () {
       var v = currentViewFromHash();
       if (v !== state.view) {

@@ -1892,6 +1892,31 @@ textarea:focus-visible,
   opacity: 0.8;
 }
 
+/* §2 sliding tab indicator: replaces the per-tab static underline. JS
+   positions it under the active tab; the slide class is applied only on
+   physical clicks — hash-driven jumps stay instant. */
+.tabs {
+  position: relative;
+}
+
+.tabs__indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--lime);
+  pointer-events: none;
+}
+
+.tabs__indicator--slide {
+  transition: transform 0.15s ease-out, width 0.15s ease-out;
+}
+
+.tabs__tab--active {
+  border-bottom-color: transparent; /* the indicator is the underline now */
+}
+
 /* the press state replaces the mobile gray tap flash — ours is better */
 button,
 a {

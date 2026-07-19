@@ -1646,6 +1646,25 @@
 
   /* ---------- Router + render dispatcher ---------- */
 
+  // The slide animates only when the change came from a physical tab click —
+  // that's the movement the eye tracks. Palette/hash jumps reposition instantly.
+  var tabClickPending = false;
+
+  function positionTabIndicator() {
+    var ind = els.tabsIndicator;
+    if (!ind) return;
+    var animate = tabClickPending;
+    tabClickPending = false;
+    var active = els.tabs.querySelector('.tabs__tab--active');
+    if (!active) {
+      ind.style.width = '0px';
+      return;
+    }
+    ind.classList.toggle('tabs__indicator--slide', animate);
+    ind.style.width = active.offsetWidth + 'px';
+    ind.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+  }
+
   function currentViewFromHash() {
     var h = location.hash.replace('#', '');
     return VIEWS.indexOf(h) !== -1 ? h : 'dashboard';
@@ -1670,6 +1689,7 @@
     for (var i = 0; i < tabs.length; i++) {
       tabs[i].classList.toggle('tabs__tab--active', tabs[i].getAttribute('data-view') === state.view);
     }
+    positionTabIndicator();
     // view visibility
     VIEWS.forEach(function (v) {
       els.views[v].hidden = v !== state.view;
@@ -2689,6 +2709,7 @@
     els.bannerText = document.getElementById('banner-text');
     els.bannerAction = document.getElementById('banner-action');
     els.tabs = document.getElementById('tabs');
+    els.tabsIndicator = document.getElementById('tabs-indicator');
     els.views = {
       dashboard: document.getElementById('view-dashboard'),
       ask: document.getElementById('view-ask'),
@@ -2850,8 +2871,12 @@
     // tabs + routing
     els.tabs.addEventListener('click', function (e) {
       var tab = e.target.closest('[data-view]');
-      if (tab) setView(tab.getAttribute('data-view'));
+      if (tab) {
+        tabClickPending = true;
+        setView(tab.getAttribute('data-view'));
+      }
     });
+    window.addEventListener('resize', debounce(positionTabIndicator, 100));
     window.addEventListener('hashchange', function () {
       var v = currentViewFromHash();
       if (v !== state.view) {
