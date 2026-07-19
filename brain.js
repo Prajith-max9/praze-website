@@ -2053,6 +2053,7 @@
       var goal = store.goals.find(function (g) { return g.id === goalId; });
       if (!goal) return;
       if (action === 'goal-inc') {
+        var oldPct = Math.min(100, Math.round((goal.progress / goal.target) * 100));
         goal.progress++;
         if (goal.progress >= goal.target && !goal.completedAt) {
           goal.completedAt = Date.now();
@@ -2061,6 +2062,17 @@
         }
         saveStore();
         render();
+        // render() rebuilds the card, so the fill is born at its new width and
+        // the CSS transition never fires — replay old → new on the fresh node
+        var fill = document.querySelector('[data-goal="' + goalId + '"] .goal__fill');
+        if (fill) {
+          var newWidth = fill.style.width;
+          fill.style.transition = 'none';
+          fill.style.width = oldPct + '%';
+          void fill.offsetWidth;
+          fill.style.transition = '';
+          fill.style.width = newWidth;
+        }
       } else if (action === 'goal-del-ask') {
         state.confirmingGoalId = goalId;
         render();
