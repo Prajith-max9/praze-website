@@ -1188,16 +1188,28 @@
     return { current: current, best: Math.max(best, current) };
   }
 
+  // Pop the streak number only when it actually grew since the last render
+  // this session — reopening the app must not fire it (starts as null).
+  var lastStreakShown = { idea: null, diary: null };
+
+  function popStreakIfGrew(kind, current, el) {
+    var prev = lastStreakShown[kind];
+    lastStreakShown[kind] = current;
+    if (prev !== null && current > prev) popOnce(el);
+  }
+
   function renderGoals() {
     var ideaStreak = computeStreak('idea');
     var diaryStreak = computeStreak('diary');
     els.streaks.innerHTML =
       '<div class="streak-card"><span class="streak-card__flame">🔥</span>' +
-      '<span class="streak-card__value">' + ideaStreak.current + '</span>' +
+      '<span class="streak-card__value" data-streak="idea">' + ideaStreak.current + '</span>' +
       '<span class="streak-card__label">day idea streak · best ' + ideaStreak.best + '</span></div>' +
       '<div class="streak-card"><span class="streak-card__flame">🔥</span>' +
-      '<span class="streak-card__value">' + diaryStreak.current + '</span>' +
+      '<span class="streak-card__value" data-streak="diary">' + diaryStreak.current + '</span>' +
       '<span class="streak-card__label">day diary streak · best ' + diaryStreak.best + '</span></div>';
+    popStreakIfGrew('idea', ideaStreak.current, els.streaks.querySelector('[data-streak="idea"]'));
+    popStreakIfGrew('diary', diaryStreak.current, els.streaks.querySelector('[data-streak="diary"]'));
 
     var active = store.goals.filter(function (g) { return !g.completedAt; });
     var wins = store.goals.filter(function (g) { return g.completedAt; })
@@ -1547,9 +1559,11 @@
     html += '<div class="dash-card">' +
       '<p class="label">STREAKS</p>' +
       '<button type="button" class="dash-row" data-action="goto" data-go="goals">🔥 ' +
-      ideaStreak.current + '-day idea streak <span class="dash-row__meta">best ' + ideaStreak.best + '</span></button>' +
+      '<span class="streak-num" data-streak="idea">' + ideaStreak.current + '</span>' +
+      '-day idea streak <span class="dash-row__meta">best ' + ideaStreak.best + '</span></button>' +
       '<button type="button" class="dash-row" data-action="goto" data-go="goals">🔥 ' +
-      diaryStreak.current + '-day diary streak <span class="dash-row__meta">best ' + diaryStreak.best + '</span></button>' +
+      '<span class="streak-num" data-streak="diary">' + diaryStreak.current + '</span>' +
+      '-day diary streak <span class="dash-row__meta">best ' + diaryStreak.best + '</span></button>' +
       '</div>';
 
     html += '<div class="dash-card"><p class="label">ACTIVE GOALS</p>' +
@@ -1594,6 +1608,8 @@
     }
 
     els.dash.innerHTML = html;
+    popStreakIfGrew('idea', ideaStreak.current, els.dash.querySelector('[data-streak="idea"]'));
+    popStreakIfGrew('diary', diaryStreak.current, els.dash.querySelector('[data-streak="diary"]'));
   }
 
   /* ---------- GRAPH view ---------- */

@@ -1929,6 +1929,12 @@ textarea:focus-visible,
   animation: micro-pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* §7: streak numbers pop when they grow; inline-block so transform applies */
+.streak-num,
+.streak-card__value {
+  display: inline-block;
+}
+
 /* §4 card lift: notes, clips, goals get 2px of life under the pointer.
    Hover only where hover exists; touch gets the same lift on :active. */
 .note,
