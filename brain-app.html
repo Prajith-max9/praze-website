@@ -2294,6 +2294,27 @@ textarea:focus-visible,
   animation: micro-pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* §4 card lift: notes, clips, goals get 2px of life under the pointer.
+   Hover only where hover exists; touch gets the same lift on :active. */
+.note,
+.goal {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+@media (hover: hover) {
+  .note:not(.note--editing):hover,
+  .goal:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.note:not(.note--editing):active,
+.goal:active {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
 /* the press state replaces the mobile gray tap flash — ours is better */
 button,
 a {
