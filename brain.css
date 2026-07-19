@@ -922,7 +922,7 @@
 .goal__fill {
   height: 100%;
   background: var(--lime);
-  transition: width 0.3s ease;
+  transition: width 0.25s ease-out;
 }
 
 .goal__actions {
@@ -1839,6 +1839,147 @@ textarea:focus-visible,
 /* Polish §4 — honour the OS "reduce motion" setting. Collapses the existing
    animations (note-flash, mic pulse, goal-bar fill) and transitions to
    near-instant; no new motion is introduced. Confetti is already JS-guarded. */
+/* Micro-interactions — every rule here is neutralized by the
+   prefers-reduced-motion block below (duration collapses to 0.001ms). */
+
+/* §1 press states: taps read as confirmed. Full shorthands re-declared so
+   the transform transition extends the existing ones instead of clobbering. */
+.btn {
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s ease-out;
+}
+
+.toolbar__btn {
+  transition: background 0.2s, border-color 0.2s, transform 0.1s ease-out;
+}
+
+.tabs__tab {
+  transition: color 0.15s, border-color 0.15s, transform 0.1s ease-out;
+}
+
+.note__action,
+.synth-bar__btn,
+#digest-btn {
+  transition: transform 0.1s ease-out;
+}
+
+.btn:active,
+.toolbar__btn:active,
+.tabs__tab:active,
+.note__action:active,
+.synth-bar__btn:active,
+#digest-btn:active {
+  transform: scale(0.96);
+}
+
+/* icon-only buttons: press-scale + slight opacity dip */
+.tabs__gear,
+.banner__dismiss,
+.resurface-dismiss,
+.synth-bar__cancel {
+  transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+}
+
+.clip__play {
+  transition: transform 0.15s, opacity 0.1s ease-out;
+}
+
+.tabs__gear:active,
+.banner__dismiss:active,
+.resurface-dismiss:active,
+.synth-bar__cancel:active,
+.clip__play:active {
+  transform: scale(0.96);
+  opacity: 0.8;
+}
+
+/* §2 sliding tab indicator: replaces the per-tab static underline. JS
+   positions it under the active tab; the slide class is applied only on
+   physical clicks — hash-driven jumps stay instant. */
+.tabs {
+  position: relative;
+}
+
+.tabs__indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--lime);
+  pointer-events: none;
+}
+
+.tabs__indicator--slide {
+  transition: transform 0.15s ease-out, width 0.15s ease-out;
+}
+
+.tabs__tab--active {
+  border-bottom-color: transparent; /* the indicator is the underline now */
+}
+
+/* §3 check pop: the one place a gentle overshoot reads as satisfying.
+   Applied as a one-shot class from JS so re-renders don't re-fire it. */
+@keyframes micro-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.pop-once {
+  animation: micro-pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* §7: streak numbers pop when they grow; inline-block so transform applies */
+.streak-num,
+.streak-card__value {
+  display: inline-block;
+}
+
+/* §4 card lift: notes, clips, goals get 2px of life under the pointer.
+   Hover only where hover exists; touch gets the same lift on :active. */
+.note,
+.goal {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+@media (hover: hover) {
+  .note:not(.note--editing):hover,
+  .goal:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.note:not(.note--editing):active,
+.goal:active {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* §5 banner entrance: slide-up + fade on show (unhiding restarts the
+   animation via the display flip). Dismissal stays instant. */
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.banner {
+  animation: banner-in 0.18s ease-out;
+}
+
+/* the press state replaces the mobile gray tap flash — ours is better */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

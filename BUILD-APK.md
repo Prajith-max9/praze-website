@@ -1,4 +1,4 @@
-# Turning PRAZE Brain into an Android APK
+# Turning Second Brain into an Android APK
 
 The app is now an installable PWA (web manifest + service worker + icons), which
 is the prerequisite for packaging it as an Android app. There are two ways to get
@@ -7,7 +7,7 @@ an actual `.apk` file — neither needs you to write any Android code.
 ## Option A — PWABuilder (no tools, ~2 minutes) — recommended
 
 PWABuilder is Microsoft's free tool that wraps a live PWA into a signed Android
-package. Because PRAZE Brain is already hosted on GitHub Pages, this just works.
+package. Because Second Brain is already hosted on GitHub Pages, this just works.
 
 1. Go to **https://www.pwabuilder.com**
 2. Paste the live URL:
@@ -15,7 +15,7 @@ package. Because PRAZE Brain is already hosted on GitHub Pages, this just works.
    then click **Start**.
 3. It scores the PWA and shows the manifest + service worker it found.
 4. Click **Package For Stores → Android**.
-5. Leave the defaults (or set Package ID to something like `com.praze.brain`),
+5. Leave the defaults (or set Package ID to something like `com.secondbrain.app`),
    click **Download**.
 6. You get a zip containing:
    - `app-release-signed.apk` — sideload this straight onto a phone

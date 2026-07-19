@@ -1,4 +1,5 @@
-/* PRAZE Second Brain — capture, tag, search, link, reflect. All data lives in localStorage. */
+/* Second Brain — capture, tag, search, link, reflect. All data lives in localStorage.
+   (praze.* localStorage keys are a legacy internal namespace — never rename them.) */
 (function () {
   'use strict';
 
@@ -69,6 +70,38 @@
     }
     var years = Math.floor(days / 365);
     return years + (years === 1 ? ' year ago' : ' years ago');
+  }
+
+  // Collapse an element (height + fade, ~180ms) then run fn. The stylesheet's
+  // reduced-motion override collapses the inline duration too, so with motion
+  // off this resolves immediately; the timeout guarantees fn always runs.
+  function collapseThen(el, fn) {
+    if (!el) {
+      fn();
+      return;
+    }
+    el.style.height = el.offsetHeight + 'px';
+    el.style.overflow = 'hidden';
+    void el.offsetHeight;
+    el.style.transition = 'height 0.18s ease-out, opacity 0.18s ease-out';
+    el.style.height = '0px';
+    el.style.opacity = '0';
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      fn();
+    }
+    el.addEventListener('transitionend', finish, { once: true });
+    setTimeout(finish, 240);
+  }
+
+  // One-shot spring pop (see .pop-once). Restartable: remove + reflow + add.
+  function popOnce(el) {
+    if (!el) return;
+    el.classList.remove('pop-once');
+    void el.offsetWidth;
+    el.classList.add('pop-once');
   }
 
   function autoGrow(el) {
@@ -599,7 +632,8 @@
   }
 
   function toggleSelect(id) {
-    if (state.selected[id]) {
+    var checking = !state.selected[id];
+    if (!checking) {
       delete state.selected[id];
     } else if (selectedCount() >= SYNTH_MAX_NOTES) {
       showBanner('Four notes max — deselect one first.');
@@ -609,6 +643,9 @@
     }
     state.synthChoosing = false;
     render();
+    if (checking) {
+      popOnce(document.querySelector('#note-list [data-id="' + id + '"] .note__check'));
+    }
   }
 
   function runSynthesize(format) {
@@ -1176,16 +1213,28 @@
     return { current: current, best: Math.max(best, current) };
   }
 
+  // Pop the streak number only when it actually grew since the last render
+  // this session — reopening the app must not fire it (starts as null).
+  var lastStreakShown = { idea: null, diary: null };
+
+  function popStreakIfGrew(kind, current, el) {
+    var prev = lastStreakShown[kind];
+    lastStreakShown[kind] = current;
+    if (prev !== null && current > prev) popOnce(el);
+  }
+
   function renderGoals() {
     var ideaStreak = computeStreak('idea');
     var diaryStreak = computeStreak('diary');
     els.streaks.innerHTML =
       '<div class="streak-card"><span class="streak-card__flame">🔥</span>' +
-      '<span class="streak-card__value">' + ideaStreak.current + '</span>' +
+      '<span class="streak-card__value" data-streak="idea">' + ideaStreak.current + '</span>' +
       '<span class="streak-card__label">day idea streak · best ' + ideaStreak.best + '</span></div>' +
       '<div class="streak-card"><span class="streak-card__flame">🔥</span>' +
-      '<span class="streak-card__value">' + diaryStreak.current + '</span>' +
+      '<span class="streak-card__value" data-streak="diary">' + diaryStreak.current + '</span>' +
       '<span class="streak-card__label">day diary streak · best ' + diaryStreak.best + '</span></div>';
+    popStreakIfGrew('idea', ideaStreak.current, els.streaks.querySelector('[data-streak="idea"]'));
+    popStreakIfGrew('diary', diaryStreak.current, els.streaks.querySelector('[data-streak="diary"]'));
 
     var active = store.goals.filter(function (g) { return !g.completedAt; });
     var wins = store.goals.filter(function (g) { return g.completedAt; })
@@ -1456,7 +1505,7 @@
     if (!store.notes.length && !onboardStage()) {
       els.dash.innerHTML =
         '<div class="dash-card dash-card--hero">' +
-        '<p class="dash-greeting">PRAZE Brain</p>' +
+        '<p class="dash-greeting">Second Brain</p>' +
         '<p class="dash-tagline">I remember what you don’t.</p>' +
         '<button type="button" class="btn" data-action="dash-capture">CAPTURE YOUR FIRST IDEA</button>' +
         '</div>' +
@@ -1535,9 +1584,11 @@
     html += '<div class="dash-card">' +
       '<p class="label">STREAKS</p>' +
       '<button type="button" class="dash-row" data-action="goto" data-go="goals">🔥 ' +
-      ideaStreak.current + '-day idea streak <span class="dash-row__meta">best ' + ideaStreak.best + '</span></button>' +
+      '<span class="streak-num" data-streak="idea">' + ideaStreak.current + '</span>' +
+      '-day idea streak <span class="dash-row__meta">best ' + ideaStreak.best + '</span></button>' +
       '<button type="button" class="dash-row" data-action="goto" data-go="goals">🔥 ' +
-      diaryStreak.current + '-day diary streak <span class="dash-row__meta">best ' + diaryStreak.best + '</span></button>' +
+      '<span class="streak-num" data-streak="diary">' + diaryStreak.current + '</span>' +
+      '-day diary streak <span class="dash-row__meta">best ' + diaryStreak.best + '</span></button>' +
       '</div>';
 
     html += '<div class="dash-card"><p class="label">ACTIVE GOALS</p>' +
@@ -1582,6 +1633,8 @@
     }
 
     els.dash.innerHTML = html;
+    popStreakIfGrew('idea', ideaStreak.current, els.dash.querySelector('[data-streak="idea"]'));
+    popStreakIfGrew('diary', diaryStreak.current, els.dash.querySelector('[data-streak="diary"]'));
   }
 
   /* ---------- GRAPH view ---------- */
@@ -1646,6 +1699,25 @@
 
   /* ---------- Router + render dispatcher ---------- */
 
+  // The slide animates only when the change came from a physical tab click —
+  // that's the movement the eye tracks. Palette/hash jumps reposition instantly.
+  var tabClickPending = false;
+
+  function positionTabIndicator() {
+    var ind = els.tabsIndicator;
+    if (!ind) return;
+    var animate = tabClickPending;
+    tabClickPending = false;
+    var active = els.tabs.querySelector('.tabs__tab--active');
+    if (!active) {
+      ind.style.width = '0px';
+      return;
+    }
+    ind.classList.toggle('tabs__indicator--slide', animate);
+    ind.style.width = active.offsetWidth + 'px';
+    ind.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+  }
+
   function currentViewFromHash() {
     var h = location.hash.replace('#', '');
     return VIEWS.indexOf(h) !== -1 ? h : 'dashboard';
@@ -1670,6 +1742,7 @@
     for (var i = 0; i < tabs.length; i++) {
       tabs[i].classList.toggle('tabs__tab--active', tabs[i].getAttribute('data-view') === state.view);
     }
+    positionTabIndicator();
     // view visibility
     VIEWS.forEach(function (v) {
       els.views[v].hidden = v !== state.view;
@@ -1948,8 +2021,11 @@
     }
 
     if (action === 'resurface-dismiss') {
-      dismissResurfaced(btn.getAttribute('data-note-id'));
-      render();
+      var dismissId = btn.getAttribute('data-note-id');
+      collapseThen(btn.closest('.resurface-row'), function () {
+        dismissResurfaced(dismissId);
+        render();
+      });
       return;
     }
 
@@ -1962,20 +2038,22 @@
       var term = btn.getAttribute('data-term');
       var echo = computeEchoes().filter(function (e) { return e.term === term; })[0];
       if (!echo) return;
-      // the tag is the phrase the user was shown, not the internal token
-      var linked = 0;
-      echo.notes.forEach(function (n) {
-        if (n.tags.indexOf(echo.display) === -1) {
-          n.tags.push(echo.display);
-          n.updatedAt = Date.now();
-          linked++;
+      collapseThen(btn.closest('.echo'), function () {
+        // the tag is the phrase the user was shown, not the internal token
+        var linked = 0;
+        echo.notes.forEach(function (n) {
+          if (n.tags.indexOf(echo.display) === -1) {
+            n.tags.push(echo.display);
+            n.updatedAt = Date.now();
+            linked++;
+          }
+        });
+        if (linked) {
+          saveStore();
+          showBanner('Linked ' + echo.notes.length + ' notes with #' + echo.display);
         }
+        render();
       });
-      if (linked) {
-        saveStore();
-        showBanner('Linked ' + echo.notes.length + ' notes with #' + echo.display);
-      }
-      render();
       return;
     }
 
@@ -2021,6 +2099,7 @@
       var goal = store.goals.find(function (g) { return g.id === goalId; });
       if (!goal) return;
       if (action === 'goal-inc') {
+        var oldPct = Math.min(100, Math.round((goal.progress / goal.target) * 100));
         goal.progress++;
         if (goal.progress >= goal.target && !goal.completedAt) {
           goal.completedAt = Date.now();
@@ -2029,6 +2108,17 @@
         }
         saveStore();
         render();
+        // render() rebuilds the card, so the fill is born at its new width and
+        // the CSS transition never fires — replay old → new on the fresh node
+        var fill = document.querySelector('[data-goal="' + goalId + '"] .goal__fill');
+        if (fill) {
+          var newWidth = fill.style.width;
+          fill.style.transition = 'none';
+          fill.style.width = oldPct + '%';
+          void fill.offsetWidth;
+          fill.style.transition = '';
+          fill.style.width = newWidth;
+        }
       } else if (action === 'goal-del-ask') {
         state.confirmingGoalId = goalId;
         render();
@@ -2163,7 +2253,7 @@
     var a = document.createElement('a');
     var d = new Date();
     a.href = url;
-    a.download = 'praze-brain-' + d.getFullYear() + '-' +
+    a.download = 'second-brain-' + d.getFullYear() + '-' +
       String(d.getMonth() + 1).padStart(2, '0') + '-' +
       String(d.getDate()).padStart(2, '0') + '.json';
     document.body.appendChild(a);
@@ -2674,10 +2764,14 @@
     } else if (action === 'dump-save-checked') {
       saveDumpChecked();
     } else if (action === 'dump-check') {
-      var p = dump.proposals[+el.getAttribute('data-idx')];
+      var idx = +el.getAttribute('data-idx');
+      var p = dump.proposals[idx];
       if (p) {
         p.checked = !p.checked;
         renderDump();
+        if (p.checked) {
+          popOnce(els.dumpBody.querySelector('[data-idx="' + idx + '"] .note__check'));
+        }
       }
     }
   }
@@ -2689,6 +2783,7 @@
     els.bannerText = document.getElementById('banner-text');
     els.bannerAction = document.getElementById('banner-action');
     els.tabs = document.getElementById('tabs');
+    els.tabsIndicator = document.getElementById('tabs-indicator');
     els.views = {
       dashboard: document.getElementById('view-dashboard'),
       ask: document.getElementById('view-ask'),
@@ -2850,8 +2945,12 @@
     // tabs + routing
     els.tabs.addEventListener('click', function (e) {
       var tab = e.target.closest('[data-view]');
-      if (tab) setView(tab.getAttribute('data-view'));
+      if (tab) {
+        tabClickPending = true;
+        setView(tab.getAttribute('data-view'));
+      }
     });
+    window.addEventListener('resize', debounce(positionTabIndicator, 100));
     window.addEventListener('hashchange', function () {
       var v = currentViewFromHash();
       if (v !== state.view) {
@@ -2971,6 +3070,7 @@
     themeBtn.textContent = currentTheme() === 'dark' ? 'Switch to light' : 'Switch to dark';
     themeBtn.addEventListener('click', function () {
       applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+      popOnce(themeBtn);
     });
 
     // brain dump overlay (button only appears when SpeechRecognition exists)
