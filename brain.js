@@ -71,6 +71,30 @@
     return years + (years === 1 ? ' year ago' : ' years ago');
   }
 
+  // Collapse an element (height + fade, ~180ms) then run fn. The stylesheet's
+  // reduced-motion override collapses the inline duration too, so with motion
+  // off this resolves immediately; the timeout guarantees fn always runs.
+  function collapseThen(el, fn) {
+    if (!el) {
+      fn();
+      return;
+    }
+    el.style.height = el.offsetHeight + 'px';
+    el.style.overflow = 'hidden';
+    void el.offsetHeight;
+    el.style.transition = 'height 0.18s ease-out, opacity 0.18s ease-out';
+    el.style.height = '0px';
+    el.style.opacity = '0';
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      fn();
+    }
+    el.addEventListener('transitionend', finish, { once: true });
+    setTimeout(finish, 240);
+  }
+
   // One-shot spring pop (see .pop-once). Restartable: remove + reflow + add.
   function popOnce(el) {
     if (!el) return;
@@ -1996,8 +2020,11 @@
     }
 
     if (action === 'resurface-dismiss') {
-      dismissResurfaced(btn.getAttribute('data-note-id'));
-      render();
+      var dismissId = btn.getAttribute('data-note-id');
+      collapseThen(btn.closest('.resurface-row'), function () {
+        dismissResurfaced(dismissId);
+        render();
+      });
       return;
     }
 
@@ -2010,20 +2037,22 @@
       var term = btn.getAttribute('data-term');
       var echo = computeEchoes().filter(function (e) { return e.term === term; })[0];
       if (!echo) return;
-      // the tag is the phrase the user was shown, not the internal token
-      var linked = 0;
-      echo.notes.forEach(function (n) {
-        if (n.tags.indexOf(echo.display) === -1) {
-          n.tags.push(echo.display);
-          n.updatedAt = Date.now();
-          linked++;
+      collapseThen(btn.closest('.echo'), function () {
+        // the tag is the phrase the user was shown, not the internal token
+        var linked = 0;
+        echo.notes.forEach(function (n) {
+          if (n.tags.indexOf(echo.display) === -1) {
+            n.tags.push(echo.display);
+            n.updatedAt = Date.now();
+            linked++;
+          }
+        });
+        if (linked) {
+          saveStore();
+          showBanner('Linked ' + echo.notes.length + ' notes with #' + echo.display);
         }
+        render();
       });
-      if (linked) {
-        saveStore();
-        showBanner('Linked ' + echo.notes.length + ' notes with #' + echo.display);
-      }
-      render();
       return;
     }
 
