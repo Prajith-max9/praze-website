@@ -1,4 +1,4 @@
-/* PRAZE Second Brain — force-directed graph view on canvas.
+/* Second Brain — force-directed graph view on canvas.
    BrainGraph.mount(canvas, data, onNodeClick, getNoteInfo) / BrainGraph.destroy().
    Camera (pan + zoom) sits between world space and the screen; the force sim
    and node data stay in world coords. Fully torn down on destroy — no rAF

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
-<title>PRAZE — Brain</title>
+<title>Second Brain</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#131313">
 <meta name="mobile-web-app-capable" content="yes">
@@ -2394,7 +2394,7 @@ a {
 <body>
 
 <header class="navbar">
-  <span class="navbar__mark">PRAZE — BRAIN</span>
+  <span class="navbar__mark">SECOND BRAIN</span>
   <a class="navbar__cta" href="index.html">&larr; site</a>
 </header>
 
@@ -2614,7 +2614,7 @@ if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
 </script>
 
 <script>
-/* PRAZE Second Brain — intelligence layer.
+/* Second Brain — intelligence layer.
    Built-in: TF-IDF similarity engine (offline, free) for auto-linking and tag suggestions.
    Optional: Claude API client using the user's own key (stored locally, never exported). */
 window.BrainAI = (function () {
@@ -3087,7 +3087,7 @@ window.BrainAI = (function () {
 
 </script>
 <script>
-/* PRAZE Second Brain — force-directed graph view on canvas.
+/* Second Brain — force-directed graph view on canvas.
    BrainGraph.mount(canvas, data, onNodeClick, getNoteInfo) / BrainGraph.destroy().
    Camera (pan + zoom) sits between world space and the screen; the force sim
    and node data stay in world coords. Fully torn down on destroy — no rAF
@@ -3569,7 +3569,8 @@ window.BrainGraph = (function () {
 
 </script>
 <script>
-/* PRAZE Second Brain — capture, tag, search, link, reflect. All data lives in localStorage. */
+/* Second Brain — capture, tag, search, link, reflect. All data lives in localStorage.
+   (praze.* localStorage keys are a legacy internal namespace — never rename them.) */
 (function () {
   'use strict';
 
@@ -5075,7 +5076,7 @@ window.BrainGraph = (function () {
     if (!store.notes.length && !onboardStage()) {
       els.dash.innerHTML =
         '<div class="dash-card dash-card--hero">' +
-        '<p class="dash-greeting">PRAZE Brain</p>' +
+        '<p class="dash-greeting">Second Brain</p>' +
         '<p class="dash-tagline">I remember what you don’t.</p>' +
         '<button type="button" class="btn" data-action="dash-capture">CAPTURE YOUR FIRST IDEA</button>' +
         '</div>' +
@@ -5823,7 +5824,7 @@ window.BrainGraph = (function () {
     var a = document.createElement('a');
     var d = new Date();
     a.href = url;
-    a.download = 'praze-brain-' + d.getFullYear() + '-' +
+    a.download = 'second-brain-' + d.getFullYear() + '-' +
       String(d.getMonth() + 1).padStart(2, '0') + '-' +
       String(d.getDate()).padStart(2, '0') + '.json';
     document.body.appendChild(a);

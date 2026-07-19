@@ -1,4 +1,5 @@
-/* PRAZE Brain service worker — makes the app installable and offline-capable.
+/* Second Brain service worker — makes the app installable and offline-capable.
+   (The praze-brain-v1 cache name is a legacy internal namespace — keep it.)
    Network-first for the app's own files so an online device always gets the
    latest build; the cache is the offline fallback. Cross-origin requests
    (Google Fonts, the Claude API) are never touched — they pass straight to

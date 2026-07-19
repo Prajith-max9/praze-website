@@ -1,4 +1,4 @@
-/* PRAZE Second Brain — intelligence layer.
+/* Second Brain — intelligence layer.
    Built-in: TF-IDF similarity engine (offline, free) for auto-linking and tag suggestions.
    Optional: Claude API client using the user's own key (stored locally, never exported). */
 window.BrainAI = (function () {

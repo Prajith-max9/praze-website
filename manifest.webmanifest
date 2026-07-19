@@ -1,6 +1,6 @@
 {
-  "name": "PRAZE Brain",
-  "short_name": "Brain",
+  "name": "Second Brain",
+  "short_name": "Second Brain",
   "description": "Your second brain — capture ideas, link them, resurface what matters. Everything stays in your browser.",
   "start_url": "./brain.html",
   "scope": "./",

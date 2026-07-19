@@ -1,4 +1,5 @@
-/* PRAZE Second Brain — capture, tag, search, link, reflect. All data lives in localStorage. */
+/* Second Brain — capture, tag, search, link, reflect. All data lives in localStorage.
+   (praze.* localStorage keys are a legacy internal namespace — never rename them.) */
 (function () {
   'use strict';
 
@@ -1504,7 +1505,7 @@
     if (!store.notes.length && !onboardStage()) {
       els.dash.innerHTML =
         '<div class="dash-card dash-card--hero">' +
-        '<p class="dash-greeting">PRAZE Brain</p>' +
+        '<p class="dash-greeting">Second Brain</p>' +
         '<p class="dash-tagline">I remember what you don’t.</p>' +
         '<button type="button" class="btn" data-action="dash-capture">CAPTURE YOUR FIRST IDEA</button>' +
         '</div>' +
@@ -2252,7 +2253,7 @@
     var a = document.createElement('a');
     var d = new Date();
     a.href = url;
-    a.download = 'praze-brain-' + d.getFullYear() + '-' +
+    a.download = 'second-brain-' + d.getFullYear() + '-' +
       String(d.getMonth() + 1).padStart(2, '0') + '-' +
       String(d.getDate()).padStart(2, '0') + '.json';
     document.body.appendChild(a);
