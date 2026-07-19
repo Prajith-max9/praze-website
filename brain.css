@@ -1839,6 +1839,66 @@ textarea:focus-visible,
 /* Polish §4 — honour the OS "reduce motion" setting. Collapses the existing
    animations (note-flash, mic pulse, goal-bar fill) and transitions to
    near-instant; no new motion is introduced. Confetti is already JS-guarded. */
+/* Micro-interactions — every rule here is neutralized by the
+   prefers-reduced-motion block below (duration collapses to 0.001ms). */
+
+/* §1 press states: taps read as confirmed. Full shorthands re-declared so
+   the transform transition extends the existing ones instead of clobbering. */
+.btn {
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s ease-out;
+}
+
+.toolbar__btn {
+  transition: background 0.2s, border-color 0.2s, transform 0.1s ease-out;
+}
+
+.tabs__tab {
+  transition: color 0.15s, border-color 0.15s, transform 0.1s ease-out;
+}
+
+.note__action,
+.synth-bar__btn,
+#digest-btn {
+  transition: transform 0.1s ease-out;
+}
+
+.btn:active,
+.toolbar__btn:active,
+.tabs__tab:active,
+.note__action:active,
+.synth-bar__btn:active,
+#digest-btn:active {
+  transform: scale(0.96);
+}
+
+/* icon-only buttons: press-scale + slight opacity dip */
+.tabs__gear,
+.banner__dismiss,
+.resurface-dismiss,
+.synth-bar__cancel {
+  transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+}
+
+.clip__play {
+  transition: transform 0.15s, opacity 0.1s ease-out;
+}
+
+.tabs__gear:active,
+.banner__dismiss:active,
+.resurface-dismiss:active,
+.synth-bar__cancel:active,
+.clip__play:active {
+  transform: scale(0.96);
+  opacity: 0.8;
+}
+
+/* the press state replaces the mobile gray tap flash — ours is better */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
