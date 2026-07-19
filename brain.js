@@ -71,6 +71,14 @@
     return years + (years === 1 ? ' year ago' : ' years ago');
   }
 
+  // One-shot spring pop (see .pop-once). Restartable: remove + reflow + add.
+  function popOnce(el) {
+    if (!el) return;
+    el.classList.remove('pop-once');
+    void el.offsetWidth;
+    el.classList.add('pop-once');
+  }
+
   function autoGrow(el) {
     el.style.height = 'auto';
     el.style.height = el.scrollHeight + 'px';
@@ -599,7 +607,8 @@
   }
 
   function toggleSelect(id) {
-    if (state.selected[id]) {
+    var checking = !state.selected[id];
+    if (!checking) {
       delete state.selected[id];
     } else if (selectedCount() >= SYNTH_MAX_NOTES) {
       showBanner('Four notes max — deselect one first.');
@@ -609,6 +618,9 @@
     }
     state.synthChoosing = false;
     render();
+    if (checking) {
+      popOnce(document.querySelector('#note-list [data-id="' + id + '"] .note__check'));
+    }
   }
 
   function runSynthesize(format) {
@@ -2694,10 +2706,14 @@
     } else if (action === 'dump-save-checked') {
       saveDumpChecked();
     } else if (action === 'dump-check') {
-      var p = dump.proposals[+el.getAttribute('data-idx')];
+      var idx = +el.getAttribute('data-idx');
+      var p = dump.proposals[idx];
       if (p) {
         p.checked = !p.checked;
         renderDump();
+        if (p.checked) {
+          popOnce(els.dumpBody.querySelector('[data-idx="' + idx + '"] .note__check'));
+        }
       }
     }
   }
@@ -2996,6 +3012,7 @@
     themeBtn.textContent = currentTheme() === 'dark' ? 'Switch to light' : 'Switch to dark';
     themeBtn.addEventListener('click', function () {
       applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+      popOnce(themeBtn);
     });
 
     // brain dump overlay (button only appears when SpeechRecognition exists)

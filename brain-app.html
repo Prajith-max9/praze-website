@@ -2282,6 +2282,18 @@ textarea:focus-visible,
   border-bottom-color: transparent; /* the indicator is the underline now */
 }
 
+/* §3 check pop: the one place a gentle overshoot reads as satisfying.
+   Applied as a one-shot class from JS so re-renders don't re-fire it. */
+@keyframes micro-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.pop-once {
+  animation: micro-pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* the press state replaces the mobile gray tap flash — ours is better */
 button,
 a {
@@ -3586,6 +3598,14 @@ window.BrainGraph = (function () {
     return years + (years === 1 ? ' year ago' : ' years ago');
   }
 
+  // One-shot spring pop (see .pop-once). Restartable: remove + reflow + add.
+  function popOnce(el) {
+    if (!el) return;
+    el.classList.remove('pop-once');
+    void el.offsetWidth;
+    el.classList.add('pop-once');
+  }
+
   function autoGrow(el) {
     el.style.height = 'auto';
     el.style.height = el.scrollHeight + 'px';
@@ -4114,7 +4134,8 @@ window.BrainGraph = (function () {
   }
 
   function toggleSelect(id) {
-    if (state.selected[id]) {
+    var checking = !state.selected[id];
+    if (!checking) {
       delete state.selected[id];
     } else if (selectedCount() >= SYNTH_MAX_NOTES) {
       showBanner('Four notes max — deselect one first.');
@@ -4124,6 +4145,9 @@ window.BrainGraph = (function () {
     }
     state.synthChoosing = false;
     render();
+    if (checking) {
+      popOnce(document.querySelector('#note-list [data-id="' + id + '"] .note__check'));
+    }
   }
 
   function runSynthesize(format) {
@@ -6209,10 +6233,14 @@ window.BrainGraph = (function () {
     } else if (action === 'dump-save-checked') {
       saveDumpChecked();
     } else if (action === 'dump-check') {
-      var p = dump.proposals[+el.getAttribute('data-idx')];
+      var idx = +el.getAttribute('data-idx');
+      var p = dump.proposals[idx];
       if (p) {
         p.checked = !p.checked;
         renderDump();
+        if (p.checked) {
+          popOnce(els.dumpBody.querySelector('[data-idx="' + idx + '"] .note__check'));
+        }
       }
     }
   }
@@ -6511,6 +6539,7 @@ window.BrainGraph = (function () {
     themeBtn.textContent = currentTheme() === 'dark' ? 'Switch to light' : 'Switch to dark';
     themeBtn.addEventListener('click', function () {
       applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+      popOnce(themeBtn);
     });
 
     // brain dump overlay (button only appears when SpeechRecognition exists)

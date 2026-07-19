@@ -1917,6 +1917,18 @@ textarea:focus-visible,
   border-bottom-color: transparent; /* the indicator is the underline now */
 }
 
+/* §3 check pop: the one place a gentle overshoot reads as satisfying.
+   Applied as a one-shot class from JS so re-renders don't re-fire it. */
+@keyframes micro-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.pop-once {
+  animation: micro-pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* the press state replaces the mobile gray tap flash — ours is better */
 button,
 a {
