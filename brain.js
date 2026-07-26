@@ -2953,6 +2953,12 @@
       }
     });
     window.addEventListener('resize', debounce(positionTabIndicator, 100));
+    // font-display:swap means the tab labels are measured in the fallback font
+    // first; when the real faces land the tabs resize and the indicator would
+    // be left behind, so re-measure once fonts settle (instant, no slide).
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { positionTabIndicator(); });
+    }
     window.addEventListener('hashchange', function () {
       var v = currentViewFromHash();
       if (v !== state.view) {
