@@ -1710,12 +1710,14 @@
     tabClickPending = false;
     var active = els.tabs.querySelector('.tabs__tab--active');
     if (!active) {
-      ind.style.width = '0px';
+      ind.style.transform = 'scaleX(0)';
       return;
     }
     ind.classList.toggle('tabs__indicator--slide', animate);
-    ind.style.width = active.offsetWidth + 'px';
-    ind.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+    // both the slide and the width ride on one transform (100px base × scale),
+    // so the animation stays on the compositor instead of triggering layout
+    ind.style.transform = 'translateX(' + active.offsetLeft + 'px) scaleX(' +
+      (active.offsetWidth / 100) + ')';
   }
 
   function currentViewFromHash() {

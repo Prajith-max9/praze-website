@@ -1852,8 +1852,10 @@ textarea:focus-visible,
   transition: background 0.2s, border-color 0.2s, transform 0.1s ease-out;
 }
 
+/* transform only — color/border-color aren't composited, and the underline
+   they used to carry is the indicator's job now */
 .tabs__tab {
-  transition: color 0.15s, border-color 0.15s, transform 0.1s ease-out;
+  transition: transform 0.1s ease-out;
 }
 
 .note__action,
@@ -1899,18 +1901,23 @@ textarea:focus-visible,
   position: relative;
 }
 
+/* Fixed 100px base scaled by JS, so position AND size ride on one composited
+   transform — animating width here would hit layout on every frame. */
 .tabs__indicator {
   position: absolute;
   bottom: 0;
   left: 0;
   height: 3px;
-  width: 0;
+  width: 100px;
   background: var(--lime);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  will-change: transform;
   pointer-events: none;
 }
 
 .tabs__indicator--slide {
-  transition: transform 0.15s ease-out, width 0.15s ease-out;
+  transition: transform 0.15s ease-out;
 }
 
 .tabs__tab--active {
