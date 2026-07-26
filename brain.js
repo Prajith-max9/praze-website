@@ -1146,8 +1146,10 @@
     // thumbnail by default; the player iframe loads only on explicit click
     var thumbHtml = ytId
       ? '<div class="clip__player" data-yt="' + encodeURIComponent(ytId) + '">' +
+        // 480x360 is hqdefault's intrinsic size — stating it lets the browser
+        // reserve the box from the aspect ratio before the image arrives
         '<img class="clip__thumb" src="https://img.youtube.com/vi/' + encodeURIComponent(ytId) +
-        '/hqdefault.jpg" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+        '/hqdefault.jpg" alt="" width="480" height="360" loading="lazy" onerror="this.style.display=\'none\'">' +
         '<button type="button" class="clip__play" data-action="clip-play" aria-label="Play video">&#9654;</button>' +
         '</div>'
       : '';
