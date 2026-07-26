@@ -10,7 +10,18 @@ const read = (f) => fs.readFileSync(path.join(dir, f), 'utf8');
 
 let html = read('brain.html');
 
-const styles = read('styles.css');
+// The bundle has to open from a bare file:// with nothing beside it, so the
+// self-hosted woff2 files are embedded as data: URIs rather than left as
+// relative paths. (The multi-file app keeps the real paths and caches them
+// through the service worker.)
+function inlineFonts(css) {
+  return css.replace(/url\('(fonts\/[^']+\.woff2)'\)/g, function (match, file) {
+    const b64 = fs.readFileSync(path.join(dir, file)).toString('base64');
+    return "url('data:font/woff2;base64," + b64 + "')";
+  });
+}
+
+const styles = inlineFonts(read('styles.css'));
 const brainCss = read('brain.css');
 const inlineStyle =
   '<style>\n/* --- styles.css --- */\n' + styles +
