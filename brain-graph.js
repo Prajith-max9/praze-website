@@ -25,6 +25,9 @@ window.BrainGraph = (function () {
   }
 
   var LABEL_LIMIT = 40; // draw all labels up to this many nodes; above it, hover only
+  var LABEL_FONT = '11px "Space Mono", monospace';
+  var LABEL_CLEAR_MAX = 165; // ceiling on label-driven spacing, so long titles
+                             // can't blow a graph apart
   var MIN_SCALE = 0.4;
   var MAX_SCALE = 3;
 
@@ -41,7 +44,13 @@ window.BrainGraph = (function () {
       // screen position of the first node, for tests
       sample: state && state.nodes.length
         ? { x: state.nodes[0].x * state.scale + state.ox, y: state.nodes[0].y * state.scale + state.oy }
-        : null
+        : null,
+      // world positions, for layout/overlap assertions
+      w: state ? state.W : 0,
+      h: state ? state.H : 0,
+      positions: state ? state.nodes.map(function (n) {
+        return { id: n.id, label: n.label, x: n.x, y: n.y, deg: n.deg, halfLabel: n.halfLabel };
+      }) : []
     };
   }
 
@@ -100,6 +109,29 @@ window.BrainGraph = (function () {
       return 5 + Math.min(6, node.deg * 1.2);
     }
 
+    // Labels are drawn centred above the node, so how far two nodes must sit
+    // apart to stay readable depends on their label widths. Measured once at
+    // mount (labels never change) rather than per frame.
+    ctx.save();
+    ctx.font = LABEL_FONT;
+    nodes.forEach(function (n) {
+      n.halfLabel = ctx.measureText(n.label.slice(0, 24)).width / 2;
+    });
+    ctx.restore();
+
+    // Minimum centre-to-centre distance before two nodes are considered to be
+    // colliding. With labels on screen that includes room for the labels, but
+    // the label share is capped and eased off as the graph grows: in a dense
+    // web some label crowding is normal and spreading everything out to avoid
+    // it would destroy the layout.
+    function minGap(a, b) {
+      var solid = radius(a) + radius(b) + 18;
+      if (nodes.length > LABEL_LIMIT) return solid;
+      var share = nodes.length <= 6 ? 1 : nodes.length <= 12 ? 0.7 : 0.4;
+      var wanted = (a.halfLabel + b.halfLabel + 10) * share;
+      return Math.max(solid, Math.min(LABEL_CLEAR_MAX, wanted));
+    }
+
     /* --- coordinate helpers --- */
 
     function rawPos(e) {
@@ -136,11 +168,26 @@ window.BrainGraph = (function () {
 
     function step() {
       var i, j, n, m, dx, dy, d2, d, f;
-      var REPULSION = 1800;
+      var count = nodes.length;
+      // With few notes there are no edges yet (similarity needs 5+), so
+      // repulsion is the only thing separating nodes and it was tuned for a
+      // denser graph where springs pull back. Scale it up as the graph gets
+      // smaller, and ease off the centring pull for the same reason — a
+      // handful of notes shouldn't be squeezed into a pile in the middle.
+      var REPULSION = 1800 * Math.max(1, 30 / Math.max(count, 1));
       var SPRING = 0.015;
       var REST = 90;
-      var GRAVITY = 0.012;
+      var GRAVITY = 0.012 * Math.max(0.35, Math.min(1, count / 10));
       var moved = 0;
+
+      // Movement is measured from actual displacement, not velocity: the
+      // collision pass below corrects positions directly, and a spring pulling
+      // against it would otherwise leave a permanent velocity churn that never
+      // falls under the settle threshold — an rAF loop that never stops.
+      for (i = 0; i < nodes.length; i++) {
+        n = nodes[i];
+        n.px = n.x; n.py = n.y;
+      }
 
       for (i = 0; i < nodes.length; i++) {
         n = nodes[i];
@@ -177,10 +224,50 @@ window.BrainGraph = (function () {
         // world-space bounds (the camera views this box)
         n.x = Math.max(15, Math.min(state.W - 15, n.x));
         n.y = Math.max(15, Math.min(state.H - 15, n.y));
-        moved += Math.abs(n.vx) + Math.abs(n.vy);
       }
 
-      state.cooling = Math.max(0.35, state.cooling * 0.995);
+      // Safety net: whatever the physics converges to, two nodes may never end
+      // up on top of each other. Positions are corrected directly and the
+      // closing velocity is killed, so this settles instead of oscillating
+      // against gravity forever (which would keep the rAF loop alive).
+      for (i = 0; i < nodes.length; i++) {
+        n = nodes[i];
+        for (j = i + 1; j < nodes.length; j++) {
+          m = nodes[j];
+          var need = minGap(n, m);
+          dx = m.x - n.x; dy = m.y - n.y;
+          d = Math.sqrt(dx * dx + dy * dy);
+          if (d >= need) continue;
+          if (d < 0.01) {  // exactly coincident: pick a deterministic axis
+            dx = Math.cos(i * 2.399); dy = Math.sin(i * 2.399); d = 1;
+          }
+          var push = (need - d) / 2;
+          var ux = dx / d, uy = dy / d;
+          if (n !== state.dragging) { n.x -= ux * push; n.y -= uy * push; }
+          if (m !== state.dragging) { m.x += ux * push; m.y += uy * push; }
+          // remove the component of velocity closing the gap
+          var closing = (m.vx - n.vx) * ux + (m.vy - n.vy) * uy;
+          if (closing < 0) {
+            n.vx += ux * closing / 2; n.vy += uy * closing / 2;
+            m.vx -= ux * closing / 2; m.vy -= uy * closing / 2;
+          }
+          n.x = Math.max(15, Math.min(state.W - 15, n.x));
+          n.y = Math.max(15, Math.min(state.H - 15, n.y));
+          m.x = Math.max(15, Math.min(state.W - 15, m.x));
+          m.y = Math.max(15, Math.min(state.H - 15, m.y));
+        }
+      }
+
+      for (i = 0; i < nodes.length; i++) {
+        n = nodes[i];
+        moved += Math.abs(n.x - n.px) + Math.abs(n.y - n.py);
+      }
+
+      // Anneal towards a low floor rather than parking at 0.35: a crowded
+      // graph where springs and the collision pass tug against each other
+      // never stops jiggling otherwise, and the rAF loop runs forever.
+      // wake() re-energises this on any interaction.
+      state.cooling = Math.max(0.06, state.cooling * 0.99);
       return moved;
     }
 
@@ -238,7 +325,7 @@ window.BrainGraph = (function () {
           ctx.stroke();
         }
         if (showAllLabels || n === state.hover) {
-          ctx.font = '11px "Space Mono", monospace';
+          ctx.font = LABEL_FONT;
           ctx.fillStyle = COLORS.ink;
           ctx.textAlign = 'center';
           ctx.fillText(n.label.slice(0, 24), n.x, n.y - r - 6);
@@ -450,9 +537,13 @@ window.BrainGraph = (function () {
     });
 
     if (nodes.length <= 2) {
-      // static layout, no physics drama
+      // static layout, no physics drama — but the spacing still has to clear
+      // the labels, which a fixed 120px didn't for longer titles
+      var gap = nodes.length === 2
+        ? Math.min(Math.max(120, minGap(nodes[0], nodes[1])), Math.max(120, state.W - 60))
+        : 0;
       nodes.forEach(function (n, i) {
-        n.x = state.W / 2 + (i - (nodes.length - 1) / 2) * 120;
+        n.x = state.W / 2 + (i - (nodes.length - 1) / 2) * gap;
         n.y = state.H / 2;
       });
       draw();
