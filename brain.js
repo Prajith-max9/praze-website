@@ -2461,9 +2461,37 @@
     }
   }
 
+  // Clicking anywhere outside the panel closes it (the gear keeps toggling,
+  // Esc still works). The listener is armed on the next tick so the very click
+  // that opened the panel — including "add your API key" prompts fired from a
+  // button elsewhere in the app — doesn't immediately close it again.
+  var settingsOutside = null;
+
+  function closeSettings() {
+    els.settingsPanel.hidden = true;
+    if (settingsOutside) {
+      document.removeEventListener('click', settingsOutside);
+      settingsOutside = null;
+    }
+  }
+
   function openSettings(open) {
-    els.settingsPanel.hidden = open === undefined ? !els.settingsPanel.hidden : !open;
-    if (!els.settingsPanel.hidden) renderSettings();
+    var show = open === undefined ? els.settingsPanel.hidden : !!open;
+    if (!show) {
+      closeSettings();
+      return;
+    }
+    els.settingsPanel.hidden = false;
+    renderSettings();
+    if (settingsOutside) return;
+    settingsOutside = function (e) {
+      if (els.settingsPanel.hidden) return;
+      if (e.target.closest('#settings-panel') || e.target.closest('#settings-toggle')) return;
+      closeSettings();
+    };
+    setTimeout(function () {
+      if (settingsOutside) document.addEventListener('click', settingsOutside);
+    }, 0);
   }
 
   /* ---------- Speech recognition (shared wiring) ---------- */
@@ -2915,7 +2943,7 @@
         els.search.focus();
       }
       if (e.key === 'Escape' && !els.settingsPanel.hidden) {
-        els.settingsPanel.hidden = true;
+        closeSettings();
       }
       if (e.key === 'Escape' && dump.open) {
         closeDump();

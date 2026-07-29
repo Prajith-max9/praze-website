@@ -3205,9 +3205,31 @@ for (var i = 0; i < btns.length; i++) {
 btns[i].classList.toggle('toolbar__btn--active', btns[i].getAttribute('data-model') === pref);
 }
 }
+var settingsOutside = null;
+function closeSettings() {
+els.settingsPanel.hidden = true;
+if (settingsOutside) {
+document.removeEventListener('click', settingsOutside);
+settingsOutside = null;
+}
+}
 function openSettings(open) {
-els.settingsPanel.hidden = open === undefined ? !els.settingsPanel.hidden : !open;
-if (!els.settingsPanel.hidden) renderSettings();
+var show = open === undefined ? els.settingsPanel.hidden : !!open;
+if (!show) {
+closeSettings();
+return;
+}
+els.settingsPanel.hidden = false;
+renderSettings();
+if (settingsOutside) return;
+settingsOutside = function (e) {
+if (els.settingsPanel.hidden) return;
+if (e.target.closest('#settings-panel') || e.target.closest('#settings-toggle')) return;
+closeSettings();
+};
+setTimeout(function () {
+if (settingsOutside) document.addEventListener('click', settingsOutside);
+}, 0);
 }
 function makeRecognizer(opts) {
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -3603,7 +3625,7 @@ if (state.view !== 'ideas') setView('ideas');
 els.search.focus();
 }
 if (e.key === 'Escape' && !els.settingsPanel.hidden) {
-els.settingsPanel.hidden = true;
+closeSettings();
 }
 if (e.key === 'Escape' && dump.open) {
 closeDump();
