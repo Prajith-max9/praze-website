@@ -1920,6 +1920,25 @@ textarea:focus-visible,
   transition: transform 0.15s ease-out;
 }
 
+/* Scroll affordance: the tab row scrolls on narrow screens, and without a cue
+   there is nothing to suggest HOME/ASK/IDEAS exist off to the left. Fade the
+   cut-off edge; JS adds the class only for the side that actually has more
+   tabs, so the fade disappears once you reach that end. */
+.tabs--fade-left {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px);
+  mask-image: linear-gradient(to right, transparent 0, #000 32px);
+}
+
+.tabs--fade-right {
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 32px);
+  mask-image: linear-gradient(to left, transparent 0, #000 32px);
+}
+
+.tabs--fade-both {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent 100%);
+}
+
 .tabs__tab--active {
   border-bottom-color: transparent; /* the indicator is the underline now */
 }

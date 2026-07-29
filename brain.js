@@ -1705,6 +1705,20 @@
   // that's the movement the eye tracks. Palette/hash jumps reposition instantly.
   var tabClickPending = false;
 
+  // Fade whichever edge of the tab row still has tabs beyond it, so it's
+  // visible that the row scrolls. Both edges can be faded at once mid-scroll.
+  function updateTabFades() {
+    var t = els.tabs;
+    if (!t) return;
+    var max = t.scrollWidth - t.clientWidth;
+    var more = max > 2; // nothing to scroll on a wide screen
+    var left = more && t.scrollLeft > 2;
+    var right = more && t.scrollLeft < max - 2;
+    t.classList.toggle('tabs--fade-both', left && right);
+    t.classList.toggle('tabs--fade-left', left && !right);
+    t.classList.toggle('tabs--fade-right', right && !left);
+  }
+
   function positionTabIndicator() {
     var ind = els.tabsIndicator;
     if (!ind) return;
@@ -1747,6 +1761,7 @@
       tabs[i].classList.toggle('tabs__tab--active', tabs[i].getAttribute('data-view') === state.view);
     }
     positionTabIndicator();
+    updateTabFades();
     // view visibility
     VIEWS.forEach(function (v) {
       els.views[v].hidden = v !== state.view;
@@ -2982,12 +2997,21 @@
         setView(tab.getAttribute('data-view'));
       }
     });
-    window.addEventListener('resize', debounce(positionTabIndicator, 100));
+    window.addEventListener('resize', debounce(function () {
+      positionTabIndicator();
+      updateTabFades();
+    }, 100));
+    // the row itself scrolls (swipe, or the browser bringing a tapped tab into
+    // view), so the fades follow it
+    els.tabs.addEventListener('scroll', updateTabFades, { passive: true });
     // font-display:swap means the tab labels are measured in the fallback font
     // first; when the real faces land the tabs resize and the indicator would
     // be left behind, so re-measure once fonts settle (instant, no slide).
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(function () { positionTabIndicator(); });
+      document.fonts.ready.then(function () {
+        positionTabIndicator();
+        updateTabFades(); // label widths change, so what's off-screen does too
+      });
     }
     window.addEventListener('hashchange', function () {
       var v = currentViewFromHash();
