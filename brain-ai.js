@@ -221,7 +221,15 @@ window.BrainAI = (function () {
     if (response.status === 429) throw new Error('AI rate limit hit — wait a minute and try again.');
     if (!response.ok) throw new Error('AI request failed (' + response.status + ') — try again.');
 
-    var data = await response.json();
+    // A proxy or captive portal can answer 200 with an HTML page. Parsing that
+    // outside a try surfaced the raw SyntaxError in the banner, the one failure
+    // mode without a readable message.
+    var data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      throw new Error('AI sent a response we could not read — try again.');
+    }
     var textBlock = (data.content || []).filter(function (b) { return b.type === 'text'; })[0];
     if (!textBlock) throw new Error('AI returned an empty response — try again.');
     return textBlock.text;

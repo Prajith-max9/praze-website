@@ -353,6 +353,17 @@
 
   /* ---------- Model ---------- */
 
+  // trim() only removes whitespace, and a zero-width joiner is not whitespace,
+  // so pasting text made only of invisible characters passed the "is it empty"
+  // check and produced a blank note card. Used for the emptiness test alone —
+  // the text itself is stored untouched, because U+200D is what holds an emoji
+  // like 👨‍👩‍👧‍👦 together.
+  var INVISIBLE = /[\u200B-\u200D\u2060\uFEFF\u00AD\u2800]/g;
+
+  function isBlank(text) {
+    return !String(text == null ? '' : text).replace(INVISIBLE, '').trim();
+  }
+
   function normalizeTags(input) {
     var seen = {};
     return String(input || '')
@@ -403,18 +414,46 @@
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
   }
 
+  // The diary entry gets the same treatment as the capture box: half-written
+  // entries used to be the one kind of unsaved text a reload threw away.
+  var DIARY_DRAFT_KEY = 'praze.brain.diarydraft.v1';
+
+  function saveDiaryDraft() {
+    try {
+      var body = els.diaryBody.value;
+      if (body) localStorage.setItem(DIARY_DRAFT_KEY, body);
+      else localStorage.removeItem(DIARY_DRAFT_KEY);
+    } catch (e) {}
+  }
+
+  function clearDiaryDraft() {
+    try { localStorage.removeItem(DIARY_DRAFT_KEY); } catch (e) {}
+  }
+
   function restoreDraft() {
     var draft;
     try {
       draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
     } catch (e) {}
-    if (!draft || !(draft.title || draft.body || draft.tags)) return;
+    var diary = '';
+    try { diary = localStorage.getItem(DIARY_DRAFT_KEY) || ''; } catch (e) {}
+
+    if (diary) {
+      els.diaryBody.value = diary;
+      autoGrow(els.diaryBody);
+    }
+    if (!draft || !(draft.title || draft.body || draft.tags)) {
+      if (diary) showBanner('Draft restored — you have an unsaved diary entry.');
+      return;
+    }
     els.captureTitle.value = draft.title || '';
     els.captureBody.value = draft.body || '';
     els.captureTags.value = draft.tags || '';
     autoGrow(els.captureBody);
     renderTagSuggest();
-    showBanner('Draft restored — you have an unsaved note.');
+    showBanner(diary
+      ? 'Drafts restored — you have an unsaved note and diary entry.'
+      : 'Draft restored — you have an unsaved note.');
   }
 
   /* ---------- State ---------- */
@@ -2013,7 +2052,7 @@
   function handleCapture(e) {
     e.preventDefault();
     var body = els.captureBody.value.trim();
-    if (!body) return;
+    if (isBlank(body)) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value, 'idea'));
     if (!saveStore()) {
@@ -2036,13 +2075,16 @@
     e.preventDefault();
     stopDictation(); // if the mic is hot, end it before the normal submit runs
     var body = els.diaryBody.value.trim();
-    if (!body) return;
+    if (isBlank(body)) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
     if (!saveStore()) {
-      render(); // leave the entry in the textarea rather than wiping it
+      // keep both the textarea and the draft: the entry was never written
+      saveDiaryDraft();
+      render();
       return;
     }
+    clearDiaryDraft();
     els.diaryForm.reset();
     els.diaryBody.style.height = '';
     render();
@@ -2074,7 +2116,7 @@
     e.preventDefault();
     var title = els.goalTitle.value.trim();
     var target = parseInt(els.goalTarget.value, 10);
-    if (!title || !(target >= 1)) return;
+    if (isBlank(title) || !(target >= 1)) return;
     store.goals.push({
       id: makeId(),
       title: title,
@@ -2411,7 +2453,7 @@
         break;
       case 'edit-save':
         var newBody = card.querySelector('.note__edit-body').value.trim();
-        if (!newBody) return;
+        if (isBlank(newBody)) return;
         note.title = card.querySelector('.note__edit-title').value.trim();
         note.body = newBody;
         note.tags = normalizeTags(card.querySelector('.note__edit-tags').value);
@@ -2930,7 +2972,7 @@
 
   function saveDumpAsOne() {
     var text = dump.transcript.trim();
-    if (!text) return;
+    if (isBlank(text)) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote('Brain dump — ' + formatDate(Date.now()), text, '', 'idea'));
     if (!saveStore()) return; // keep the overlay open: the transcript is the only copy
@@ -3147,7 +3189,11 @@
       el.addEventListener('input', debouncedDraft);
     });
     els.captureBody.addEventListener('input', function () { autoGrow(els.captureBody); });
-    els.diaryBody.addEventListener('input', function () { autoGrow(els.diaryBody); });
+    var debouncedDiaryDraft = debounce(saveDiaryDraft, 300);
+    els.diaryBody.addEventListener('input', function () {
+      autoGrow(els.diaryBody);
+      debouncedDiaryDraft();
+    });
     els.captureTags.addEventListener('input', renderTagSuggest);
 
     // search

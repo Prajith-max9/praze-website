@@ -424,7 +424,12 @@ clearTimeout(timer);
 if (response.status === 401) throw new Error('API key rejected — check it in Settings.');
 if (response.status === 429) throw new Error('AI rate limit hit — wait a minute and try again.');
 if (!response.ok) throw new Error('AI request failed (' + response.status + ') — try again.');
-var data = await response.json();
+var data;
+try {
+data = await response.json();
+} catch (e) {
+throw new Error('AI sent a response we could not read — try again.');
+}
 var textBlock = (data.content || []).filter(function (b) { return b.type === 'text'; })[0];
 if (!textBlock) throw new Error('AI returned an empty response — try again.');
 return textBlock.text;
@@ -1377,6 +1382,10 @@ showBanner('Storage full — export your notes now to avoid losing them.', 'erro
 return false;
 }
 }
+var INVISIBLE = /[\u200B-\u200D\u2060\uFEFF\u00AD\u2800]/g;
+function isBlank(text) {
+return !String(text == null ? '' : text).replace(INVISIBLE, '').trim();
+}
 function normalizeTags(input) {
 var seen = {};
 return String(input || '')
@@ -1420,18 +1429,40 @@ localStorage.removeItem(DRAFT_KEY);
 function clearDraft() {
 try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
 }
+var DIARY_DRAFT_KEY = 'praze.brain.diarydraft.v1';
+function saveDiaryDraft() {
+try {
+var body = els.diaryBody.value;
+if (body) localStorage.setItem(DIARY_DRAFT_KEY, body);
+else localStorage.removeItem(DIARY_DRAFT_KEY);
+} catch (e) {}
+}
+function clearDiaryDraft() {
+try { localStorage.removeItem(DIARY_DRAFT_KEY); } catch (e) {}
+}
 function restoreDraft() {
 var draft;
 try {
 draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
 } catch (e) {}
-if (!draft || !(draft.title || draft.body || draft.tags)) return;
+var diary = '';
+try { diary = localStorage.getItem(DIARY_DRAFT_KEY) || ''; } catch (e) {}
+if (diary) {
+els.diaryBody.value = diary;
+autoGrow(els.diaryBody);
+}
+if (!draft || !(draft.title || draft.body || draft.tags)) {
+if (diary) showBanner('Draft restored — you have an unsaved diary entry.');
+return;
+}
 els.captureTitle.value = draft.title || '';
 els.captureBody.value = draft.body || '';
 els.captureTags.value = draft.tags || '';
 autoGrow(els.captureBody);
 renderTagSuggest();
-showBanner('Draft restored — you have an unsaved note.');
+showBanner(diary
+? 'Drafts restored — you have an unsaved note and diary entry.'
+: 'Draft restored — you have an unsaved note.');
 }
 var store = emptyStore();
 var state = {
@@ -2774,7 +2805,7 @@ setTimeout(function () { card.classList.remove('note--flash'); }, 1200);
 function handleCapture(e) {
 e.preventDefault();
 var body = els.captureBody.value.trim();
-if (!body) return;
+if (isBlank(body)) return;
 var prevEligible = eligibleNoteCount();
 store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value, 'idea'));
 if (!saveStore()) {
@@ -2794,13 +2825,15 @@ function handleDiarySubmit(e) {
 e.preventDefault();
 stopDictation();
 var body = els.diaryBody.value.trim();
-if (!body) return;
+if (isBlank(body)) return;
 var prevEligible = eligibleNoteCount();
 store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
 if (!saveStore()) {
+saveDiaryDraft();
 render();
 return;
 }
+clearDiaryDraft();
 els.diaryForm.reset();
 els.diaryBody.style.height = '';
 render();
@@ -2830,7 +2863,7 @@ function handleGoalSubmit(e) {
 e.preventDefault();
 var title = els.goalTitle.value.trim();
 var target = parseInt(els.goalTarget.value, 10);
-if (!title || !(target >= 1)) return;
+if (isBlank(title) || !(target >= 1)) return;
 store.goals.push({
 id: makeId(),
 title: title,
@@ -3131,7 +3164,7 @@ editBody.focus();
 break;
 case 'edit-save':
 var newBody = card.querySelector('.note__edit-body').value.trim();
-if (!newBody) return;
+if (isBlank(newBody)) return;
 note.title = card.querySelector('.note__edit-title').value.trim();
 note.body = newBody;
 note.tags = normalizeTags(card.querySelector('.note__edit-tags').value);
@@ -3563,7 +3596,7 @@ renderDump();
 }
 function saveDumpAsOne() {
 var text = dump.transcript.trim();
-if (!text) return;
+if (isBlank(text)) return;
 var prevEligible = eligibleNoteCount();
 store.notes.push(createNote('Brain dump — ' + formatDate(Date.now()), text, '', 'idea'));
 if (!saveStore()) return;
@@ -3760,7 +3793,11 @@ var debouncedDraft = debounce(saveDraft, 300);
 el.addEventListener('input', debouncedDraft);
 });
 els.captureBody.addEventListener('input', function () { autoGrow(els.captureBody); });
-els.diaryBody.addEventListener('input', function () { autoGrow(els.diaryBody); });
+var debouncedDiaryDraft = debounce(saveDiaryDraft, 300);
+els.diaryBody.addEventListener('input', function () {
+autoGrow(els.diaryBody);
+debouncedDiaryDraft();
+});
 els.captureTags.addEventListener('input', renderTagSuggest);
 els.search.addEventListener('input', debounce(function () {
 state.query = els.search.value;
