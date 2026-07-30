@@ -661,6 +661,7 @@ var LABEL_FONT = '11px "Space Mono", monospace';
 var LABEL_CLEAR_MAX = 165;
 var MIN_SCALE = 0.4;
 var MAX_SCALE = 3;
+var SETTLE_PER_NODE = 0.05;
 var state = null;
 function setDebug() {
 window.__brainDebug = {
@@ -840,6 +841,7 @@ for (i = 0; i < nodes.length; i++) {
 n = nodes[i];
 moved += Math.abs(n.x - n.px) + Math.abs(n.y - n.py);
 }
+moved = moved / Math.max(1, nodes.length);
 state.cooling = Math.max(0.06, state.cooling * 0.99);
 return moved;
 }
@@ -915,7 +917,7 @@ function loop() {
 stepCamAnim();
 var moved = step();
 draw();
-if (moved > 0.5 || state.dragging || state.panning || state.camAnim) {
+if (moved > SETTLE_PER_NODE || state.dragging || state.panning || state.camAnim) {
 state.raf = requestAnimationFrame(loop);
 } else {
 state.raf = null;
