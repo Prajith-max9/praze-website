@@ -154,6 +154,66 @@
     return { schemaVersion: SCHEMA_VERSION, rev: 0, notes: [], goals: [] };
   }
 
+  function backupCorrupt(raw) {
+    try { localStorage.setItem(STORAGE_KEY + '.corrupt.' + Date.now(), raw); } catch (e) {}
+  }
+
+  // The single definition of a well-formed note, shared by the import path and
+  // the boot load path. Returns a normalized copy, or null when the input can't
+  // be repaired into a note. Valid notes round-trip unchanged.
+  function sanitizeNote(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.id !== 'string' || !raw.id) return null;
+    if (typeof raw.body !== 'string') return null;
+    return {
+      id: raw.id,
+      title: typeof raw.title === 'string' ? raw.title : '',
+      body: raw.body,
+      tags: normalizeTags(Array.isArray(raw.tags) ? raw.tags.join(',') : ''),
+      pinned: !!raw.pinned,
+      kind: raw.kind === 'diary' || raw.kind === 'clip' ? raw.kind : 'idea',
+      url: typeof raw.url === 'string' ? raw.url : '',
+      createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+      updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
+    };
+  }
+
+  function sanitizeGoal(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.id !== 'string' || !raw.id) return null;
+    var target = typeof raw.target === 'number' && raw.target >= 1 ? Math.floor(raw.target) : null;
+    if (target === null) return null;
+    return {
+      id: raw.id,
+      title: typeof raw.title === 'string' ? raw.title : '',
+      target: target,
+      progress: typeof raw.progress === 'number' && raw.progress >= 0 ? Math.floor(raw.progress) : 0,
+      createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+      completedAt: typeof raw.completedAt === 'number' ? raw.completedAt : null
+    };
+  }
+
+  // Repair what can be repaired, drop what can't, and report how much was lost.
+  // Without this a single null note — or one with a missing tags array, or a
+  // non-string body — took render() down on boot and left a blank app with no
+  // banner and no way back in.
+  function sanitizeStore(s) {
+    var dropped = 0;
+    var notes = [];
+    s.notes.forEach(function (n) {
+      var clean = sanitizeNote(n);
+      if (clean) notes.push(clean); else dropped++;
+    });
+    var goals = [];
+    s.goals.forEach(function (g) {
+      var clean = sanitizeGoal(g);
+      if (clean) goals.push(clean); else dropped++;
+    });
+    s.notes = notes;
+    s.goals = goals;
+    return dropped;
+  }
+
   function loadStore() {
     var raw;
     try {
@@ -163,18 +223,31 @@
       return emptyStore();
     }
     if (!raw) return emptyStore();
+    var parsed, dropped = 0;
     try {
-      var parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw);
       if (!parsed || !Array.isArray(parsed.notes)) throw new Error('bad shape');
       if (!Array.isArray(parsed.goals)) parsed.goals = [];
       if (typeof parsed.rev !== 'number') parsed.rev = 0;
-      return migrateStore(parsed, raw);
+      // Sanitize before migrating, for two reasons: migrateStore walks every
+      // note, so one null entry would throw and take the good notes down with
+      // it; and it returns early on an already-v2 payload, which is how
+      // malformed notes used to reach render() untouched.
+      dropped = sanitizeStore(parsed);
+      parsed = migrateStore(parsed, raw);
     } catch (e) {
       // Preserve the unreadable data instead of overwriting it
-      try { localStorage.setItem(STORAGE_KEY + '.corrupt.' + Date.now(), raw); } catch (e2) {}
+      backupCorrupt(raw);
       showBanner('Stored notes were unreadable; a raw backup was kept in localStorage.', 'error', true);
       return emptyStore();
     }
+    if (dropped) {
+      backupCorrupt(raw);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch (e2) {}
+      showBanner('Skipped ' + dropped + (dropped === 1 ? ' unreadable item' : ' unreadable items') +
+        '; a raw backup was kept in localStorage.', 'error', true);
+    }
+    return parsed;
   }
 
   // Returns true when the write actually landed. Callers MUST check it before
@@ -2328,18 +2401,8 @@
       store.notes.forEach(function (n) { byId[n.id] = n; });
       var added = 0, updated = 0;
       data.notes.forEach(function (raw) {
-        if (!raw || typeof raw.id !== 'string' || typeof raw.body !== 'string') return;
-        var incoming = {
-          id: raw.id,
-          title: typeof raw.title === 'string' ? raw.title : '',
-          body: raw.body,
-          tags: normalizeTags(Array.isArray(raw.tags) ? raw.tags.join(',') : ''),
-          pinned: !!raw.pinned,
-          kind: raw.kind === 'diary' || raw.kind === 'clip' ? raw.kind : 'idea',
-          url: typeof raw.url === 'string' ? raw.url : '',
-          createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
-          updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
-        };
+        var incoming = sanitizeNote(raw);
+        if (!incoming) return;
         var existing = byId[incoming.id];
         if (!existing) {
           byId[incoming.id] = incoming;
