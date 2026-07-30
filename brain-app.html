@@ -1307,6 +1307,45 @@ showBanner('Skipped ' + dropped + (dropped === 1 ? ' unreadable item' : ' unread
 }
 return parsed;
 }
+function mergeById(theirs, mine, newerWins) {
+var byId = {};
+var order = [];
+function take(list) {
+list.forEach(function (item) {
+var prev = byId[item.id];
+if (!prev) { byId[item.id] = item; order.push(item.id); }
+else if (newerWins(item, prev)) byId[item.id] = item;
+});
+}
+take(theirs);
+take(mine);
+return order.map(function (id) { return byId[id]; });
+}
+function mergeStores(mine, theirs) {
+return {
+notes: mergeById(theirs.notes, mine.notes, function (a, b) {
+return (a.updatedAt || 0) > (b.updatedAt || 0);
+}),
+goals: mergeById(theirs.goals, mine.goals, function (a, b) {
+return (a.progress || 0) > (b.progress || 0);
+})
+};
+}
+function handleStorageEvent(e) {
+if (e.key !== STORAGE_KEY || !e.newValue) return;
+var theirs;
+try { theirs = JSON.parse(e.newValue); } catch (err) { return; }
+if (!theirs || !Array.isArray(theirs.notes)) return;
+if (!Array.isArray(theirs.goals)) theirs.goals = [];
+sanitizeStore(theirs);
+var merged = mergeStores(store, theirs);
+var weHoldMore = JSON.stringify(merged) !== JSON.stringify({ notes: theirs.notes, goals: theirs.goals });
+store.notes = merged.notes;
+store.goals = merged.goals;
+if (typeof theirs.rev === 'number') store.rev = Math.max(store.rev || 0, theirs.rev);
+render();
+if (weHoldMore) saveStore();
+}
 function saveStore() {
 store.rev = (store.rev || 0) + 1;
 try {
@@ -3663,6 +3702,7 @@ els.apiKeyStatus = document.getElementById('api-key-status');
 els.apiKeyClear = document.getElementById('api-key-clear');
 store = loadStore();
 state.view = currentViewFromHash();
+window.addEventListener('storage', handleStorageEvent);
 els.captureForm.addEventListener('submit', handleCapture);
 els.diaryForm.addEventListener('submit', handleDiarySubmit);
 els.clipForm.addEventListener('submit', handleClipSubmit);

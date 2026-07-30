@@ -250,6 +250,64 @@
     return parsed;
   }
 
+  /* ---------- Cross-tab merge ----------
+     Two tabs each hold the whole store in memory and write it whole, so the
+     last writer used to erase whatever the other had added. On another tab's
+     write we merge per id instead of adopting its store wholesale: later
+     updatedAt wins per note, and anything only we hold is kept.
+
+     This is a union, not a CRDT — it has no way to tell "deleted over there"
+     from "created over here", so a note deleted in one tab can be brought back
+     by another tab that still has it. That is exactly what already happened
+     before this change, and unlike before, nothing new is lost. */
+
+  function mergeById(theirs, mine, newerWins) {
+    var byId = {};
+    var order = [];
+    function take(list) {
+      list.forEach(function (item) {
+        var prev = byId[item.id];
+        if (!prev) { byId[item.id] = item; order.push(item.id); }
+        else if (newerWins(item, prev)) byId[item.id] = item;
+      });
+    }
+    take(theirs);
+    take(mine);
+    return order.map(function (id) { return byId[id]; });
+  }
+
+  function mergeStores(mine, theirs) {
+    return {
+      notes: mergeById(theirs.notes, mine.notes, function (a, b) {
+        return (a.updatedAt || 0) > (b.updatedAt || 0);
+      }),
+      // goals carry no updatedAt, so the one further along wins
+      goals: mergeById(theirs.goals, mine.goals, function (a, b) {
+        return (a.progress || 0) > (b.progress || 0);
+      })
+    };
+  }
+
+  function handleStorageEvent(e) {
+    if (e.key !== STORAGE_KEY || !e.newValue) return;
+    var theirs;
+    try { theirs = JSON.parse(e.newValue); } catch (err) { return; }
+    if (!theirs || !Array.isArray(theirs.notes)) return;
+    if (!Array.isArray(theirs.goals)) theirs.goals = [];
+    sanitizeStore(theirs);
+
+    var merged = mergeStores(store, theirs);
+    // If the merge holds anything their payload didn't, write it back so the
+    // other tab picks it up. Their write already matches the merge otherwise,
+    // which is what stops two tabs echoing each other forever.
+    var weHoldMore = JSON.stringify(merged) !== JSON.stringify({ notes: theirs.notes, goals: theirs.goals });
+    store.notes = merged.notes;
+    store.goals = merged.goals;
+    if (typeof theirs.rev === 'number') store.rev = Math.max(store.rev || 0, theirs.rev);
+    render();
+    if (weHoldMore) saveStore();
+  }
+
   // Returns true when the write actually landed. Callers MUST check it before
   // reporting success, clearing a draft or resetting a form: a full quota used
   // to be reported as "Idea captured." and the draft was wiped along with it,
@@ -2999,6 +3057,9 @@
 
     store = loadStore();
     state.view = currentViewFromHash();
+
+    // fires only in the OTHER tabs when one of them writes
+    window.addEventListener('storage', handleStorageEvent);
 
     // forms
     els.captureForm.addEventListener('submit', handleCapture);
