@@ -1146,8 +1146,10 @@
     // thumbnail by default; the player iframe loads only on explicit click
     var thumbHtml = ytId
       ? '<div class="clip__player" data-yt="' + encodeURIComponent(ytId) + '">' +
+        // 480x360 is hqdefault's intrinsic size — stating it lets the browser
+        // reserve the box from the aspect ratio before the image arrives
         '<img class="clip__thumb" src="https://img.youtube.com/vi/' + encodeURIComponent(ytId) +
-        '/hqdefault.jpg" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+        '/hqdefault.jpg" alt="" width="480" height="360" loading="lazy" onerror="this.style.display=\'none\'">' +
         '<button type="button" class="clip__play" data-action="clip-play" aria-label="Play video">&#9654;</button>' +
         '</div>'
       : '';
@@ -1703,6 +1705,20 @@
   // that's the movement the eye tracks. Palette/hash jumps reposition instantly.
   var tabClickPending = false;
 
+  // Fade whichever edge of the tab row still has tabs beyond it, so it's
+  // visible that the row scrolls. Both edges can be faded at once mid-scroll.
+  function updateTabFades() {
+    var t = els.tabs;
+    if (!t) return;
+    var max = t.scrollWidth - t.clientWidth;
+    var more = max > 2; // nothing to scroll on a wide screen
+    var left = more && t.scrollLeft > 2;
+    var right = more && t.scrollLeft < max - 2;
+    t.classList.toggle('tabs--fade-both', left && right);
+    t.classList.toggle('tabs--fade-left', left && !right);
+    t.classList.toggle('tabs--fade-right', right && !left);
+  }
+
   function positionTabIndicator() {
     var ind = els.tabsIndicator;
     if (!ind) return;
@@ -1710,12 +1726,14 @@
     tabClickPending = false;
     var active = els.tabs.querySelector('.tabs__tab--active');
     if (!active) {
-      ind.style.width = '0px';
+      ind.style.transform = 'scaleX(0)';
       return;
     }
     ind.classList.toggle('tabs__indicator--slide', animate);
-    ind.style.width = active.offsetWidth + 'px';
-    ind.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+    // both the slide and the width ride on one transform (100px base × scale),
+    // so the animation stays on the compositor instead of triggering layout
+    ind.style.transform = 'translateX(' + active.offsetLeft + 'px) scaleX(' +
+      (active.offsetWidth / 100) + ')';
   }
 
   function currentViewFromHash() {
@@ -1743,6 +1761,7 @@
       tabs[i].classList.toggle('tabs__tab--active', tabs[i].getAttribute('data-view') === state.view);
     }
     positionTabIndicator();
+    updateTabFades();
     // view visibility
     VIEWS.forEach(function (v) {
       els.views[v].hidden = v !== state.view;
@@ -2457,9 +2476,37 @@
     }
   }
 
+  // Clicking anywhere outside the panel closes it (the gear keeps toggling,
+  // Esc still works). The listener is armed on the next tick so the very click
+  // that opened the panel — including "add your API key" prompts fired from a
+  // button elsewhere in the app — doesn't immediately close it again.
+  var settingsOutside = null;
+
+  function closeSettings() {
+    els.settingsPanel.hidden = true;
+    if (settingsOutside) {
+      document.removeEventListener('click', settingsOutside);
+      settingsOutside = null;
+    }
+  }
+
   function openSettings(open) {
-    els.settingsPanel.hidden = open === undefined ? !els.settingsPanel.hidden : !open;
-    if (!els.settingsPanel.hidden) renderSettings();
+    var show = open === undefined ? els.settingsPanel.hidden : !!open;
+    if (!show) {
+      closeSettings();
+      return;
+    }
+    els.settingsPanel.hidden = false;
+    renderSettings();
+    if (settingsOutside) return;
+    settingsOutside = function (e) {
+      if (els.settingsPanel.hidden) return;
+      if (e.target.closest('#settings-panel') || e.target.closest('#settings-toggle')) return;
+      closeSettings();
+    };
+    setTimeout(function () {
+      if (settingsOutside) document.addEventListener('click', settingsOutside);
+    }, 0);
   }
 
   /* ---------- Speech recognition (shared wiring) ---------- */
@@ -2911,7 +2958,7 @@
         els.search.focus();
       }
       if (e.key === 'Escape' && !els.settingsPanel.hidden) {
-        els.settingsPanel.hidden = true;
+        closeSettings();
       }
       if (e.key === 'Escape' && dump.open) {
         closeDump();
@@ -2950,7 +2997,22 @@
         setView(tab.getAttribute('data-view'));
       }
     });
-    window.addEventListener('resize', debounce(positionTabIndicator, 100));
+    window.addEventListener('resize', debounce(function () {
+      positionTabIndicator();
+      updateTabFades();
+    }, 100));
+    // the row itself scrolls (swipe, or the browser bringing a tapped tab into
+    // view), so the fades follow it
+    els.tabs.addEventListener('scroll', updateTabFades, { passive: true });
+    // font-display:swap means the tab labels are measured in the fallback font
+    // first; when the real faces land the tabs resize and the indicator would
+    // be left behind, so re-measure once fonts settle (instant, no slide).
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () {
+        positionTabIndicator();
+        updateTabFades(); // label widths change, so what's off-screen does too
+      });
+    }
     window.addEventListener('hashchange', function () {
       var v = currentViewFromHash();
       if (v !== state.view) {

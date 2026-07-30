@@ -19,7 +19,13 @@ var CORE = [
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
-  './icon-maskable-512.png'
+  './icon-maskable-512.png',
+  // self-hosted fonts: precached so a cold offline load renders in the real
+  // typefaces rather than falling back to system fonts
+  './fonts/archivo-black-400.woff2',
+  './fonts/inter-latin.woff2',
+  './fonts/space-mono-400.woff2',
+  './fonts/space-mono-700.woff2'
 ];
 
 self.addEventListener('install', function (e) {
