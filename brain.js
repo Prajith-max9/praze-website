@@ -177,12 +177,18 @@
     }
   }
 
+  // Returns true when the write actually landed. Callers MUST check it before
+  // reporting success, clearing a draft or resetting a form: a full quota used
+  // to be reported as "Idea captured." and the draft was wiped along with it,
+  // so the note vanished on the next reload with the user none the wiser.
   function saveStore() {
     store.rev = (store.rev || 0) + 1;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      return true;
     } catch (e) {
       showBanner('Storage full — export your notes now to avoid losing them.', 'error', true);
+      return false;
     }
   }
 
@@ -701,7 +707,10 @@
     if (!s || !s.text) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(SYNTH_LABELS[s.format] + ' — ' + formatDate(Date.now()), s.text, 'content', 'idea'));
-    saveStore();
+    if (!saveStore()) {
+      render(); // keep the draft text on screen so it can still be copied out
+      return;
+    }
     state.synth = null;
     exitSelectMode();
     render();
@@ -1814,9 +1823,9 @@
     } else if (d.kind === 'goal') {
       store.goals.splice(Math.max(0, Math.min(d.index, store.goals.length)), 0, d.item);
     }
-    saveStore();
+    var restored = saveStore();
     render();
-    showBanner((d.kind === 'note' ? 'Note' : 'Goal') + ' restored.');
+    if (restored) showBanner((d.kind === 'note' ? 'Note' : 'Goal') + ' restored.');
   }
 
   /* ---------- Navigation to a note ---------- */
@@ -1848,7 +1857,13 @@
     if (!body) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value, 'idea'));
-    saveStore();
+    if (!saveStore()) {
+      // The note is in memory but not on disk. Leave the form filled and the
+      // draft intact so the text is still there after a reload.
+      saveDraft();
+      render();
+      return;
+    }
     clearDraft();
     els.captureForm.reset();
     els.captureBody.style.height = '';
@@ -1865,7 +1880,10 @@
     if (!body) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
-    saveStore();
+    if (!saveStore()) {
+      render(); // leave the entry in the textarea rather than wiping it
+      return;
+    }
     els.diaryForm.reset();
     els.diaryBody.style.height = '';
     render();
@@ -1883,7 +1901,10 @@
     }
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote('', els.clipNote.value.trim(), els.clipTags.value, 'clip', url));
-    saveStore();
+    if (!saveStore()) {
+      render(); // keep the URL and note in the form
+      return;
+    }
     els.clipForm.reset();
     render();
     showBanner('Clip saved.');
@@ -1903,7 +1924,10 @@
       createdAt: Date.now(),
       completedAt: null
     });
-    saveStore();
+    if (!saveStore()) {
+      render(); // keep the goal title/target in the form
+      return;
+    }
     els.goalForm.reset();
     render();
     showBanner('Goal set.');
@@ -2067,8 +2091,7 @@
             linked++;
           }
         });
-        if (linked) {
-          saveStore();
+        if (linked && saveStore()) {
           showBanner('Linked ' + echo.notes.length + ' notes with #' + echo.display);
         }
         render();
@@ -2119,13 +2142,17 @@
       if (!goal) return;
       if (action === 'goal-inc') {
         var oldPct = Math.min(100, Math.round((goal.progress / goal.target) * 100));
+        var hitNow = false;
         goal.progress++;
         if (goal.progress >= goal.target && !goal.completedAt) {
           goal.completedAt = Date.now();
+          hitNow = true;
+        }
+        // celebrate only once the milestone is actually on disk
+        if (saveStore() && hitNow) {
           celebrate();
           showBanner('GOAL HIT — ' + goal.title + ' 🏆');
         }
-        saveStore();
         render();
         // render() rebuilds the card, so the fill is born at its new width and
         // the CSS transition never fires — replay old → new on the fresh node
@@ -2146,9 +2173,9 @@
         store.goals = store.goals.filter(function (g) { return g.id !== goalId; });
         state.confirmingGoalId = null;
         state.lastDeleted = { kind: 'goal', item: goal, index: goalIdx };
-        saveStore();
+        var goalGone = saveStore();
         render();
-        showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
+        if (goalGone) showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
       } else if (action === 'goal-del-no') {
         state.confirmingGoalId = null;
         render();
@@ -2230,8 +2257,9 @@
         note.body = newBody;
         note.tags = normalizeTags(card.querySelector('.note__edit-tags').value);
         note.updatedAt = Date.now();
-        state.editingId = null;
-        saveStore();
+        // only close the editor once the edit is on disk, so a failed write
+        // leaves the rewritten text in front of the user instead of burying it
+        if (saveStore()) state.editingId = null;
         render();
         break;
       case 'edit-cancel':
@@ -2247,9 +2275,9 @@
         store.notes = store.notes.filter(function (n) { return n.id !== note.id; });
         state.confirmingDeleteId = null;
         state.lastDeleted = { kind: 'note', item: note, index: noteIdx };
-        saveStore();
+        var noteGone = saveStore();
         render();
-        showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
+        if (noteGone) showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
         break;
       case 'delete-no':
         state.confirmingDeleteId = null;
@@ -2350,9 +2378,11 @@
           }
         });
       }
-      saveStore();
+      var imported = saveStore();
       render();
-      showBanner('Imported ' + (added + updated) + ' notes (' + updated + ' updated, ' + added + ' new).');
+      if (imported) {
+        showBanner('Imported ' + (added + updated) + ' notes (' + updated + ' updated, ' + added + ' new).');
+      }
     };
     reader.onerror = function () {
       showBanner('Import failed — could not read that file.', 'error');
@@ -2729,7 +2759,7 @@
     if (!text) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote('Brain dump — ' + formatDate(Date.now()), text, '', 'idea'));
-    saveStore();
+    if (!saveStore()) return; // keep the overlay open: the transcript is the only copy
     closeDump();
     render();
     showBanner('Saved as one note.');
@@ -2743,7 +2773,7 @@
     chosen.forEach(function (p) {
       store.notes.push(createNote(p.title, p.body, p.tags.join(', '), 'idea'));
     });
-    saveStore();
+    if (!saveStore()) return; // keep the overlay open: the transcript is the only copy
     closeDump();
     render();
     showBanner('Saved ' + chosen.length + ' note' + (chosen.length === 1 ? '' : 's') + '.');
