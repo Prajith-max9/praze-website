@@ -104,9 +104,37 @@
     el.classList.add('pop-once');
   }
 
+  // Grows a textarea to fit its content, but never past the max-height its CSS
+  // sets — otherwise a long dictation session ends up with a 24,000px box and
+  // the save button nowhere near the screen.
+  // Grows a textarea to fit its content, up to the max-height its CSS sets.
+  // Dictation calls this on every speech event, so the common case has to cost
+  // nothing: the ceiling is cached (reading it back forces a style recalc), and
+  // once the box is pinned at that ceiling more text cannot change its height,
+  // so the reset-and-remeasure — the actual layout thrash — is skipped
+  // entirely. Any shrink falls through and re-measures properly.
   function autoGrow(el) {
+    if (el.__growVh !== window.innerHeight) {   // vh-based ceiling, recheck on resize
+      var m = parseFloat(getComputedStyle(el).maxHeight); // NaN when 'none'
+      el.__growMax = m > 0 ? m : 0;
+      el.__growVh = window.innerHeight;
+      el.__growCapped = false;
+    }
+    var len = el.value.length;
+    if (el.__growMax && el.__growCapped && len > el.__growLen) {
+      el.__growLen = len;
+      return;
+    }
+    el.__growLen = len;
     el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
+    var h = el.scrollHeight;
+    if (el.__growMax && h > el.__growMax) {
+      el.style.height = el.__growMax + 'px';
+      el.__growCapped = true;
+    } else {
+      el.style.height = h + 'px';
+      el.__growCapped = false;
+    }
   }
 
   function makeId() {
@@ -2678,15 +2706,25 @@
     var lastInterim = '';
     var r = { listening: false };
 
+    // e.results is cumulative, so rebuilding the whole transcript on every
+    // event is O(n) per event and O(n²) over a session — by 400 chunks that
+    // was 10ms an event. Finalized results form a stable prefix, so fold only
+    // the ones past finalCount and keep the rest. Anything already folded is
+    // never revisited, which is the same protection against a re-sent final
+    // that the full rebuild gave.
+    var finalCount = 0;
+
     recog.onresult = function (e) {
       var interim = '';
-      var finals = '';
-      for (var i = 0; i < e.results.length; i++) {
+      for (var i = finalCount; i < e.results.length; i++) {
         var chunk = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finals += chunk;
-        else interim += chunk;
+        if (e.results[i].isFinal) {
+          finalTranscript += chunk;
+          finalCount = i + 1;
+        } else {
+          interim += chunk;
+        }
       }
-      finalTranscript = finals;
       lastInterim = interim;
       opts.onText(finalTranscript, interim);
     };
@@ -2713,6 +2751,7 @@
     r.start = function () {
       finalTranscript = '';
       lastInterim = '';
+      finalCount = 0;
       try {
         recog.start();
       } catch (err) {
@@ -2753,11 +2792,25 @@
     var baseText = '';
     var separator = '';
 
+    // Resizing the box and pushing the caret to the end both force the browser
+    // to lay out the whole transcript, which gets steadily more expensive as it
+    // grows — 8ms an event by the 400th chunk. The text itself goes in
+    // immediately; the layout-touching part is coalesced to once a frame, which
+    // is as often as it could be seen anyway.
+    var growRaf = 0;
+    function scheduleGrow() {
+      if (growRaf) return;
+      growRaf = requestAnimationFrame(function () {
+        growRaf = 0;
+        autoGrow(els.diaryBody);
+        els.diaryBody.selectionStart = els.diaryBody.selectionEnd = els.diaryBody.value.length;
+      });
+    }
+
     var recognizer = makeRecognizer({
       onText: function (finalText, interim) {
         els.diaryBody.value = baseText + separator + finalText + interim;
-        autoGrow(els.diaryBody);
-        els.diaryBody.selectionStart = els.diaryBody.selectionEnd = els.diaryBody.value.length;
+        scheduleGrow();
       },
       onIdle: function () {
         micBtn.textContent = '🎤 Dictate';
