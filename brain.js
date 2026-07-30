@@ -3114,6 +3114,14 @@
     // fires only in the OTHER tabs when one of them writes
     window.addEventListener('storage', handleStorageEvent);
 
+    // Leaving the diary view already stops the mic; backgrounding the app did
+    // not, so it stayed hot while the user was in another app and whatever it
+    // picked up landed in their entry when they came back. The graph pauses on
+    // this same event.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) stopDictation();
+    });
+
     // forms
     els.captureForm.addEventListener('submit', handleCapture);
     els.diaryForm.addEventListener('submit', handleDiarySubmit);

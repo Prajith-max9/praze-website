@@ -3736,6 +3736,9 @@ els.apiKeyClear = document.getElementById('api-key-clear');
 store = loadStore();
 state.view = currentViewFromHash();
 window.addEventListener('storage', handleStorageEvent);
+document.addEventListener('visibilitychange', function () {
+if (document.hidden) stopDictation();
+});
 els.captureForm.addEventListener('submit', handleCapture);
 els.diaryForm.addEventListener('submit', handleDiarySubmit);
 els.clipForm.addEventListener('submit', handleClipSubmit);
