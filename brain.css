@@ -118,6 +118,16 @@
   margin-bottom: 0.75rem;
 }
 
+/* autoGrow() sizes these to their content. Without a ceiling a long dictation
+   or a pasted essay grew the box to tens of thousands of pixels and pushed the
+   save button miles below the fold, so past this height the text scrolls
+   inside the box instead. */
+.capture__body,
+.note__edit-body {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
 .capture__body {
   resize: vertical;
   min-height: 5.5rem;

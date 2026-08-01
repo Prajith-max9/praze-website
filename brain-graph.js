@@ -30,6 +30,10 @@ window.BrainGraph = (function () {
                              // can't blow a graph apart
   var MIN_SCALE = 0.4;
   var MAX_SCALE = 3;
+  // Average movement per node per frame below which the layout counts as
+  // settled. Well under a pixel, so the loop only stops once nothing on screen
+  // is visibly moving.
+  var SETTLE_PER_NODE = 0.05;
 
   var state = null; // null when unmounted
 
@@ -262,6 +266,11 @@ window.BrainGraph = (function () {
         n = nodes[i];
         moved += Math.abs(n.x - n.px) + Math.abs(n.y - n.py);
       }
+      // Per node, not the raw total: the sum grows with the graph, so a fixed
+      // total threshold gets harder to reach the more nodes there are. At 120
+      // nodes each one moved 0.01px a frame — visually frozen — while the sum
+      // stayed above the old cut-off and the rAF loop ran for ever.
+      moved = moved / Math.max(1, nodes.length);
 
       // Anneal towards a low floor rather than parking at 0.35: a crowded
       // graph where springs and the collision pass tug against each other
@@ -348,7 +357,7 @@ window.BrainGraph = (function () {
       stepCamAnim();
       var moved = step();
       draw();
-      if (moved > 0.5 || state.dragging || state.panning || state.camAnim) {
+      if (moved > SETTLE_PER_NODE || state.dragging || state.panning || state.camAnim) {
         state.raf = requestAnimationFrame(loop);
       } else {
         state.raf = null;

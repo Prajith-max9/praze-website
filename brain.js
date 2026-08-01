@@ -104,9 +104,37 @@
     el.classList.add('pop-once');
   }
 
+  // Grows a textarea to fit its content, but never past the max-height its CSS
+  // sets — otherwise a long dictation session ends up with a 24,000px box and
+  // the save button nowhere near the screen.
+  // Grows a textarea to fit its content, up to the max-height its CSS sets.
+  // Dictation calls this on every speech event, so the common case has to cost
+  // nothing: the ceiling is cached (reading it back forces a style recalc), and
+  // once the box is pinned at that ceiling more text cannot change its height,
+  // so the reset-and-remeasure — the actual layout thrash — is skipped
+  // entirely. Any shrink falls through and re-measures properly.
   function autoGrow(el) {
+    if (el.__growVh !== window.innerHeight) {   // vh-based ceiling, recheck on resize
+      var m = parseFloat(getComputedStyle(el).maxHeight); // NaN when 'none'
+      el.__growMax = m > 0 ? m : 0;
+      el.__growVh = window.innerHeight;
+      el.__growCapped = false;
+    }
+    var len = el.value.length;
+    if (el.__growMax && el.__growCapped && len > el.__growLen) {
+      el.__growLen = len;
+      return;
+    }
+    el.__growLen = len;
     el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
+    var h = el.scrollHeight;
+    if (el.__growMax && h > el.__growMax) {
+      el.style.height = el.__growMax + 'px';
+      el.__growCapped = true;
+    } else {
+      el.style.height = h + 'px';
+      el.__growCapped = false;
+    }
   }
 
   function makeId() {
@@ -154,6 +182,66 @@
     return { schemaVersion: SCHEMA_VERSION, rev: 0, notes: [], goals: [] };
   }
 
+  function backupCorrupt(raw) {
+    try { localStorage.setItem(STORAGE_KEY + '.corrupt.' + Date.now(), raw); } catch (e) {}
+  }
+
+  // The single definition of a well-formed note, shared by the import path and
+  // the boot load path. Returns a normalized copy, or null when the input can't
+  // be repaired into a note. Valid notes round-trip unchanged.
+  function sanitizeNote(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.id !== 'string' || !raw.id) return null;
+    if (typeof raw.body !== 'string') return null;
+    return {
+      id: raw.id,
+      title: typeof raw.title === 'string' ? raw.title : '',
+      body: raw.body,
+      tags: normalizeTags(Array.isArray(raw.tags) ? raw.tags.join(',') : ''),
+      pinned: !!raw.pinned,
+      kind: raw.kind === 'diary' || raw.kind === 'clip' ? raw.kind : 'idea',
+      url: typeof raw.url === 'string' ? raw.url : '',
+      createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+      updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
+    };
+  }
+
+  function sanitizeGoal(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.id !== 'string' || !raw.id) return null;
+    var target = typeof raw.target === 'number' && raw.target >= 1 ? Math.floor(raw.target) : null;
+    if (target === null) return null;
+    return {
+      id: raw.id,
+      title: typeof raw.title === 'string' ? raw.title : '',
+      target: target,
+      progress: typeof raw.progress === 'number' && raw.progress >= 0 ? Math.floor(raw.progress) : 0,
+      createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+      completedAt: typeof raw.completedAt === 'number' ? raw.completedAt : null
+    };
+  }
+
+  // Repair what can be repaired, drop what can't, and report how much was lost.
+  // Without this a single null note — or one with a missing tags array, or a
+  // non-string body — took render() down on boot and left a blank app with no
+  // banner and no way back in.
+  function sanitizeStore(s) {
+    var dropped = 0;
+    var notes = [];
+    s.notes.forEach(function (n) {
+      var clean = sanitizeNote(n);
+      if (clean) notes.push(clean); else dropped++;
+    });
+    var goals = [];
+    s.goals.forEach(function (g) {
+      var clean = sanitizeGoal(g);
+      if (clean) goals.push(clean); else dropped++;
+    });
+    s.notes = notes;
+    s.goals = goals;
+    return dropped;
+  }
+
   function loadStore() {
     var raw;
     try {
@@ -163,30 +251,118 @@
       return emptyStore();
     }
     if (!raw) return emptyStore();
+    var parsed, dropped = 0;
     try {
-      var parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw);
       if (!parsed || !Array.isArray(parsed.notes)) throw new Error('bad shape');
       if (!Array.isArray(parsed.goals)) parsed.goals = [];
       if (typeof parsed.rev !== 'number') parsed.rev = 0;
-      return migrateStore(parsed, raw);
+      // Sanitize before migrating, for two reasons: migrateStore walks every
+      // note, so one null entry would throw and take the good notes down with
+      // it; and it returns early on an already-v2 payload, which is how
+      // malformed notes used to reach render() untouched.
+      dropped = sanitizeStore(parsed);
+      parsed = migrateStore(parsed, raw);
     } catch (e) {
       // Preserve the unreadable data instead of overwriting it
-      try { localStorage.setItem(STORAGE_KEY + '.corrupt.' + Date.now(), raw); } catch (e2) {}
+      backupCorrupt(raw);
       showBanner('Stored notes were unreadable; a raw backup was kept in localStorage.', 'error', true);
       return emptyStore();
     }
+    if (dropped) {
+      backupCorrupt(raw);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch (e2) {}
+      showBanner('Skipped ' + dropped + (dropped === 1 ? ' unreadable item' : ' unreadable items') +
+        '; a raw backup was kept in localStorage.', 'error', true);
+    }
+    return parsed;
   }
 
+  /* ---------- Cross-tab merge ----------
+     Two tabs each hold the whole store in memory and write it whole, so the
+     last writer used to erase whatever the other had added. On another tab's
+     write we merge per id instead of adopting its store wholesale: later
+     updatedAt wins per note, and anything only we hold is kept.
+
+     This is a union, not a CRDT — it has no way to tell "deleted over there"
+     from "created over here", so a note deleted in one tab can be brought back
+     by another tab that still has it. That is exactly what already happened
+     before this change, and unlike before, nothing new is lost. */
+
+  function mergeById(theirs, mine, newerWins) {
+    var byId = {};
+    var order = [];
+    function take(list) {
+      list.forEach(function (item) {
+        var prev = byId[item.id];
+        if (!prev) { byId[item.id] = item; order.push(item.id); }
+        else if (newerWins(item, prev)) byId[item.id] = item;
+      });
+    }
+    take(theirs);
+    take(mine);
+    return order.map(function (id) { return byId[id]; });
+  }
+
+  function mergeStores(mine, theirs) {
+    return {
+      notes: mergeById(theirs.notes, mine.notes, function (a, b) {
+        return (a.updatedAt || 0) > (b.updatedAt || 0);
+      }),
+      // goals carry no updatedAt, so the one further along wins
+      goals: mergeById(theirs.goals, mine.goals, function (a, b) {
+        return (a.progress || 0) > (b.progress || 0);
+      })
+    };
+  }
+
+  function handleStorageEvent(e) {
+    if (e.key !== STORAGE_KEY || !e.newValue) return;
+    var theirs;
+    try { theirs = JSON.parse(e.newValue); } catch (err) { return; }
+    if (!theirs || !Array.isArray(theirs.notes)) return;
+    if (!Array.isArray(theirs.goals)) theirs.goals = [];
+    sanitizeStore(theirs);
+
+    var merged = mergeStores(store, theirs);
+    // If the merge holds anything their payload didn't, write it back so the
+    // other tab picks it up. Their write already matches the merge otherwise,
+    // which is what stops two tabs echoing each other forever.
+    var weHoldMore = JSON.stringify(merged) !== JSON.stringify({ notes: theirs.notes, goals: theirs.goals });
+    store.notes = merged.notes;
+    store.goals = merged.goals;
+    if (typeof theirs.rev === 'number') store.rev = Math.max(store.rev || 0, theirs.rev);
+    render();
+    if (weHoldMore) saveStore();
+  }
+
+  // Returns true when the write actually landed. Callers MUST check it before
+  // reporting success, clearing a draft or resetting a form: a full quota used
+  // to be reported as "Idea captured." and the draft was wiped along with it,
+  // so the note vanished on the next reload with the user none the wiser.
   function saveStore() {
     store.rev = (store.rev || 0) + 1;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      return true;
     } catch (e) {
       showBanner('Storage full — export your notes now to avoid losing them.', 'error', true);
+      return false;
     }
   }
 
   /* ---------- Model ---------- */
+
+  // trim() only removes whitespace, and a zero-width joiner is not whitespace,
+  // so pasting text made only of invisible characters passed the "is it empty"
+  // check and produced a blank note card. Used for the emptiness test alone —
+  // the text itself is stored untouched, because U+200D is what holds an emoji
+  // like 👨‍👩‍👧‍👦 together.
+  var INVISIBLE = /[\u200B-\u200D\u2060\uFEFF\u00AD\u2800]/g;
+
+  function isBlank(text) {
+    return !String(text == null ? '' : text).replace(INVISIBLE, '').trim();
+  }
 
   function normalizeTags(input) {
     var seen = {};
@@ -238,18 +414,46 @@
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
   }
 
+  // The diary entry gets the same treatment as the capture box: half-written
+  // entries used to be the one kind of unsaved text a reload threw away.
+  var DIARY_DRAFT_KEY = 'praze.brain.diarydraft.v1';
+
+  function saveDiaryDraft() {
+    try {
+      var body = els.diaryBody.value;
+      if (body) localStorage.setItem(DIARY_DRAFT_KEY, body);
+      else localStorage.removeItem(DIARY_DRAFT_KEY);
+    } catch (e) {}
+  }
+
+  function clearDiaryDraft() {
+    try { localStorage.removeItem(DIARY_DRAFT_KEY); } catch (e) {}
+  }
+
   function restoreDraft() {
     var draft;
     try {
       draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
     } catch (e) {}
-    if (!draft || !(draft.title || draft.body || draft.tags)) return;
+    var diary = '';
+    try { diary = localStorage.getItem(DIARY_DRAFT_KEY) || ''; } catch (e) {}
+
+    if (diary) {
+      els.diaryBody.value = diary;
+      autoGrow(els.diaryBody);
+    }
+    if (!draft || !(draft.title || draft.body || draft.tags)) {
+      if (diary) showBanner('Draft restored — you have an unsaved diary entry.');
+      return;
+    }
     els.captureTitle.value = draft.title || '';
     els.captureBody.value = draft.body || '';
     els.captureTags.value = draft.tags || '';
     autoGrow(els.captureBody);
     renderTagSuggest();
-    showBanner('Draft restored — you have an unsaved note.');
+    showBanner(diary
+      ? 'Drafts restored — you have an unsaved note and diary entry.'
+      : 'Draft restored — you have an unsaved note.');
   }
 
   /* ---------- State ---------- */
@@ -701,7 +905,10 @@
     if (!s || !s.text) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(SYNTH_LABELS[s.format] + ' — ' + formatDate(Date.now()), s.text, 'content', 'idea'));
-    saveStore();
+    if (!saveStore()) {
+      render(); // keep the draft text on screen so it can still be copied out
+      return;
+    }
     state.synth = null;
     exitSelectMode();
     render();
@@ -1814,9 +2021,9 @@
     } else if (d.kind === 'goal') {
       store.goals.splice(Math.max(0, Math.min(d.index, store.goals.length)), 0, d.item);
     }
-    saveStore();
+    var restored = saveStore();
     render();
-    showBanner((d.kind === 'note' ? 'Note' : 'Goal') + ' restored.');
+    if (restored) showBanner((d.kind === 'note' ? 'Note' : 'Goal') + ' restored.');
   }
 
   /* ---------- Navigation to a note ---------- */
@@ -1845,10 +2052,16 @@
   function handleCapture(e) {
     e.preventDefault();
     var body = els.captureBody.value.trim();
-    if (!body) return;
+    if (isBlank(body)) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(els.captureTitle.value, body, els.captureTags.value, 'idea'));
-    saveStore();
+    if (!saveStore()) {
+      // The note is in memory but not on disk. Leave the form filled and the
+      // draft intact so the text is still there after a reload.
+      saveDraft();
+      render();
+      return;
+    }
     clearDraft();
     els.captureForm.reset();
     els.captureBody.style.height = '';
@@ -1862,10 +2075,16 @@
     e.preventDefault();
     stopDictation(); // if the mic is hot, end it before the normal submit runs
     var body = els.diaryBody.value.trim();
-    if (!body) return;
+    if (isBlank(body)) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
-    saveStore();
+    if (!saveStore()) {
+      // keep both the textarea and the draft: the entry was never written
+      saveDiaryDraft();
+      render();
+      return;
+    }
+    clearDiaryDraft();
     els.diaryForm.reset();
     els.diaryBody.style.height = '';
     render();
@@ -1883,7 +2102,10 @@
     }
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote('', els.clipNote.value.trim(), els.clipTags.value, 'clip', url));
-    saveStore();
+    if (!saveStore()) {
+      render(); // keep the URL and note in the form
+      return;
+    }
     els.clipForm.reset();
     render();
     showBanner('Clip saved.');
@@ -1894,7 +2116,7 @@
     e.preventDefault();
     var title = els.goalTitle.value.trim();
     var target = parseInt(els.goalTarget.value, 10);
-    if (!title || !(target >= 1)) return;
+    if (isBlank(title) || !(target >= 1)) return;
     store.goals.push({
       id: makeId(),
       title: title,
@@ -1903,7 +2125,10 @@
       createdAt: Date.now(),
       completedAt: null
     });
-    saveStore();
+    if (!saveStore()) {
+      render(); // keep the goal title/target in the form
+      return;
+    }
     els.goalForm.reset();
     render();
     showBanner('Goal set.');
@@ -2067,8 +2292,7 @@
             linked++;
           }
         });
-        if (linked) {
-          saveStore();
+        if (linked && saveStore()) {
           showBanner('Linked ' + echo.notes.length + ' notes with #' + echo.display);
         }
         render();
@@ -2119,13 +2343,17 @@
       if (!goal) return;
       if (action === 'goal-inc') {
         var oldPct = Math.min(100, Math.round((goal.progress / goal.target) * 100));
+        var hitNow = false;
         goal.progress++;
         if (goal.progress >= goal.target && !goal.completedAt) {
           goal.completedAt = Date.now();
+          hitNow = true;
+        }
+        // celebrate only once the milestone is actually on disk
+        if (saveStore() && hitNow) {
           celebrate();
           showBanner('GOAL HIT — ' + goal.title + ' 🏆');
         }
-        saveStore();
         render();
         // render() rebuilds the card, so the fill is born at its new width and
         // the CSS transition never fires — replay old → new on the fresh node
@@ -2146,9 +2374,9 @@
         store.goals = store.goals.filter(function (g) { return g.id !== goalId; });
         state.confirmingGoalId = null;
         state.lastDeleted = { kind: 'goal', item: goal, index: goalIdx };
-        saveStore();
+        var goalGone = saveStore();
         render();
-        showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
+        if (goalGone) showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
       } else if (action === 'goal-del-no') {
         state.confirmingGoalId = null;
         render();
@@ -2225,13 +2453,14 @@
         break;
       case 'edit-save':
         var newBody = card.querySelector('.note__edit-body').value.trim();
-        if (!newBody) return;
+        if (isBlank(newBody)) return;
         note.title = card.querySelector('.note__edit-title').value.trim();
         note.body = newBody;
         note.tags = normalizeTags(card.querySelector('.note__edit-tags').value);
         note.updatedAt = Date.now();
-        state.editingId = null;
-        saveStore();
+        // only close the editor once the edit is on disk, so a failed write
+        // leaves the rewritten text in front of the user instead of burying it
+        if (saveStore()) state.editingId = null;
         render();
         break;
       case 'edit-cancel':
@@ -2247,9 +2476,9 @@
         store.notes = store.notes.filter(function (n) { return n.id !== note.id; });
         state.confirmingDeleteId = null;
         state.lastDeleted = { kind: 'note', item: note, index: noteIdx };
-        saveStore();
+        var noteGone = saveStore();
         render();
-        showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
+        if (noteGone) showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
         break;
       case 'delete-no':
         state.confirmingDeleteId = null;
@@ -2300,18 +2529,8 @@
       store.notes.forEach(function (n) { byId[n.id] = n; });
       var added = 0, updated = 0;
       data.notes.forEach(function (raw) {
-        if (!raw || typeof raw.id !== 'string' || typeof raw.body !== 'string') return;
-        var incoming = {
-          id: raw.id,
-          title: typeof raw.title === 'string' ? raw.title : '',
-          body: raw.body,
-          tags: normalizeTags(Array.isArray(raw.tags) ? raw.tags.join(',') : ''),
-          pinned: !!raw.pinned,
-          kind: raw.kind === 'diary' || raw.kind === 'clip' ? raw.kind : 'idea',
-          url: typeof raw.url === 'string' ? raw.url : '',
-          createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
-          updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
-        };
+        var incoming = sanitizeNote(raw);
+        if (!incoming) return;
         var existing = byId[incoming.id];
         if (!existing) {
           byId[incoming.id] = incoming;
@@ -2350,9 +2569,11 @@
           }
         });
       }
-      saveStore();
+      var imported = saveStore();
       render();
-      showBanner('Imported ' + (added + updated) + ' notes (' + updated + ' updated, ' + added + ' new).');
+      if (imported) {
+        showBanner('Imported ' + (added + updated) + ' notes (' + updated + ' updated, ' + added + ' new).');
+      }
     };
     reader.onerror = function () {
       showBanner('Import failed — could not read that file.', 'error');
@@ -2527,15 +2748,25 @@
     var lastInterim = '';
     var r = { listening: false };
 
+    // e.results is cumulative, so rebuilding the whole transcript on every
+    // event is O(n) per event and O(n²) over a session — by 400 chunks that
+    // was 10ms an event. Finalized results form a stable prefix, so fold only
+    // the ones past finalCount and keep the rest. Anything already folded is
+    // never revisited, which is the same protection against a re-sent final
+    // that the full rebuild gave.
+    var finalCount = 0;
+
     recog.onresult = function (e) {
       var interim = '';
-      var finals = '';
-      for (var i = 0; i < e.results.length; i++) {
+      for (var i = finalCount; i < e.results.length; i++) {
         var chunk = e.results[i][0].transcript;
-        if (e.results[i].isFinal) finals += chunk;
-        else interim += chunk;
+        if (e.results[i].isFinal) {
+          finalTranscript += chunk;
+          finalCount = i + 1;
+        } else {
+          interim += chunk;
+        }
       }
-      finalTranscript = finals;
       lastInterim = interim;
       opts.onText(finalTranscript, interim);
     };
@@ -2562,6 +2793,7 @@
     r.start = function () {
       finalTranscript = '';
       lastInterim = '';
+      finalCount = 0;
       try {
         recog.start();
       } catch (err) {
@@ -2602,11 +2834,25 @@
     var baseText = '';
     var separator = '';
 
+    // Resizing the box and pushing the caret to the end both force the browser
+    // to lay out the whole transcript, which gets steadily more expensive as it
+    // grows — 8ms an event by the 400th chunk. The text itself goes in
+    // immediately; the layout-touching part is coalesced to once a frame, which
+    // is as often as it could be seen anyway.
+    var growRaf = 0;
+    function scheduleGrow() {
+      if (growRaf) return;
+      growRaf = requestAnimationFrame(function () {
+        growRaf = 0;
+        autoGrow(els.diaryBody);
+        els.diaryBody.selectionStart = els.diaryBody.selectionEnd = els.diaryBody.value.length;
+      });
+    }
+
     var recognizer = makeRecognizer({
       onText: function (finalText, interim) {
         els.diaryBody.value = baseText + separator + finalText + interim;
-        autoGrow(els.diaryBody);
-        els.diaryBody.selectionStart = els.diaryBody.selectionEnd = els.diaryBody.value.length;
+        scheduleGrow();
       },
       onIdle: function () {
         micBtn.textContent = '🎤 Dictate';
@@ -2726,10 +2972,10 @@
 
   function saveDumpAsOne() {
     var text = dump.transcript.trim();
-    if (!text) return;
+    if (isBlank(text)) return;
     var prevEligible = eligibleNoteCount();
     store.notes.push(createNote('Brain dump — ' + formatDate(Date.now()), text, '', 'idea'));
-    saveStore();
+    if (!saveStore()) return; // keep the overlay open: the transcript is the only copy
     closeDump();
     render();
     showBanner('Saved as one note.');
@@ -2743,7 +2989,7 @@
     chosen.forEach(function (p) {
       store.notes.push(createNote(p.title, p.body, p.tags.join(', '), 'idea'));
     });
-    saveStore();
+    if (!saveStore()) return; // keep the overlay open: the transcript is the only copy
     closeDump();
     render();
     showBanner('Saved ' + chosen.length + ' note' + (chosen.length === 1 ? '' : 's') + '.');
@@ -2907,6 +3153,17 @@
     store = loadStore();
     state.view = currentViewFromHash();
 
+    // fires only in the OTHER tabs when one of them writes
+    window.addEventListener('storage', handleStorageEvent);
+
+    // Leaving the diary view already stops the mic; backgrounding the app did
+    // not, so it stayed hot while the user was in another app and whatever it
+    // picked up landed in their entry when they came back. The graph pauses on
+    // this same event.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) stopDictation();
+    });
+
     // forms
     els.captureForm.addEventListener('submit', handleCapture);
     els.diaryForm.addEventListener('submit', handleDiarySubmit);
@@ -2932,7 +3189,11 @@
       el.addEventListener('input', debouncedDraft);
     });
     els.captureBody.addEventListener('input', function () { autoGrow(els.captureBody); });
-    els.diaryBody.addEventListener('input', function () { autoGrow(els.diaryBody); });
+    var debouncedDiaryDraft = debounce(saveDiaryDraft, 300);
+    els.diaryBody.addEventListener('input', function () {
+      autoGrow(els.diaryBody);
+      debouncedDiaryDraft();
+    });
     els.captureTags.addEventListener('input', renderTagSuggest);
 
     // search
