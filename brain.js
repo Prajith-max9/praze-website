@@ -8,7 +8,9 @@
   var RESURFACE_DISMISSED_KEY = 'praze.brain.resurface.dismissed'; // UI state — never in store or exports
   var NOTIFY_ASKED_KEY = 'praze.brain.notifyasked'; // UI state — never in store or exports
   var SCHEMA_VERSION = 2;
-  var VIEWS = ['dashboard', 'ask', 'ideas', 'diary', 'timeline', 'clips', 'goals', 'todos', 'graph'];
+  // listed in tab-bar order; routing does not depend on it, but keeping the two
+  // in step means the next person only has to look in one place
+  var VIEWS = ['dashboard', 'ask', 'todos', 'ideas', 'diary', 'clips', 'goals', 'graph', 'timeline'];
 
   /* ---------- Utils ---------- */
 
@@ -170,13 +172,14 @@
     store.notes.forEach(function (n) {
       if (!n.kind) n.kind = 'idea';
       if (typeof n.url !== 'string') n.url = '';
+      if (typeof n.photo !== 'string') n.photo = '';
     });
     if (!Array.isArray(store.goals)) store.goals = [];
     if (!Array.isArray(store.todos)) store.todos = [];
     if (typeof store.rev !== 'number') store.rev = 0;
     store.schemaVersion = SCHEMA_VERSION;
     // persist immediately so localStorage reflects v2 without waiting for an edit
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); } catch (e) {}
+    try { localStorage.setItem(STORAGE_KEY, serializeStore(store)); } catch (e) {}
     return store;
   }
 
@@ -191,6 +194,15 @@
   // The single definition of a well-formed note, shared by the import path and
   // the boot load path. Returns a normalized copy, or null when the input can't
   // be repaired into a note. Valid notes round-trip unchanged.
+  // Only a data URL this app produced ever reaches an <img src>. An imported
+  // or hand-edited store can carry anything in that slot, and a remote URL
+  // there would turn opening the diary into a callout to someone else's server.
+  var PHOTO_URL_RE = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+  function sanitizePhoto(v) {
+    return typeof v === 'string' && PHOTO_URL_RE.test(v) ? v : '';
+  }
+
   function sanitizeNote(raw) {
     if (!raw || typeof raw !== 'object') return null;
     if (typeof raw.id !== 'string' || !raw.id) return null;
@@ -203,6 +215,7 @@
       pinned: !!raw.pinned,
       kind: raw.kind === 'diary' || raw.kind === 'clip' ? raw.kind : 'idea',
       url: typeof raw.url === 'string' ? raw.url : '',
+      photo: sanitizePhoto(raw.photo),
       createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
       updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
     };
@@ -302,7 +315,7 @@
     }
     if (dropped) {
       backupCorrupt(raw);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch (e2) {}
+      try { localStorage.setItem(STORAGE_KEY, serializeStore(parsed)); } catch (e2) {}
       showBanner('Skipped ' + dropped + (dropped === 1 ? ' unreadable item' : ' unreadable items') +
         '; a raw backup was kept in localStorage.', 'error', true);
     }
@@ -378,10 +391,24 @@
   // reporting success, clearing a draft or resetting a form: a full quota used
   // to be reported as "Idea captured." and the draft was wiped along with it,
   // so the note vanished on the next reload with the user none the wiser.
+  // An empty photo is left out of the serialized form entirely. In memory every
+  // note carries `photo` as a string, but writing `"photo":""` onto notes that
+  // have no photo would add bytes to every single one — enough that the first
+  // write after this upgrade could be *larger* than what it replaces, and a
+  // delete would stop being guaranteed to free space on a full store. Notes
+  // without a photo therefore serialize exactly as they did before.
+  function omitEmptyPhoto(key, value) {
+    return key === 'photo' && value === '' ? undefined : value;
+  }
+
+  function serializeStore(s) {
+    return JSON.stringify(s, omitEmptyPhoto);
+  }
+
   function saveStore() {
     store.rev = (store.rev || 0) + 1;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+      localStorage.setItem(STORAGE_KEY, serializeStore(store));
       return true;
     } catch (e) {
       showBanner('Storage full — export your notes now to avoid losing them.', 'error', true);
@@ -414,7 +441,7 @@
       });
   }
 
-  function createNote(title, body, tagsInput, kind, url) {
+  function createNote(title, body, tagsInput, kind, url, photo) {
     var now = Date.now();
     return {
       id: makeId(),
@@ -424,6 +451,7 @@
       pinned: false,
       kind: kind || 'idea',
       url: url || '',
+      photo: photo || '',
       createdAt: now,
       updatedAt: now
     };
@@ -520,7 +548,9 @@
     synthChoosing: false, // format chooser open in the bottom bar
     synth: null,         // {busy, format, text} — render-time only, never stored unless saved
     todosDoneOpen: false, // the Done section starts collapsed
-    todoDueId: null      // todo whose inline due-time editor is open
+    todoDueId: null,     // todo whose inline due-time editor is open
+    pendingPhoto: '',    // compressed photo staged in the diary compose form
+    editPhoto: undefined // in the edit form: undefined = leave as is, '' = remove, string = replace
   };
 
   /* ---------- Todo reminders ----------
@@ -725,9 +755,35 @@
     return { titleIndex: titleIndex, backlinks: backlinks };
   }
 
-  function renderBody(text, tokens, titleIndex) {
+  /* ---------- ==Highlights== ----------
+     The same trick as [[wiki-links]]: a plain-text marker that renders as
+     something else in the read view. The body stays an ordinary string with
+     the == in it, so editing shows the markup back and nothing new is stored.
+
+     Both delimiters have to hug their text — `== 1 ==` stays literal. That is
+     what stops a stray comparison in an entry ("a == b, so c == d") from
+     swallowing everything between the two pairs. */
+
+  var MARK_RE = /==(?=\S)([^\n]*?\S)==/g;
+
+  function renderMarks(text, tokens) {
+    return text.split(MARK_RE).map(function (part, i) {
+      var inner = highlight(part, tokens);
+      return i % 2 === 1 ? '<mark class="hl">' + inner + '</mark>' : inner;
+    }).join('');
+  }
+
+  // For plain-text previews (timeline rows, the dashboard's latest-diary line),
+  // where the markers would otherwise show up as literal ==.
+  function stripMarks(text) {
+    return text.replace(MARK_RE, '$1');
+  }
+
+  // allowMarks is on for the diary read view only — an idea note is as likely
+  // to hold code as prose, and `a == b` there should stay exactly that.
+  function renderBody(text, tokens, titleIndex, allowMarks) {
     return text.split(WIKI_LINK_RE).map(function (part, i) {
-      if (i % 2 === 0) return highlight(part, tokens);
+      if (i % 2 === 0) return allowMarks ? renderMarks(part, tokens) : highlight(part, tokens);
       var target = titleIndex[part.trim().toLowerCase()];
       if (target) {
         return '<a href="#" class="wiki-link" data-action="open-note" data-note-id="' +
@@ -880,11 +936,32 @@
       : '';
   }
 
+  // What the photo will be once this edit is saved: the staged change if the
+  // user made one, otherwise whatever the note already carries.
+  function editPhotoValue(note) {
+    return state.editPhoto === undefined ? note.photo : state.editPhoto;
+  }
+
+  function renderEditPhotoRow(note) {
+    if (note.kind !== 'diary') return '';
+    var current = editPhotoValue(note);
+    return '<div class="edit-photo">' +
+      (current
+        ? '<img class="photo-thumb" src="' + escapeHtml(current) + '" alt="Photo on this entry">' +
+          '<button type="button" class="note__action note__action--danger" data-action="edit-photo-drop">Remove photo</button>' +
+          '<button type="button" class="note__action" data-action="edit-photo-pick">Replace</button>'
+        : '<button type="button" class="note__action" data-action="edit-photo-pick">Add photo</button>' +
+          (note.photo ? '<span class="note__date">Photo removed — save to confirm</span>' +
+            '<button type="button" class="note__action" data-action="edit-photo-undo">Undo</button>' : '')) +
+      '</div>';
+  }
+
   function renderEditForm(note) {
     return '<li class="note note--editing" data-id="' + escapeHtml(note.id) + '">' +
       '<input class="note__edit-title" type="text" value="' + escapeHtml(note.title) + '" placeholder="Title (optional)">' +
       '<textarea class="note__edit-body" rows="4">' + escapeHtml(note.body) + '</textarea>' +
       '<input class="note__edit-tags" type="text" value="' + escapeHtml(note.tags.join(', ')) + '" placeholder="tags: training, content">' +
+      renderEditPhotoRow(note) +
       '<div class="note__meta"><span class="note__date">' + formatDate(note.createdAt) + '</span>' +
       '<div class="note__actions">' +
       '<button type="button" class="note__action" data-action="edit-save">Save</button>' +
@@ -1143,6 +1220,118 @@
       '<p class="synth-result__text">' + escapeHtml(s.text) + '</p>';
   }
 
+  /* ---------- Diary photos ----------
+     One photo per entry, stored as a compressed data URL on the note itself.
+
+     localStorage is a few megabytes for the entire app, so the original file
+     is never what gets stored: a phone camera shot is several MB, and two of
+     those would fill the quota on their own. Every image is drawn through a
+     canvas at no more than 800px on its longest side and re-encoded as JPEG,
+     which brings a typical photo down to tens of kilobytes. The raw File is
+     dropped as soon as the canvas has it. */
+
+  var PHOTO_MAX_DIM = 800;
+  var PHOTO_QUALITY = 0.72;
+
+  function drawToDataUrl(source, w, h) {
+    var scale = Math.min(1, PHOTO_MAX_DIM / Math.max(w, h));
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', PHOTO_QUALITY);
+  }
+
+  // createImageBitmap is the path that matters on a phone: it applies the EXIF
+  // orientation, so a photo taken sideways is stored the way it was seen. The
+  // <img> fallback is for browsers without it.
+  function compressPhoto(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || String(file.type).indexOf('image/') !== 0) {
+        reject(new Error('That file is not an image.'));
+        return;
+      }
+      var fail = function () { reject(new Error('That image could not be read.')); };
+
+      if (window.createImageBitmap) {
+        createImageBitmap(file, { imageOrientation: 'from-image' }).then(function (bmp) {
+          try {
+            var out = drawToDataUrl(bmp, bmp.width, bmp.height);
+            bmp.close();
+            resolve(out);
+          } catch (e) { fail(); }
+        }).catch(function () { legacy(); });
+      } else {
+        legacy();
+      }
+
+      function legacy() {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          URL.revokeObjectURL(url);
+          try {
+            resolve(drawToDataUrl(img, img.naturalWidth, img.naturalHeight));
+          } catch (e) { fail(); }
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); fail(); };
+        img.src = url;
+      }
+    });
+  }
+
+  // Compress, then hand the result to `apply`. Shared by the file picker and
+  // the paste handler, in both the compose form and the edit form.
+  function takePhoto(file, apply) {
+    compressPhoto(file).then(function (dataUrl) {
+      apply(dataUrl);
+      render();
+    }).catch(function (err) {
+      showBanner(err.message || 'That image could not be read.', 'error');
+    });
+  }
+
+  function photoFromPaste(e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file' && String(items[i].type).indexOf('image/') === 0) {
+        return items[i].getAsFile();
+      }
+    }
+    return null;
+  }
+
+  function renderDiaryPhotoPreview() {
+    var box = els.diaryPhotoPreview;
+    if (!box) return;
+    if (!state.pendingPhoto) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = '<img class="photo-thumb" src="' + escapeHtml(state.pendingPhoto) + '" alt="Photo to attach">' +
+      '<button type="button" class="note__action note__action--danger" data-action="diary-photo-drop">Remove photo</button>';
+  }
+
+  function photoThumb(note) {
+    if (!note.photo) return '';
+    return '<button type="button" class="note__photo" data-action="photo-open" ' +
+      'aria-label="View photo full size">' +
+      '<img class="photo-thumb" src="' + escapeHtml(note.photo) + '" alt="Photo attached to this entry" loading="lazy">' +
+      '</button>';
+  }
+
+  function openPhotoView(src) {
+    els.photoViewImg.src = src;
+    els.photoView.hidden = false;
+  }
+
+  function closePhotoView() {
+    els.photoView.hidden = true;
+    els.photoViewImg.removeAttribute('src'); // don't keep a second copy decoded
+  }
+
   /* ---------- DIARY view ---------- */
 
   var MOOD_POSITIVE = ['good', 'great', 'happy', 'proud', 'win', 'won', 'strong', 'calm', 'grateful', 'progress', 'pumped', 'focused', 'best', 'love', 'enjoyed'];
@@ -1190,7 +1379,8 @@
       (state.aiBusy[note.id] ? 'AI…' : 'AI reflect') + '</button>';
 
     return '<li class="note note--diary" data-id="' + escapeHtml(note.id) + '">' +
-      '<p class="note__body">' + renderBody(note.body, [], links.titleIndex) + '</p>' +
+      '<p class="note__body">' + renderBody(note.body, [], links.titleIndex, true) + '</p>' +
+      photoThumb(note) +
       tagsHtml +
       reflectHtml +
       renderRelatedRow(note, byId) +
@@ -1443,7 +1633,10 @@
   }
 
   function renderTimelineRow(n) {
-    var preview = n.body.slice(0, 90) + (n.body.length > 90 ? '…' : '');
+    // diary only, matching where the syntax is live — an idea note's `a ==b==`
+    // is literal text and must read the same here as it does on its card
+    var plain = n.kind === 'diary' ? stripMarks(n.body) : n.body;
+    var preview = plain.slice(0, 90) + (plain.length > 90 ? '…' : '');
     var tagsHtml = n.tags.length
       ? '<span class="tl-row__tags">' + n.tags.map(function (t) { return '#' + escapeHtml(t); }).join(' ') + '</span>'
       : '';
@@ -2150,9 +2343,10 @@
 
     if (latestDiary) {
       var mood = detectMood(latestDiary.body);
+      var diaryPlain = stripMarks(latestDiary.body);
       html += '<div class="dash-card"><p class="label">LATEST DIARY</p>' +
         '<button type="button" class="dash-row" data-action="open-note" data-note-id="' + escapeHtml(latestDiary.id) + '">' +
-        escapeHtml(latestDiary.body.slice(0, 90)) + (latestDiary.body.length > 90 ? '…' : '') +
+        escapeHtml(diaryPlain.slice(0, 90)) + (diaryPlain.length > 90 ? '…' : '') +
         '<span class="dash-row__meta">' + mood.label + ' · ' + formatRelative(latestDiary.createdAt) + '</span></button></div>';
     }
 
@@ -2377,7 +2571,7 @@
     if (state.view === 'dashboard') renderDashboard();
     else if (state.view === 'ask') renderAsk();
     else if (state.view === 'ideas') renderIdeas();
-    else if (state.view === 'diary') renderDiary();
+    else if (state.view === 'diary') { renderDiary(); renderDiaryPhotoPreview(); }
     else if (state.view === 'timeline') renderTimeline();
     else if (state.view === 'clips') renderClips();
     else if (state.view === 'goals') renderGoals();
@@ -2482,9 +2676,15 @@
     var body = els.diaryBody.value.trim();
     if (isBlank(body)) return;
     var prevEligible = eligibleNoteCount();
-    store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary'));
+    store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary', '', state.pendingPhoto));
     if (!saveStore()) {
-      // keep both the textarea and the draft: the entry was never written
+      // Nothing was written, so the entry must not stay in memory pretending
+      // otherwise. Rolling it back also matters for photos specifically: a
+      // half-megabyte data URL left in the store would fail every subsequent
+      // save too, wedging the app. saveStore() has already shown the
+      // storage-full banner; the textarea, the draft and the staged photo all
+      // stay put so the same entry can be saved again once space is freed.
+      store.notes.pop();
       saveDiaryDraft();
       render();
       return;
@@ -2492,6 +2692,7 @@
     clearDiaryDraft();
     els.diaryForm.reset();
     els.diaryBody.style.height = '';
+    state.pendingPhoto = '';
     render();
     els.diaryBody.focus();
     showBanner('Entry saved.');
@@ -2858,6 +3059,12 @@
       return;
     }
 
+    if (action === 'diary-photo-drop') {
+      state.pendingPhoto = '';
+      render();
+      return;
+    }
+
     // todo actions
     if (action.indexOf('todo-') === 0 && handleTodoClick(action, btn)) return;
 
@@ -2967,8 +3174,24 @@
           });
         });
         break;
+      case 'photo-open':
+        if (note.photo) openPhotoView(note.photo);
+        break;
+      case 'edit-photo-pick':
+        state.editPhotoTargetId = note.id;
+        els.editPhotoFile.click();
+        break;
+      case 'edit-photo-drop':
+        state.editPhoto = '';
+        render();
+        break;
+      case 'edit-photo-undo':
+        state.editPhoto = undefined;
+        render();
+        break;
       case 'edit':
         state.editingId = note.id;
+        state.editPhoto = undefined;
         state.confirmingDeleteId = null;
         render();
         var editBody = document.querySelector('.note--editing .note__edit-body');
@@ -2980,17 +3203,27 @@
       case 'edit-save':
         var newBody = card.querySelector('.note__edit-body').value.trim();
         if (isBlank(newBody)) return;
+        var prevPhoto = note.photo;
         note.title = card.querySelector('.note__edit-title').value.trim();
         note.body = newBody;
         note.tags = normalizeTags(card.querySelector('.note__edit-tags').value);
+        note.photo = editPhotoValue(note);
         note.updatedAt = Date.now();
         // only close the editor once the edit is on disk, so a failed write
         // leaves the rewritten text in front of the user instead of burying it
-        if (saveStore()) state.editingId = null;
+        if (saveStore()) {
+          state.editingId = null;
+          state.editPhoto = undefined;
+        } else {
+          // put the old photo back so the in-memory store stays as saveable as
+          // it was — a newly added one would otherwise block every later write
+          note.photo = prevPhoto;
+        }
         render();
         break;
       case 'edit-cancel':
         state.editingId = null;
+        state.editPhoto = undefined; // a staged photo change dies with the edit
         render();
         break;
       case 'delete-ask':
@@ -3023,7 +3256,7 @@
       goals: store.goals,
       todos: store.todos
     };
-    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var blob = new Blob([JSON.stringify(payload, omitEmptyPhoto, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     var d = new Date();
@@ -3070,6 +3303,7 @@
           existing.pinned = incoming.pinned;
           existing.kind = incoming.kind;
           existing.url = incoming.url;
+          existing.photo = incoming.photo;
           existing.createdAt = incoming.createdAt;
           existing.updatedAt = incoming.updatedAt;
           updated++;
@@ -3656,6 +3890,12 @@
     els.diaryForm = document.getElementById('diary-form');
     els.diaryBody = document.getElementById('diary-body');
     els.diaryList = document.getElementById('diary-list');
+    els.diaryPhotoBtn = document.getElementById('diary-photo-btn');
+    els.diaryPhotoFile = document.getElementById('diary-photo-file');
+    els.diaryPhotoPreview = document.getElementById('diary-photo-preview');
+    els.editPhotoFile = document.getElementById('edit-photo-file');
+    els.photoView = document.getElementById('photo-view');
+    els.photoViewImg = document.getElementById('photo-view-img');
     els.diaryStreak = document.getElementById('diary-streak');
     els.digestBtn = document.getElementById('digest-btn');
     els.digestHint = document.getElementById('digest-hint');
@@ -3755,6 +3995,30 @@
     els.todoForm.addEventListener('submit', handleTodoSubmit);
     els.todoDueToggle.addEventListener('click', openTodoDueField);
 
+    // diary photos: file picker on the compose form, on the edit form, and
+    // paste-an-image straight into the textarea
+    els.diaryPhotoBtn.addEventListener('click', function () { els.diaryPhotoFile.click(); });
+    els.diaryPhotoFile.addEventListener('change', function () {
+      var file = els.diaryPhotoFile.files[0];
+      els.diaryPhotoFile.value = ''; // so picking the same file twice still fires
+      if (file) takePhoto(file, function (dataUrl) { state.pendingPhoto = dataUrl; });
+    });
+    els.editPhotoFile.addEventListener('change', function () {
+      var file = els.editPhotoFile.files[0];
+      els.editPhotoFile.value = '';
+      if (file) takePhoto(file, function (dataUrl) { state.editPhoto = dataUrl; });
+    });
+    els.diaryBody.addEventListener('paste', function (e) {
+      var file = photoFromPaste(e);
+      if (!file) return;
+      e.preventDefault(); // otherwise the filename lands in the textarea
+      takePhoto(file, function (dataUrl) { state.pendingPhoto = dataUrl; });
+    });
+    // Tap anywhere to close. There is no zoom or pan to protect, so the image
+    // itself closing is one less thing to aim at — and it covers the backdrop
+    // at exactly the spot most people tap.
+    els.photoView.addEventListener('click', closePhotoView);
+
     els.captureBody.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
@@ -3808,6 +4072,10 @@
       }
       if (e.key === 'Escape' && !els.graphSettingsPanel.hidden) {
         closeGraphSettings();
+      }
+      if (e.key === 'Escape' && !els.photoView.hidden) {
+        closePhotoView();
+        return;
       }
       if (e.key === 'Escape' && dump.open) {
         closeDump();

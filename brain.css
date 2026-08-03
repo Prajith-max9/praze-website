@@ -333,6 +333,14 @@
   padding: 0 1px;
 }
 
+/* ==highlight== in a diary entry — same lime as a search hit, but with room
+   for a whole phrase. The ink is pinned dark in both themes: the dark theme's
+   olive lime sits far too close to its cream ink to read against. */
+.note__body mark.hl {
+  color: #131313;
+  padding: 0.08em 0.28em;
+}
+
 .wiki-link {
   font: inherit;
   color: var(--ink);
@@ -967,6 +975,91 @@
   font-family: var(--mono);
   font-size: 0.68rem;
   color: var(--gray);
+}
+
+/* Diary photos */
+
+.photo-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  margin-top: 0.9rem;
+}
+
+.photo-preview[hidden] { display: none; }
+
+.photo-thumb {
+  display: block;
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* the thumbnail on a saved entry — a button, so it reads as tappable */
+.note__photo {
+  display: block;
+  padding: 0;
+  margin: 0 0 0.9rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.note__photo .photo-thumb {
+  width: 120px;
+  height: 120px;
+}
+
+.note__photo:hover .photo-thumb {
+  border-color: var(--lime);
+}
+
+.edit-photo {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+/* Full-size view. Deliberately plain — tap anywhere to close, no zoom or pan. */
+.photo-view {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.photo-view[hidden] { display: none; }
+
+.photo-view__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(19, 19, 19, 0.88);
+}
+
+.photo-view__img {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: 1px solid var(--border);
+}
+
+.photo-view__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  min-width: 44px;
+  min-height: 44px;
+  color: #f5f3ee;
 }
 
 /* Todo */
@@ -2075,20 +2168,6 @@
 
 /* Polish §6 — mobile tap targets + 16px inputs (brain page only; brain.css
    isn't loaded by the landing page, so overrides here stay scoped to the app). */
-
-/* "← site" back-link: 44px tap target. Swap the border-bottom accent for a text
-   underline so the lime line stays tight to the text while the box grows. */
-.navbar__cta {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 4px;
-  border-bottom: none;
-  text-decoration: underline;
-  text-decoration-color: var(--lime);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
-}
 
 /* Every text-entry field at 16px so iOS Safari doesn't zoom the page on focus.
    Same selectors as the rules that set the smaller sizes, placed later to win
