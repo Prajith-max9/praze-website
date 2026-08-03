@@ -48,6 +48,25 @@ self.addEventListener('activate', function (e) {
   );
 });
 
+/* Tapping a todo reminder focuses the app on the TODO tab, opening it only if
+   no window is already there. showNotification is raised from the page (the
+   only way Android Chrome allows it); the SW just handles the tap. */
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  var target = new URL('./brain.html#todos', self.location.href).href;
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].url.indexOf('brain.html') !== -1 && 'focus' in list[i]) {
+          if ('navigate' in list[i]) list[i].navigate(target).catch(function () {});
+          return list[i].focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    })
+  );
+});
+
 self.addEventListener('fetch', function (e) {
   var req = e.request;
   // only same-origin GETs are ours to cache; everything else (POST to Claude,

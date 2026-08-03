@@ -969,6 +969,168 @@
   color: var(--gray);
 }
 
+/* Todo */
+
+.todo-add {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.todo-add__text {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0.75rem;
+}
+
+.todo-add__due {
+  font-family: var(--mono);
+  font-size: 1rem; /* 16px floor — anything smaller makes iOS zoom the page */
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  max-width: 100%;
+}
+
+.todo-add__due[hidden] { display: none; }
+
+.todo-notice {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--gray);
+  border-left: 3px solid var(--lime);
+  padding: 0.5rem 0 0.5rem 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.todo-notice[hidden] { display: none; }
+
+.todo-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+}
+
+/* checkbox | text (+ due badge) | actions, with the due editor spanning all
+   three when it opens. A grid rather than flex so a long todo wraps inside its
+   own column instead of pushing the actions onto another line. */
+.todo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.85rem 1rem;
+}
+
+.todo__body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.todo__check {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid var(--ink);
+  background: var(--surface);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.todo--done .todo__check {
+  background: var(--lime);
+  border-color: var(--ink);
+}
+
+.todo--done .todo__check::after {
+  content: '✓';
+  color: #131313;
+  font-weight: 700;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.todo__text {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.todo--done .todo__text {
+  color: var(--gray);
+  text-decoration: line-through;
+}
+
+.todo__due {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--gray);
+  white-space: nowrap;
+}
+
+.todo__due--over {
+  color: var(--danger);
+}
+
+.todo__actions {
+  display: flex;
+  gap: 0.75rem;
+  white-space: nowrap;
+}
+
+.todo__due-edit {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.todo__due-input {
+  font-family: var(--mono);
+  font-size: 1rem; /* 16px floor — see .todo-add__due */
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--bone);
+  color: var(--ink);
+  max-width: 100%;
+}
+
+.todo-done { margin-bottom: 2rem; }
+
+.todo-done__toggle {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem 0;
+}
+
+.todo-done__toggle:hover { color: var(--ink); }
+
+.todo-list--done { margin-top: 0.5rem; }
+
 /* Graph */
 
 .view--graph .label { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
