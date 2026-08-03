@@ -333,6 +333,14 @@
   padding: 0 1px;
 }
 
+/* ==highlight== in a diary entry — same lime as a search hit, but with room
+   for a whole phrase. The ink is pinned dark in both themes: the dark theme's
+   olive lime sits far too close to its cream ink to read against. */
+.note__body mark.hl {
+  color: #131313;
+  padding: 0.08em 0.28em;
+}
+
 .wiki-link {
   font: inherit;
   color: var(--ink);

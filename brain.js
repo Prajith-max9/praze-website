@@ -725,9 +725,35 @@
     return { titleIndex: titleIndex, backlinks: backlinks };
   }
 
-  function renderBody(text, tokens, titleIndex) {
+  /* ---------- ==Highlights== ----------
+     The same trick as [[wiki-links]]: a plain-text marker that renders as
+     something else in the read view. The body stays an ordinary string with
+     the == in it, so editing shows the markup back and nothing new is stored.
+
+     Both delimiters have to hug their text — `== 1 ==` stays literal. That is
+     what stops a stray comparison in an entry ("a == b, so c == d") from
+     swallowing everything between the two pairs. */
+
+  var MARK_RE = /==(?=\S)([^\n]*?\S)==/g;
+
+  function renderMarks(text, tokens) {
+    return text.split(MARK_RE).map(function (part, i) {
+      var inner = highlight(part, tokens);
+      return i % 2 === 1 ? '<mark class="hl">' + inner + '</mark>' : inner;
+    }).join('');
+  }
+
+  // For plain-text previews (timeline rows, the dashboard's latest-diary line),
+  // where the markers would otherwise show up as literal ==.
+  function stripMarks(text) {
+    return text.replace(MARK_RE, '$1');
+  }
+
+  // allowMarks is on for the diary read view only — an idea note is as likely
+  // to hold code as prose, and `a == b` there should stay exactly that.
+  function renderBody(text, tokens, titleIndex, allowMarks) {
     return text.split(WIKI_LINK_RE).map(function (part, i) {
-      if (i % 2 === 0) return highlight(part, tokens);
+      if (i % 2 === 0) return allowMarks ? renderMarks(part, tokens) : highlight(part, tokens);
       var target = titleIndex[part.trim().toLowerCase()];
       if (target) {
         return '<a href="#" class="wiki-link" data-action="open-note" data-note-id="' +
@@ -1190,7 +1216,7 @@
       (state.aiBusy[note.id] ? 'AI…' : 'AI reflect') + '</button>';
 
     return '<li class="note note--diary" data-id="' + escapeHtml(note.id) + '">' +
-      '<p class="note__body">' + renderBody(note.body, [], links.titleIndex) + '</p>' +
+      '<p class="note__body">' + renderBody(note.body, [], links.titleIndex, true) + '</p>' +
       tagsHtml +
       reflectHtml +
       renderRelatedRow(note, byId) +
@@ -1443,7 +1469,10 @@
   }
 
   function renderTimelineRow(n) {
-    var preview = n.body.slice(0, 90) + (n.body.length > 90 ? '…' : '');
+    // diary only, matching where the syntax is live — an idea note's `a ==b==`
+    // is literal text and must read the same here as it does on its card
+    var plain = n.kind === 'diary' ? stripMarks(n.body) : n.body;
+    var preview = plain.slice(0, 90) + (plain.length > 90 ? '…' : '');
     var tagsHtml = n.tags.length
       ? '<span class="tl-row__tags">' + n.tags.map(function (t) { return '#' + escapeHtml(t); }).join(' ') + '</span>'
       : '';
@@ -2150,9 +2179,10 @@
 
     if (latestDiary) {
       var mood = detectMood(latestDiary.body);
+      var diaryPlain = stripMarks(latestDiary.body);
       html += '<div class="dash-card"><p class="label">LATEST DIARY</p>' +
         '<button type="button" class="dash-row" data-action="open-note" data-note-id="' + escapeHtml(latestDiary.id) + '">' +
-        escapeHtml(latestDiary.body.slice(0, 90)) + (latestDiary.body.length > 90 ? '…' : '') +
+        escapeHtml(diaryPlain.slice(0, 90)) + (diaryPlain.length > 90 ? '…' : '') +
         '<span class="dash-row__meta">' + mood.label + ' · ' + formatRelative(latestDiary.createdAt) + '</span></button></div>';
     }
 
