@@ -1055,6 +1055,119 @@
   display: none;
 }
 
+/* Graph settings: a flyout hanging below the gear icon, not overlapping it —
+   the toggle stays visible and clickable while the panel is open, same as
+   the app-wide gear in the tab bar. */
+.graph-settings-toggle {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 4;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--gray);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.graph-settings-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.graph-settings-toggle[hidden] {
+  display: none;
+}
+
+.graph-settings {
+  position: absolute;
+  top: 3rem;
+  right: 0.5rem;
+  z-index: 5;
+  width: min(280px, calc(100% - 1rem));
+  max-height: calc(100% - 3.5rem);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1rem;
+}
+
+.graph-settings[hidden] {
+  display: none;
+}
+
+.graph-settings .label {
+  margin-bottom: 0.25rem;
+}
+
+.graph-settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.7rem;
+}
+
+.graph-settings__label {
+  flex: 1 1 100%;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.graph-settings__control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 100%;
+}
+
+.graph-settings__slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--lime);
+}
+
+.graph-settings__value {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--gray);
+  min-width: 2.8em;
+  text-align: right;
+}
+
+.graph-settings__section {
+  margin: 1rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray);
+}
+
+.graph-settings__toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.graph-settings__toggle-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lime);
+}
+
 /* Dashboard */
 
 .dash {

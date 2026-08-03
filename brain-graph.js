@@ -35,6 +35,13 @@ window.BrainGraph = (function () {
   // is visibly moving.
   var SETTLE_PER_NODE = 0.05;
 
+  // Multipliers on the constants below, tunable from the graph settings panel.
+  // All default to 1 — the physics and visuals are byte-for-byte the same as
+  // before this existed until a user actually moves a slider.
+  var DEFAULT_SETTINGS = {
+    nodeSize: 1, linkThickness: 1, repelForce: 1, linkForce: 1, centerForce: 1, linkDistance: 1
+  };
+
   var state = null; // null when unmounted
 
   function setDebug() {
@@ -58,7 +65,7 @@ window.BrainGraph = (function () {
     };
   }
 
-  function mount(canvas, data, onNodeClick, getNoteInfo) {
+  function mount(canvas, data, onNodeClick, getNoteInfo, settings) {
     destroy();
 
     var COLORS = themeColors();
@@ -106,11 +113,12 @@ window.BrainGraph = (function () {
       scale: 1, ox: 0, oy: 0,
       dragging: null, panning: null, downAt: null,
       pointers: {}, pinch: null, camAnim: null,
-      hover: null, tooltip: tooltip, listeners: []
+      hover: null, tooltip: tooltip, listeners: [],
+      settings: Object.assign({}, DEFAULT_SETTINGS, settings || {})
     };
 
     function radius(node) {
-      return 5 + Math.min(6, node.deg * 1.2);
+      return (5 + Math.min(6, node.deg * 1.2)) * state.settings.nodeSize;
     }
 
     // Labels are drawn centred above the node, so how far two nodes must sit
@@ -178,10 +186,10 @@ window.BrainGraph = (function () {
       // denser graph where springs pull back. Scale it up as the graph gets
       // smaller, and ease off the centring pull for the same reason — a
       // handful of notes shouldn't be squeezed into a pile in the middle.
-      var REPULSION = 1800 * Math.max(1, 30 / Math.max(count, 1));
-      var SPRING = 0.015;
-      var REST = 90;
-      var GRAVITY = 0.012 * Math.max(0.35, Math.min(1, count / 10));
+      var REPULSION = 1800 * Math.max(1, 30 / Math.max(count, 1)) * state.settings.repelForce;
+      var SPRING = 0.015 * state.settings.linkForce;
+      var REST = 90 * state.settings.linkDistance;
+      var GRAVITY = 0.012 * Math.max(0.35, Math.min(1, count / 10)) * state.settings.centerForce;
       var moved = 0;
 
       // Movement is measured from actual displacement, not velocity: the
@@ -297,7 +305,7 @@ window.BrainGraph = (function () {
           ctx.setLineDash([]);
           ctx.strokeStyle = COLORS.edge;
         }
-        ctx.lineWidth = 1;
+        ctx.lineWidth = state.settings.linkThickness;
         ctx.stroke();
       });
       ctx.setLineDash([]);
@@ -372,6 +380,11 @@ window.BrainGraph = (function () {
         setDebug();
       }
     }
+
+    // Exposed so the module-level setSettings() below can reach into whichever
+    // mount is currently live, without mount()'s other internals leaking out.
+    state.draw = draw;
+    state.wake = wake;
 
     /* --- tooltip --- */
 
@@ -574,6 +587,28 @@ window.BrainGraph = (function () {
     setDebug();
   }
 
+  // Live-tweak the running simulation from the settings panel — no remount,
+  // so dragging a slider doesn't reset the camera or scramble node positions.
+  // Node size and link thickness are read straight off state.settings by
+  // draw(), so a redraw is all they need. The four force multipliers change
+  // what step() computes, so those re-wake the sim: without this the settle
+  // detector (S-4) would see the graph as already at rest under its OLD
+  // forces and never apply the new ones until some other interaction woke it.
+  function setSettings(newSettings) {
+    if (!state || !newSettings) return;
+    var physicsKeys = ['repelForce', 'linkForce', 'centerForce', 'linkDistance'];
+    var changed = physicsKeys.some(function (k) {
+      return newSettings[k] !== undefined && newSettings[k] !== state.settings[k];
+    });
+    var merged = {};
+    Object.keys(DEFAULT_SETTINGS).forEach(function (k) {
+      merged[k] = newSettings[k] !== undefined ? newSettings[k] : state.settings[k];
+    });
+    state.settings = merged;
+    if (changed) state.wake();
+    else state.draw();
+  }
+
   setDebug();
-  return { mount: mount, destroy: destroy };
+  return { mount: mount, destroy: destroy, setSettings: setSettings };
 })();

@@ -205,6 +205,67 @@
     <p class="label">THE WEB <span class="graph-legend">&#9679; idea &nbsp; <span class="graph-legend__diary">&#9679;</span> diary &nbsp; &#9675; clip &nbsp; — [[link]] &nbsp; &#183;&#183;&#183; similar</span></p>
     <div class="graph-wrap">
       <canvas id="graph-canvas"></canvas>
+      <button type="button" class="graph-settings-toggle" id="graph-settings-toggle" aria-label="Graph settings" hidden>&#9881;</button>
+      <div id="graph-settings-panel" class="graph-settings" hidden>
+        <p class="label">GRAPH SETTINGS</p>
+
+        <label class="graph-settings__row">
+          <span class="graph-settings__label">Node size</span>
+          <span class="graph-settings__control">
+            <input type="range" class="graph-settings__slider" data-setting="nodeSize" min="0.5" max="2" step="0.05">
+            <span class="graph-settings__value" data-value-for="nodeSize"></span>
+          </span>
+        </label>
+
+        <label class="graph-settings__row">
+          <span class="graph-settings__label">Link thickness</span>
+          <span class="graph-settings__control">
+            <input type="range" class="graph-settings__slider" data-setting="linkThickness" min="0.5" max="3" step="0.1">
+            <span class="graph-settings__value" data-value-for="linkThickness"></span>
+          </span>
+        </label>
+
+        <p class="graph-settings__section">FORCES</p>
+
+        <label class="graph-settings__row">
+          <span class="graph-settings__label">Repel force</span>
+          <span class="graph-settings__control">
+            <input type="range" class="graph-settings__slider" data-setting="repelForce" min="0.3" max="3" step="0.1">
+            <span class="graph-settings__value" data-value-for="repelForce"></span>
+          </span>
+        </label>
+
+        <label class="graph-settings__row">
+          <span class="graph-settings__label">Link force</span>
+          <span class="graph-settings__control">
+            <input type="range" class="graph-settings__slider" data-setting="linkForce" min="0.3" max="3" step="0.1">
+            <span class="graph-settings__value" data-value-for="linkForce"></span>
+          </span>
+        </label>
+
+        <label class="graph-settings__row">
+          <span class="graph-settings__label">Center force</span>
+          <span class="graph-settings__control">
+            <input type="range" class="graph-settings__slider" data-setting="centerForce" min="0.3" max="3" step="0.1">
+            <span class="graph-settings__value" data-value-for="centerForce"></span>
+          </span>
+        </label>
+
+        <label class="graph-settings__row">
+          <span class="graph-settings__label">Link distance</span>
+          <span class="graph-settings__control">
+            <input type="range" class="graph-settings__slider" data-setting="linkDistance" min="0.5" max="2.5" step="0.1">
+            <span class="graph-settings__value" data-value-for="linkDistance"></span>
+          </span>
+        </label>
+
+        <p class="graph-settings__section">DISPLAY</p>
+
+        <label class="graph-settings__toggle-row">
+          <span class="graph-settings__label">Show orphans</span>
+          <input type="checkbox" data-setting="showOrphans">
+        </label>
+      </div>
       <p id="graph-empty" class="empty__text" hidden>Capture a few ideas and the web appears here.</p>
       <p id="graph-cold" class="graph-cold" hidden></p>
     </div>

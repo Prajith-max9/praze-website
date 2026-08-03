@@ -483,6 +483,45 @@
     synth: null          // {busy, format, text} — render-time only, never stored unless saved
   };
 
+  /* ---------- Graph settings ----------
+     Visual/tuning knobs on the force layout that already exists in
+     brain-graph.js — no new physics, just multipliers a user can move. Kept
+     separate from `store` (never exported, never synced across tabs — purely
+     a local display preference, same tier as theme). */
+
+  var GRAPH_SETTINGS_KEY = 'praze.brain.graphsettings.v1';
+  var GRAPH_SETTINGS_DEFAULTS = {
+    nodeSize: 1, linkThickness: 1, repelForce: 1, linkForce: 1,
+    centerForce: 1, linkDistance: 1, showOrphans: true
+  };
+  var GRAPH_SETTINGS_RANGE = {
+    nodeSize: [0.5, 2], linkThickness: [0.5, 3], repelForce: [0.3, 3],
+    linkForce: [0.3, 3], centerForce: [0.3, 3], linkDistance: [0.5, 2.5]
+  };
+
+  function loadGraphSettings() {
+    var out = Object.assign({}, GRAPH_SETTINGS_DEFAULTS);
+    try {
+      var raw = JSON.parse(localStorage.getItem(GRAPH_SETTINGS_KEY));
+      if (raw && typeof raw === 'object') {
+        Object.keys(GRAPH_SETTINGS_RANGE).forEach(function (k) {
+          if (typeof raw[k] === 'number' && isFinite(raw[k])) {
+            var r = GRAPH_SETTINGS_RANGE[k];
+            out[k] = Math.max(r[0], Math.min(r[1], raw[k]));
+          }
+        });
+        if (typeof raw.showOrphans === 'boolean') out.showOrphans = raw.showOrphans;
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  function saveGraphSettings() {
+    try { localStorage.setItem(GRAPH_SETTINGS_KEY, JSON.stringify(graphSettings)); } catch (e) {}
+  }
+
+  var graphSettings = GRAPH_SETTINGS_DEFAULTS;
+
   /* ---------- Search (ideas) ---------- */
 
   function tokenize(query) {
@@ -1852,9 +1891,10 @@
     var total = store.notes.length;
     els.graphEmpty.hidden = total > 0;
     els.graphCanvas.style.display = total ? 'block' : 'none';
+    if (els.graphSettingsToggle) els.graphSettingsToggle.hidden = total === 0;
     if (!total) {
       if (els.graphCold) els.graphCold.hidden = true;
-      window.BrainGraph.destroy();
+      teardownGraph();
       return;
     }
 
@@ -1863,15 +1903,6 @@
     // sparse graph unexplained. Gate matches BrainAI (non-clip notes ≥ min).
     var eligible = store.notes.filter(function (n) { return n.kind !== 'clip'; }).length;
     var min = window.BrainAI.MIN_NOTES_FOR_LINKS;
-    if (els.graphCold) {
-      if (eligible < min) {
-        els.graphCold.textContent = 'Similar-idea links switch on at ' + min + ' notes — you have ' +
-          eligible + '. Wiki-links [[like this]] show as soon as you write them.';
-        els.graphCold.hidden = false;
-      } else {
-        els.graphCold.hidden = true;
-      }
-    }
 
     var nodes = store.notes.map(function (n) {
       return { id: n.id, label: noteLabel(n), kind: n.kind, pinned: n.pinned };
@@ -1897,13 +1928,96 @@
       }
     });
 
+    // "Show orphans" trims which nodes reach the canvas — it never touches the
+    // notes, tags, or the similarity pairs that feed RELATED chips elsewhere.
+    // An orphan by definition has no edge, so no edge ever needs dropping here.
+    if (!graphSettings.showOrphans) {
+      var connected = {};
+      edges.forEach(function (e) { connected[e.a] = true; connected[e.b] = true; });
+      nodes = nodes.filter(function (n) { return connected[n.id]; });
+    }
+
+    if (els.graphCold) {
+      if (!graphSettings.showOrphans && !nodes.length) {
+        els.graphCold.textContent = 'Every note here is unconnected — turn on "Show orphans" in the ' +
+          'graph settings to see them.';
+        els.graphCold.hidden = false;
+      } else if (eligible < min) {
+        els.graphCold.textContent = 'Similar-idea links switch on at ' + min + ' notes — you have ' +
+          eligible + '. Wiki-links [[like this]] show as soon as you write them.';
+        els.graphCold.hidden = false;
+      } else {
+        els.graphCold.hidden = true;
+      }
+    }
+
+    if (!nodes.length) {
+      window.BrainGraph.destroy();
+      return;
+    }
+
     var byId = notesById();
     window.BrainGraph.mount(els.graphCanvas, { nodes: nodes, edges: edges }, function (id) {
       openNote(id);
     }, function (id) {
       var n = byId[id];
       return n ? { title: noteLabel(n), kind: n.kind, tags: n.tags, date: formatDate(n.createdAt) } : null;
+    }, graphSettings);
+  }
+
+  function teardownGraph() {
+    window.BrainGraph.destroy();
+    closeGraphSettings();
+  }
+
+  var GRAPH_SETTING_KEYS = ['nodeSize', 'linkThickness', 'repelForce', 'linkForce', 'centerForce', 'linkDistance'];
+
+  function formatMultiplier(v) {
+    return (Math.round(v * 100) / 100) + 'x';
+  }
+
+  function renderGraphSettingsPanel() {
+    GRAPH_SETTING_KEYS.forEach(function (key) {
+      var input = els.graphSettingsPanel.querySelector('[data-setting="' + key + '"]');
+      var label = els.graphSettingsPanel.querySelector('[data-value-for="' + key + '"]');
+      if (input) input.value = graphSettings[key];
+      if (label) label.textContent = formatMultiplier(graphSettings[key]);
     });
+    var orphans = els.graphSettingsPanel.querySelector('[data-setting="showOrphans"]');
+    if (orphans) orphans.checked = !!graphSettings.showOrphans;
+  }
+
+  // Same click-outside-to-dismiss pattern as the app-wide settings panel: the
+  // listener arms on the next tick so the click that opened the panel doesn't
+  // immediately close it again.
+  var graphSettingsOutside = null;
+
+  function closeGraphSettings() {
+    if (!els.graphSettingsPanel) return;
+    els.graphSettingsPanel.hidden = true;
+    if (graphSettingsOutside) {
+      document.removeEventListener('click', graphSettingsOutside);
+      graphSettingsOutside = null;
+    }
+  }
+
+  function openGraphSettings(open) {
+    var show = open === undefined ? els.graphSettingsPanel.hidden : !!open;
+    if (!show) {
+      closeGraphSettings();
+      return;
+    }
+    els.graphSettingsPanel.hidden = false;
+    renderGraphSettingsPanel();
+    if (graphSettingsOutside) return;
+    graphSettingsOutside = function (e) {
+      if (els.graphSettingsPanel.hidden) return;
+      if (e.target.closest('#graph-settings-panel') || e.target.closest('#graph-settings-toggle')) return;
+      closeGraphSettings();
+    };
+    setTimeout(function () {
+      if (graphSettingsOutside) document.addEventListener('click', graphSettingsOutside);
+    }, 0);
   }
 
   /* ---------- Router + render dispatcher ---------- */
@@ -1950,7 +2064,7 @@
 
   function setView(view) {
     if (dump.open) closeDump(); // tab switch never leaves the mic hot behind an overlay
-    if (state.view === 'graph' && view !== 'graph') window.BrainGraph.destroy();
+    if (state.view === 'graph' && view !== 'graph') teardownGraph();
     state.view = view;
     if (location.hash !== '#' + view) {
       // pushes a history entry — browser back walks tabs, the Chrome feel
@@ -3144,6 +3258,8 @@
     els.graphCanvas = document.getElementById('graph-canvas');
     els.graphCold = document.getElementById('graph-cold');
     els.graphEmpty = document.getElementById('graph-empty');
+    els.graphSettingsToggle = document.getElementById('graph-settings-toggle');
+    els.graphSettingsPanel = document.getElementById('graph-settings-panel');
     els.dash = document.getElementById('dash');
     els.settingsPanel = document.getElementById('settings-panel');
     els.apiKeyInput = document.getElementById('api-key-input');
@@ -3151,6 +3267,7 @@
     els.apiKeyClear = document.getElementById('api-key-clear');
 
     store = loadStore();
+    graphSettings = loadGraphSettings();
     state.view = currentViewFromHash();
 
     // fires only in the OTHER tabs when one of them writes
@@ -3221,6 +3338,9 @@
       if (e.key === 'Escape' && !els.settingsPanel.hidden) {
         closeSettings();
       }
+      if (e.key === 'Escape' && !els.graphSettingsPanel.hidden) {
+        closeGraphSettings();
+      }
       if (e.key === 'Escape' && dump.open) {
         closeDump();
         return;
@@ -3278,7 +3398,7 @@
       var v = currentViewFromHash();
       if (v !== state.view) {
         if (dump.open) closeDump();
-        if (state.view === 'graph') window.BrainGraph.destroy();
+        if (state.view === 'graph') teardownGraph();
         state.view = v;
         render();
       }
@@ -3309,6 +3429,38 @@
     // settings
     document.getElementById('settings-toggle').addEventListener('click', function () {
       openSettings();
+    });
+
+    // graph settings
+    els.graphSettingsToggle.addEventListener('click', function () {
+      openGraphSettings();
+    });
+    els.graphSettingsPanel.addEventListener('input', function (e) {
+      var el = e.target;
+      if (el.type !== 'range') return;
+      var key = el.getAttribute('data-setting');
+      if (!key) return;
+      var range = GRAPH_SETTINGS_RANGE[key];
+      var v = parseFloat(el.value);
+      if (range) v = Math.max(range[0], Math.min(range[1], v));
+      graphSettings[key] = v;
+      saveGraphSettings();
+      var label = els.graphSettingsPanel.querySelector('[data-value-for="' + key + '"]');
+      if (label) label.textContent = formatMultiplier(v);
+      // live-tweak the running sim, no remount — dragging a slider shouldn't
+      // reset the camera or scramble node positions
+      window.BrainGraph.setSettings(graphSettings);
+    });
+    els.graphSettingsPanel.addEventListener('change', function (e) {
+      var el = e.target;
+      if (el.type !== 'checkbox') return;
+      var key = el.getAttribute('data-setting');
+      if (key !== 'showOrphans') return;
+      graphSettings.showOrphans = el.checked;
+      saveGraphSettings();
+      // orphans are trimmed from the node list mount() receives, so this needs
+      // a full re-render rather than a live setSettings() tweak
+      renderGraph();
     });
     document.getElementById('api-key-save').addEventListener('click', function () {
       var key = els.apiKeyInput.value.trim();
