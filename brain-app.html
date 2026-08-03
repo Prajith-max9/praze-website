@@ -4156,7 +4156,11 @@ recog.onerror = function (e) {
 if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
 showBanner('Microphone access denied — allow it in your browser to dictate.', 'error');
 }
+var wasLive = r.listening;
 r.listening = false;
+if (wasLive) {
+try { recog.stop(); } catch (err) {}
+}
 if (opts.onIdle) opts.onIdle();
 };
 recog.onend = function () {
@@ -4168,14 +4172,14 @@ if (opts.onIdle) opts.onIdle();
 if (opts.onEnd) opts.onEnd(finalTranscript);
 };
 r.start = function () {
-finalTranscript = '';
-lastInterim = '';
-finalCount = 0;
 try {
 recog.start();
 } catch (err) {
 return false;
 }
+finalTranscript = '';
+lastInterim = '';
+finalCount = 0;
 r.listening = true;
 return true;
 };
@@ -4226,9 +4230,10 @@ if (recognizer.listening) {
 recognizer.stop();
 return;
 }
-baseText = els.diaryBody.value;
-separator = (baseText && !/\s$/.test(baseText)) ? ' ' : '';
+var existing = els.diaryBody.value;
 if (!recognizer.start()) return;
+baseText = existing;
+separator = (baseText && !/\s$/.test(baseText)) ? ' ' : '';
 micBtn.textContent = '⏹ Stop';
 micBtn.classList.add('diary-mic--live');
 els.diaryBody.focus();

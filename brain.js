@@ -3562,8 +3562,17 @@
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         showBanner('Microphone access denied — allow it in your browser to dictate.', 'error');
       }
-      // 'no-speech' / 'aborted' are normal — reset silently
+      // 'no-speech' / 'aborted' are normal — reset silently. The session can
+      // still be live when they arrive (Chrome reports no-speech without
+      // ending it), so end it for real instead of only putting the button back
+      // to idle: a mic that keeps streaming into a UI claiming it stopped is
+      // what let a second tap restart bookkeeping underneath a running
+      // recognizer and replay the whole transcript.
+      var wasLive = r.listening;
       r.listening = false;
+      if (wasLive) {
+        try { recog.stop(); } catch (err) {} // onend follows and finishes up
+      }
       if (opts.onIdle) opts.onIdle();
     };
 
@@ -3578,14 +3587,19 @@
     };
 
     r.start = function () {
-      finalTranscript = '';
-      lastInterim = '';
-      finalCount = 0;
+      // Nothing is reset until the engine has actually accepted the start.
+      // start() throws when a session is still running, and zeroing the
+      // bookkeeping first left that live session folding its cumulative
+      // results into an empty accumulator — it replayed everything it had
+      // already delivered, on top of text the caller was still holding.
       try {
         recog.start();
       } catch (err) {
         return false; // guard double-start: start() throws if already running
       }
+      finalTranscript = '';
+      lastInterim = '';
+      finalCount = 0;
       r.listening = true;
       return true;
     };
@@ -3653,9 +3667,14 @@
         recognizer.stop();
         return;
       }
-      baseText = els.diaryBody.value;
-      separator = (baseText && !/\s$/.test(baseText)) ? ' ' : '';
+      // Anchor to the text only once the mic is genuinely live. Capturing it
+      // before the start could fail meant a refused start still moved the
+      // anchor forward, so whatever the previous session had already written
+      // was counted twice.
+      var existing = els.diaryBody.value;
       if (!recognizer.start()) return;
+      baseText = existing;
+      separator = (baseText && !/\s$/.test(baseText)) ? ' ' : '';
       micBtn.textContent = '⏹ Stop';
       micBtn.classList.add('diary-mic--live');
       els.diaryBody.focus();
