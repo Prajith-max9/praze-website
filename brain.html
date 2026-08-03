@@ -145,8 +145,11 @@
         <textarea id="diary-body" class="capture__body" rows="4" placeholder="How was today?" required></textarea>
         <div class="capture__actions">
           <button class="btn" type="submit">SAVE ENTRY</button>
+          <button id="diary-photo-btn" class="toolbar__btn" type="button">&#128247; Photo</button>
+          <input id="diary-photo-file" type="file" accept="image/*" hidden>
           <span class="capture__hint">Ctrl/Cmd + Enter</span>
         </div>
+        <div id="diary-photo-preview" class="photo-preview" hidden></div>
       </form>
     </section>
     <section class="digest">
@@ -308,6 +311,15 @@
     <div id="dump-body" class="dump__body"></div>
     <div id="dump-actions" class="dump__actions"></div>
   </div>
+</div>
+
+<!-- shared file input for adding/replacing a photo while editing an entry -->
+<input id="edit-photo-file" type="file" accept="image/*" hidden>
+
+<div id="photo-view" class="photo-view" hidden>
+  <div class="photo-view__backdrop"></div>
+  <img id="photo-view-img" class="photo-view__img" alt="Diary photo">
+  <button type="button" class="banner__dismiss photo-view__close" aria-label="Close">&times;</button>
 </div>
 
 <div id="palette" class="palette" hidden>
