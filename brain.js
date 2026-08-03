@@ -8,7 +8,9 @@
   var RESURFACE_DISMISSED_KEY = 'praze.brain.resurface.dismissed'; // UI state — never in store or exports
   var NOTIFY_ASKED_KEY = 'praze.brain.notifyasked'; // UI state — never in store or exports
   var SCHEMA_VERSION = 2;
-  var VIEWS = ['dashboard', 'ask', 'ideas', 'diary', 'timeline', 'clips', 'goals', 'todos', 'graph'];
+  // listed in tab-bar order; routing does not depend on it, but keeping the two
+  // in step means the next person only has to look in one place
+  var VIEWS = ['dashboard', 'ask', 'todos', 'ideas', 'diary', 'clips', 'goals', 'graph', 'timeline'];
 
   /* ---------- Utils ---------- */
 
