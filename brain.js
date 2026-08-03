@@ -6,8 +6,9 @@
   var STORAGE_KEY = 'praze.brain.v1';
   var PRE_MIGRATION_KEY = 'praze.brain.v1.pre-migration';
   var RESURFACE_DISMISSED_KEY = 'praze.brain.resurface.dismissed'; // UI state — never in store or exports
+  var NOTIFY_ASKED_KEY = 'praze.brain.notifyasked'; // UI state — never in store or exports
   var SCHEMA_VERSION = 2;
-  var VIEWS = ['dashboard', 'ask', 'ideas', 'diary', 'timeline', 'clips', 'goals', 'graph'];
+  var VIEWS = ['dashboard', 'ask', 'ideas', 'diary', 'timeline', 'clips', 'goals', 'todos', 'graph'];
 
   /* ---------- Utils ---------- */
 
@@ -171,6 +172,7 @@
       if (typeof n.url !== 'string') n.url = '';
     });
     if (!Array.isArray(store.goals)) store.goals = [];
+    if (!Array.isArray(store.todos)) store.todos = [];
     if (typeof store.rev !== 'number') store.rev = 0;
     store.schemaVersion = SCHEMA_VERSION;
     // persist immediately so localStorage reflects v2 without waiting for an edit
@@ -179,7 +181,7 @@
   }
 
   function emptyStore() {
-    return { schemaVersion: SCHEMA_VERSION, rev: 0, notes: [], goals: [] };
+    return { schemaVersion: SCHEMA_VERSION, rev: 0, notes: [], goals: [], todos: [] };
   }
 
   function backupCorrupt(raw) {
@@ -221,6 +223,28 @@
     };
   }
 
+  // Todos arrived after schema v2 shipped, so there is no version bump behind
+  // them: a store written by the previous build simply has no `todos` key, and
+  // every read path defaults it to []. That keeps old exports importable and
+  // old tabs from choking on the new field.
+  function sanitizeTodo(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    if (typeof raw.id !== 'string' || !raw.id) return null;
+    if (typeof raw.text !== 'string' || isBlank(raw.text)) return null;
+    var due = typeof raw.dueAt === 'number' && isFinite(raw.dueAt) ? raw.dueAt : null;
+    return {
+      id: raw.id,
+      text: raw.text,
+      done: !!raw.done,
+      dueAt: due,
+      // no due time means nothing to fire, so such a todo is never "pending"
+      notified: due ? !!raw.notified : false,
+      createdAt: typeof raw.createdAt === 'number' ? raw.createdAt : Date.now(),
+      completedAt: typeof raw.completedAt === 'number' ? raw.completedAt : null,
+      updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : Date.now()
+    };
+  }
+
   // Repair what can be repaired, drop what can't, and report how much was lost.
   // Without this a single null note — or one with a missing tags array, or a
   // non-string body — took render() down on boot and left a blank app with no
@@ -237,8 +261,14 @@
       var clean = sanitizeGoal(g);
       if (clean) goals.push(clean); else dropped++;
     });
+    var todos = [];
+    (s.todos || []).forEach(function (t) {
+      var clean = sanitizeTodo(t);
+      if (clean) todos.push(clean); else dropped++;
+    });
     s.notes = notes;
     s.goals = goals;
+    s.todos = todos;
     return dropped;
   }
 
@@ -256,6 +286,7 @@
       parsed = JSON.parse(raw);
       if (!parsed || !Array.isArray(parsed.notes)) throw new Error('bad shape');
       if (!Array.isArray(parsed.goals)) parsed.goals = [];
+      if (!Array.isArray(parsed.todos)) parsed.todos = [];
       if (typeof parsed.rev !== 'number') parsed.rev = 0;
       // Sanitize before migrating, for two reasons: migrateStore walks every
       // note, so one null entry would throw and take the good notes down with
@@ -312,6 +343,9 @@
       // goals carry no updatedAt, so the one further along wins
       goals: mergeById(theirs.goals, mine.goals, function (a, b) {
         return (a.progress || 0) > (b.progress || 0);
+      }),
+      todos: mergeById(theirs.todos, mine.todos, function (a, b) {
+        return (a.updatedAt || 0) > (b.updatedAt || 0);
       })
     };
   }
@@ -322,16 +356,20 @@
     try { theirs = JSON.parse(e.newValue); } catch (err) { return; }
     if (!theirs || !Array.isArray(theirs.notes)) return;
     if (!Array.isArray(theirs.goals)) theirs.goals = [];
+    if (!Array.isArray(theirs.todos)) theirs.todos = [];
     sanitizeStore(theirs);
 
     var merged = mergeStores(store, theirs);
     // If the merge holds anything their payload didn't, write it back so the
     // other tab picks it up. Their write already matches the merge otherwise,
     // which is what stops two tabs echoing each other forever.
-    var weHoldMore = JSON.stringify(merged) !== JSON.stringify({ notes: theirs.notes, goals: theirs.goals });
+    var weHoldMore = JSON.stringify(merged) !==
+      JSON.stringify({ notes: theirs.notes, goals: theirs.goals, todos: theirs.todos });
     store.notes = merged.notes;
     store.goals = merged.goals;
+    store.todos = merged.todos;
     if (typeof theirs.rev === 'number') store.rev = Math.max(store.rev || 0, theirs.rev);
+    scheduleTodoReminders(); // the other tab may have added or cleared a due time
     render();
     if (weHoldMore) saveStore();
   }
@@ -480,8 +518,116 @@
     selectMode: false,   // IDEAS multi-select for synthesize
     selected: {},        // note id -> true
     synthChoosing: false, // format chooser open in the bottom bar
-    synth: null          // {busy, format, text} — render-time only, never stored unless saved
+    synth: null,         // {busy, format, text} — render-time only, never stored unless saved
+    todosDoneOpen: false, // the Done section starts collapsed
+    todoDueId: null      // todo whose inline due-time editor is open
   };
+
+  /* ---------- Todo reminders ----------
+     Browser-local only: there is no server, so there is no push. A due time
+     arms a setTimeout in this tab and (when permission is granted) fires one
+     Notification. That works while the app is open or freshly backgrounded and
+     stops being reliable once the OS suspends or kills the page — iOS Safari
+     in particular gives a closed PWA no timer at all. Nothing in the UI claims
+     otherwise, and a todo with no notification is still a todo with a visible
+     due time. */
+
+  var todoTimers = {};      // todo id -> setTimeout handle
+  var swReg = null;         // service-worker registration, when one exists
+  var REMINDER_GRACE_MS = 5 * 60 * 1000;
+  var TIMER_CEILING_MS = 2147483000; // setTimeout overflows past ~24.8 days and fires at once
+
+  function notifyPermission() {
+    try {
+      if (!('Notification' in window) || !window.Notification) return 'unsupported';
+      return Notification.permission;
+    } catch (e) {
+      return 'unsupported';
+    }
+  }
+
+  function notifyAsked() {
+    try { return localStorage.getItem(NOTIFY_ASKED_KEY) === '1'; } catch (e) { return true; }
+  }
+
+  // Asked at most once, ever, and only when a due time is actually set. A
+  // refusal is final here: browsers suppress the prompt after one denial
+  // anyway, so re-calling it on every save would only be the nagging the
+  // feature is supposed to avoid.
+  function maybeRequestNotifications() {
+    if (notifyPermission() !== 'default' || notifyAsked()) return;
+    try { localStorage.setItem(NOTIFY_ASKED_KEY, '1'); } catch (e) {}
+    try {
+      var settled = function () {
+        if (state.view === 'todos') renderTodos();
+        scheduleTodoReminders();
+      };
+      var r = Notification.requestPermission(settled);
+      if (r && typeof r.then === 'function') r.then(settled, function () {});
+    } catch (e) {}
+  }
+
+  // Prefers the service worker: Android Chrome throws on `new Notification()`
+  // and only accepts notifications raised from a registration.
+  function fireTodoNotification(todo) {
+    if (notifyPermission() !== 'granted') return false;
+    var opts = {
+      body: todo.text.slice(0, 120),
+      tag: 'todo-' + todo.id,
+      icon: 'icon-192.png'
+    };
+    try {
+      if (swReg && typeof swReg.showNotification === 'function') {
+        swReg.showNotification('Second Brain', opts);
+        return true;
+      }
+      new Notification('Second Brain', opts); // constructed for the side effect
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function clearTodoTimers() {
+    Object.keys(todoTimers).forEach(function (id) { clearTimeout(todoTimers[id]); });
+    todoTimers = {};
+  }
+
+  // Re-armed from scratch on every todo change, on boot, and whenever the tab
+  // comes back to the foreground — background timers get throttled or dropped,
+  // so the wake-up is the only moment their state can be trusted.
+  function scheduleTodoReminders() {
+    clearTodoTimers();
+    var now = Date.now();
+    var changed = false;
+    store.todos.forEach(function (t) {
+      if (t.done || !t.dueAt || t.notified) return;
+      var delay = t.dueAt - now;
+      if (delay <= 0) {
+        // Came due while the tab was closed or asleep. Inside the grace window
+        // the popup is still the nudge it was meant to be; older than that it
+        // would just be noise on open, so it is marked missed and the list
+        // shows it as OVERDUE instead.
+        if (delay > -REMINDER_GRACE_MS) fireTodoNotification(t);
+        t.notified = true;
+        changed = true;
+        return;
+      }
+      if (delay > TIMER_CEILING_MS) return; // too far out to arm; the next boot re-arms it
+      todoTimers[t.id] = setTimeout(function () {
+        delete todoTimers[t.id];
+        // the todo may have been ticked off, deleted or rescheduled since
+        var live = store.todos.filter(function (x) { return x.id === t.id; })[0];
+        if (!live || live.done || live.notified || live.dueAt !== t.dueAt) return;
+        fireTodoNotification(live);
+        live.notified = true;
+        live.updatedAt = Date.now();
+        saveStore();
+        if (state.view === 'todos') renderTodos();
+      }, delay);
+    });
+    if (changed) saveStore();
+  }
 
   /* ---------- Graph settings ----------
      Visual/tuning knobs on the force layout that already exists in
@@ -1516,6 +1662,122 @@
       : '';
   }
 
+  /* ---------- TODO ----------
+     Deliberately flat: text, a checkbox, an optional due time. No sub-tasks,
+     no priorities, no AI. Goals track a number climbing to a target; this
+     tracks whether a thing is done, and nothing here is ever destroyed by
+     ticking it — done todos move to a collapsed section, same as WINS. */
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  // <input type="datetime-local"> speaks local wall-clock time with no offset,
+  // which is also how `new Date('YYYY-MM-DDTHH:MM')` parses it.
+  function toDueInputValue(ms) {
+    var d = new Date(ms);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  function fromDueInputValue(v) {
+    if (!v) return null;
+    var t = new Date(v).getTime();
+    return isFinite(t) ? t : null;
+  }
+
+  function formatDue(ms) {
+    var d = new Date(ms);
+    var time = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    if (ms >= today && ms < today + DAY_MS) return 'today ' + time;
+    if (ms >= today + DAY_MS && ms < today + 2 * DAY_MS) return 'tomorrow ' + time;
+    if (ms >= today - DAY_MS && ms < today) return 'yesterday ' + time;
+    return formatDate(ms) + ' ' + time;
+  }
+
+  // Honest about what browser-local reminders can and cannot do. Only shown
+  // once something actually has a due time — there is nothing to explain
+  // before that.
+  function todoNoticeText() {
+    var pending = store.todos.some(function (t) { return !t.done && t.dueAt; });
+    if (!pending) return '';
+    var perm = notifyPermission();
+    if (perm === 'granted') {
+      return 'Reminders pop up while this app is open or freshly backgrounded — a nudge, not a guaranteed alarm.';
+    }
+    if (perm === 'denied') return 'Notifications are blocked in this browser. Due times still show here.';
+    if (perm === 'unsupported') return 'This browser can’t show notifications. Due times still show here.';
+    return 'Allow notifications when asked and due times can also nudge you. They show here either way.';
+  }
+
+  function todoRow(t) {
+    var overdue = !t.done && t.dueAt && t.dueAt < Date.now();
+    var editing = state.todoDueId === t.id;
+    return '<li class="todo' + (t.done ? ' todo--done' : '') + '" data-todo="' + escapeHtml(t.id) + '">' +
+      '<button type="button" class="todo__check" data-action="todo-toggle" role="checkbox" aria-checked="' +
+      (t.done ? 'true' : 'false') + '" aria-label="' +
+      (t.done ? 'Mark as not done' : 'Mark as done') + '"></button>' +
+      '<div class="todo__body">' +
+      '<span class="todo__text">' + escapeHtml(t.text) + '</span>' +
+      (t.dueAt
+        ? '<span class="todo__due' + (overdue ? ' todo__due--over' : '') + '">' +
+          (overdue ? 'overdue · ' : '⏰ ') + escapeHtml(formatDue(t.dueAt)) + '</span>'
+        : '') +
+      '</div>' +
+      '<div class="todo__actions">' +
+      (t.done
+        ? ''
+        : '<button type="button" class="note__action" data-action="todo-due-ask">' +
+          (t.dueAt ? 'Time' : '+ Time') + '</button>') +
+      '<button type="button" class="note__action note__action--danger" data-action="todo-del">Delete</button>' +
+      '</div>' +
+      (editing
+        ? '<div class="todo__due-edit">' +
+          '<input type="datetime-local" class="todo__due-input" aria-label="Due date and time"' +
+          (t.dueAt ? ' value="' + escapeHtml(toDueInputValue(t.dueAt)) + '"' : '') + '>' +
+          '<button type="button" class="toolbar__btn" data-action="todo-due-save">Set</button>' +
+          (t.dueAt ? '<button type="button" class="note__action" data-action="todo-due-clear">Clear</button>' : '') +
+          '<button type="button" class="note__action" data-action="todo-due-cancel">Cancel</button>' +
+          '</div>'
+        : '') +
+      '</li>';
+  }
+
+  function renderTodos() {
+    var open = store.todos.filter(function (t) { return !t.done; });
+    var done = store.todos.filter(function (t) { return t.done; })
+      .sort(function (a, b) { return (b.completedAt || 0) - (a.completedAt || 0); });
+
+    // anything with a deadline floats up, soonest first; the rest is newest-first
+    open.sort(function (a, b) {
+      if (a.dueAt && b.dueAt) return a.dueAt - b.dueAt;
+      if (a.dueAt) return -1;
+      if (b.dueAt) return 1;
+      return b.createdAt - a.createdAt;
+    });
+
+    els.todoList.innerHTML = open.length
+      ? open.map(todoRow).join('')
+      : '<li class="empty"><p class="empty__title">Nothing on the list.</p>' +
+        '<p class="empty__text">Type it above and hit ADD — this is for fast capture, not planning.</p></li>';
+
+    els.todoDone.innerHTML = done.length
+      ? '<button type="button" class="todo-done__toggle" data-action="todo-done-toggle" aria-expanded="' +
+        (state.todosDoneOpen ? 'true' : 'false') + '">' +
+        (state.todosDoneOpen ? '▾' : '▸') + ' DONE (' + done.length + ')</button>' +
+        (state.todosDoneOpen
+          ? '<ol class="todo-list todo-list--done">' + done.map(todoRow).join('') + '</ol>'
+          : '')
+      : '';
+
+    var notice = todoNoticeText();
+    els.todoNotice.textContent = notice;
+    els.todoNotice.hidden = !notice;
+
+    var count = open.length;
+    els.todoCount.textContent = count === 1 ? '1 OPEN' : count + ' OPEN';
+  }
+
   function celebrate() {
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     var canvas = document.createElement('canvas');
@@ -1749,8 +2011,10 @@
   /* ---------- DASHBOARD view ---------- */
 
   function renderDashboard() {
-    // first run: zero notes and none ever saved → the panel replaces the cards
-    if (!store.notes.length && !onboardStage()) {
+    // first run: nothing captured at all, and nothing ever saved → the panel
+    // replaces the cards. Someone who went straight to TODO and filled a list
+    // is past first run, even with no notes yet.
+    if (!store.notes.length && !store.todos.length && !onboardStage()) {
       els.dash.innerHTML =
         '<div class="dash-card dash-card--hero">' +
         '<p class="dash-greeting">Second Brain</p>' +
@@ -1851,6 +2115,28 @@
           }).join('')
         : '<button type="button" class="dash-row" data-action="goto" data-go="goals">No active goals — set one<span class="dash-row__meta">→</span></button>') +
       '</div>';
+
+    var openTodos = store.todos.filter(function (t) { return !t.done; });
+    if (openTodos.length) {
+      openTodos.sort(function (a, b) {
+        if (a.dueAt && b.dueAt) return a.dueAt - b.dueAt;
+        if (a.dueAt) return -1;
+        if (b.dueAt) return 1;
+        return b.createdAt - a.createdAt;
+      });
+      html += '<div class="dash-card"><p class="label">TODO</p>' +
+        openTodos.slice(0, 3).map(function (t) {
+          return '<button type="button" class="dash-row" data-action="goto" data-go="todos">' +
+            escapeHtml(t.text) +
+            (t.dueAt ? '<span class="dash-row__meta">' + escapeHtml(formatDue(t.dueAt)) + '</span>' : '') +
+            '</button>';
+        }).join('') +
+        (openTodos.length > 3
+          ? '<button type="button" class="dash-row" data-action="goto" data-go="todos">' +
+            (openTodos.length - 3) + ' more<span class="dash-row__meta">→</span></button>'
+          : '') +
+        '</div>';
+    }
 
     html += '<div class="dash-card"><p class="label">RECENT</p>' +
       (recent.length
@@ -2095,6 +2381,7 @@
     else if (state.view === 'timeline') renderTimeline();
     else if (state.view === 'clips') renderClips();
     else if (state.view === 'goals') renderGoals();
+    else if (state.view === 'todos') renderTodos();
     else if (state.view === 'graph') renderGraph();
   }
 
@@ -2134,10 +2421,14 @@
       store.notes.splice(Math.max(0, Math.min(d.index, store.notes.length)), 0, d.item);
     } else if (d.kind === 'goal') {
       store.goals.splice(Math.max(0, Math.min(d.index, store.goals.length)), 0, d.item);
+    } else if (d.kind === 'todo') {
+      store.todos.splice(Math.max(0, Math.min(d.index, store.todos.length)), 0, d.item);
+      scheduleTodoReminders(); // a restored todo gets its pending reminder back
     }
     var restored = saveStore();
     render();
-    if (restored) showBanner((d.kind === 'note' ? 'Note' : 'Goal') + ' restored.');
+    var label = d.kind === 'note' ? 'Note' : d.kind === 'goal' ? 'Goal' : 'Todo';
+    if (restored) showBanner(label + ' restored.');
   }
 
   /* ---------- Navigation to a note ---------- */
@@ -2246,6 +2537,124 @@
     els.goalForm.reset();
     render();
     showBanner('Goal set.');
+  }
+
+  function handleTodoSubmit(e) {
+    e.preventDefault();
+    var text = els.todoText.value.trim();
+    if (isBlank(text)) return;
+    var due = fromDueInputValue(els.todoDue.value);
+    var now = Date.now();
+    store.todos.push({
+      id: makeId(),
+      text: text,
+      done: false,
+      dueAt: due,
+      notified: false,
+      createdAt: now,
+      completedAt: null,
+      updatedAt: now
+    });
+    if (!saveStore()) {
+      render(); // leave the text in the box — it was never written
+      return;
+    }
+    els.todoForm.reset();
+    closeTodoDueField();
+    if (due) maybeRequestNotifications();
+    scheduleTodoReminders();
+    render();
+    els.todoText.focus();
+    showBanner('Added to the list.');
+  }
+
+  function openTodoDueField() {
+    els.todoDue.hidden = false;
+    els.todoDueToggle.hidden = true;
+    els.todoDue.focus();
+  }
+
+  function closeTodoDueField() {
+    els.todoDue.value = '';
+    els.todoDue.hidden = true;
+    els.todoDueToggle.hidden = false;
+  }
+
+  function findTodoFromEvent(btn) {
+    var row = btn.closest('[data-todo]');
+    if (!row) return null;
+    var id = row.getAttribute('data-todo');
+    var todo = store.todos.filter(function (t) { return t.id === id; })[0];
+    return todo ? { row: row, todo: todo } : null;
+  }
+
+  // Returns true when the click was a todo action and has been handled.
+  function handleTodoClick(action, btn) {
+    if (action === 'todo-done-toggle') {
+      state.todosDoneOpen = !state.todosDoneOpen;
+      renderTodos();
+      return true;
+    }
+    var found = findTodoFromEvent(btn);
+    if (!found) return false;
+    var todo = found.todo;
+
+    if (action === 'todo-toggle') {
+      todo.done = !todo.done;
+      todo.completedAt = todo.done ? Date.now() : null;
+      todo.updatedAt = Date.now();
+      // a reopened todo whose time has passed shouldn't fire a stale popup
+      if (!todo.done && todo.dueAt && todo.dueAt < Date.now()) todo.notified = true;
+      state.todoDueId = null;
+      saveStore();
+      scheduleTodoReminders();
+      renderTodos();
+      return true;
+    }
+
+    if (action === 'todo-del') {
+      var idx = store.todos.indexOf(todo);
+      store.todos = store.todos.filter(function (t) { return t.id !== todo.id; });
+      state.lastDeleted = { kind: 'todo', item: todo, index: idx };
+      state.todoDueId = null;
+      var gone = saveStore();
+      scheduleTodoReminders();
+      renderTodos();
+      if (gone) showBanner('Todo deleted.', null, true, { label: 'Undo', fn: undoDelete });
+      return true;
+    }
+
+    if (action === 'todo-due-ask') {
+      state.todoDueId = state.todoDueId === todo.id ? null : todo.id;
+      renderTodos();
+      var input = els.todoList.querySelector('[data-todo="' + todo.id + '"] .todo__due-input');
+      if (input) input.focus();
+      return true;
+    }
+
+    if (action === 'todo-due-cancel') {
+      state.todoDueId = null;
+      renderTodos();
+      return true;
+    }
+
+    if (action === 'todo-due-save' || action === 'todo-due-clear') {
+      var field = found.row.querySelector('.todo__due-input');
+      var next = action === 'todo-due-clear' ? null : fromDueInputValue(field ? field.value : '');
+      if (action === 'todo-due-save' && next === null) return true; // empty box, nothing to set
+      todo.dueAt = next;
+      // a fresh time re-arms the reminder even if the old one already fired
+      todo.notified = false;
+      todo.updatedAt = Date.now();
+      state.todoDueId = null;
+      saveStore();
+      if (next) maybeRequestNotifications();
+      scheduleTodoReminders();
+      renderTodos();
+      return true;
+    }
+
+    return false;
   }
 
   function findNoteFromEvent(btn) {
@@ -2449,6 +2858,9 @@
       return;
     }
 
+    // todo actions
+    if (action.indexOf('todo-') === 0 && handleTodoClick(action, btn)) return;
+
     // goal actions
     var goalEl = btn.closest('[data-goal]');
     if (goalEl) {
@@ -2608,7 +3020,8 @@
       schemaVersion: store.schemaVersion,
       exportedAt: new Date().toISOString(),
       notes: store.notes,
-      goals: store.goals
+      goals: store.goals,
+      todos: store.todos
     };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -2683,7 +3096,31 @@
           }
         });
       }
+      // Todos merge on updatedAt, same rule as notes. A file without them (any
+      // export from before this feature) simply leaves the list alone.
+      if (Array.isArray(data.todos)) {
+        var todosById = {};
+        store.todos.forEach(function (t) { todosById[t.id] = t; });
+        data.todos.forEach(function (raw) {
+          var incoming = sanitizeTodo(raw);
+          if (!incoming) return;
+          var current = todosById[incoming.id];
+          if (!current) {
+            todosById[incoming.id] = incoming;
+            store.todos.push(incoming);
+          } else if (incoming.updatedAt > current.updatedAt) {
+            current.text = incoming.text;
+            current.done = incoming.done;
+            current.dueAt = incoming.dueAt;
+            current.notified = incoming.notified;
+            current.createdAt = incoming.createdAt;
+            current.completedAt = incoming.completedAt;
+            current.updatedAt = incoming.updatedAt;
+          }
+        });
+      }
       var imported = saveStore();
+      scheduleTodoReminders();
       render();
       if (imported) {
         showBanner('Imported ' + (added + updated) + ' notes (' + updated + ' updated, ' + added + ' new).');
@@ -2704,11 +3141,13 @@
       { label: 'Ask my brain', hint: 'command', run: function () { setView('ask'); els.askInput.focus(); } },
       { label: 'New idea', hint: 'command', run: function () { setView('ideas'); els.captureBody.focus(); } },
       { label: 'New diary entry', hint: 'command', run: function () { setView('diary'); els.diaryBody.focus(); } },
+      { label: 'New todo', hint: 'command', run: function () { setView('todos'); els.todoText.focus(); } },
       { label: 'Go to Ideas', hint: 'go', run: function () { setView('ideas'); } },
       { label: 'Go to Diary', hint: 'go', run: function () { setView('diary'); } },
       { label: 'Go to Timeline', hint: 'go', run: function () { setView('timeline'); } },
       { label: 'Go to Clips', hint: 'go', run: function () { setView('clips'); } },
       { label: 'Go to Goals', hint: 'go', run: function () { setView('goals'); } },
+      { label: 'Go to Todo', hint: 'go', run: function () { setView('todos'); } },
       { label: 'Go to Graph', hint: 'go', run: function () { setView('graph'); } },
       { label: 'Export backup', hint: 'command', run: exportNotes },
       { label: 'Import backup', hint: 'command', run: function () { document.getElementById('import-file').click(); } },
@@ -3199,6 +3638,7 @@
       timeline: document.getElementById('view-timeline'),
       clips: document.getElementById('view-clips'),
       goals: document.getElementById('view-goals'),
+      todos: document.getElementById('view-todos'),
       graph: document.getElementById('view-graph')
     };
     els.captureForm = document.getElementById('capture-form');
@@ -3255,6 +3695,14 @@
     els.goalList = document.getElementById('goal-list');
     els.streaks = document.getElementById('streaks');
     els.wins = document.getElementById('wins');
+    els.todoForm = document.getElementById('todo-form');
+    els.todoText = document.getElementById('todo-text');
+    els.todoDue = document.getElementById('todo-due');
+    els.todoDueToggle = document.getElementById('todo-due-toggle');
+    els.todoList = document.getElementById('todo-list');
+    els.todoDone = document.getElementById('todo-done');
+    els.todoNotice = document.getElementById('todo-notice');
+    els.todoCount = document.getElementById('todo-count');
     els.graphCanvas = document.getElementById('graph-canvas');
     els.graphCold = document.getElementById('graph-cold');
     els.graphEmpty = document.getElementById('graph-empty');
@@ -3270,6 +3718,16 @@
     graphSettings = loadGraphSettings();
     state.view = currentViewFromHash();
 
+    // The service worker is the only way to raise a notification on Android
+    // Chrome; grabbing the registration here means fireTodoNotification never
+    // has to await anything at the moment a timer fires.
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (reg) swReg = reg;
+      }).catch(function () {});
+    }
+    scheduleTodoReminders();
+
     // fires only in the OTHER tabs when one of them writes
     window.addEventListener('storage', handleStorageEvent);
 
@@ -3278,7 +3736,15 @@
     // picked up landed in their entry when they came back. The graph pauses on
     // this same event.
     document.addEventListener('visibilitychange', function () {
-      if (document.hidden) stopDictation();
+      if (document.hidden) {
+        stopDictation();
+        return;
+      }
+      // Background tabs get their timers throttled or dropped outright, so
+      // coming back to the foreground is the only moment a pending reminder's
+      // state can be trusted — re-arm from the clock, not from what survived.
+      scheduleTodoReminders();
+      if (state.view === 'todos') renderTodos();
     });
 
     // forms
@@ -3286,6 +3752,8 @@
     els.diaryForm.addEventListener('submit', handleDiarySubmit);
     els.clipForm.addEventListener('submit', handleClipSubmit);
     els.goalForm.addEventListener('submit', handleGoalSubmit);
+    els.todoForm.addEventListener('submit', handleTodoSubmit);
+    els.todoDueToggle.addEventListener('click', openTodoDueField);
 
     els.captureBody.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {

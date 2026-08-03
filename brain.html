@@ -45,6 +45,7 @@
   <button type="button" class="tabs__tab" data-view="timeline">TIMELINE</button>
   <button type="button" class="tabs__tab" data-view="clips">CLIPS</button>
   <button type="button" class="tabs__tab" data-view="goals">GOALS</button>
+  <button type="button" class="tabs__tab" data-view="todos">TODO</button>
   <button type="button" class="tabs__tab" data-view="graph">GRAPH</button>
   <button type="button" class="tabs__gear" id="settings-toggle" aria-label="Settings">&#9881;</button>
   <span id="tabs-indicator" class="tabs__indicator" aria-hidden="true"></span>
@@ -198,6 +199,26 @@
     </section>
     <div id="goal-list" class="goal-list"></div>
     <div id="wins" class="wins"></div>
+  </section>
+
+  <!-- TODO -->
+  <section id="view-todos" class="view" hidden>
+    <section class="capture">
+      <p class="label">TODO <span id="todo-count" class="capture__streak"></span></p>
+      <form id="todo-form">
+        <div class="todo-add">
+          <input id="todo-text" class="capture__title todo-add__text" type="text" placeholder="What needs doing?" required autocomplete="off">
+          <button class="btn" type="submit">ADD</button>
+        </div>
+        <div class="capture__actions">
+          <button id="todo-due-toggle" class="toolbar__btn" type="button">&#9200; Add a time</button>
+          <input id="todo-due" class="todo-add__due" type="datetime-local" aria-label="Due date and time" hidden>
+        </div>
+      </form>
+    </section>
+    <p id="todo-notice" class="todo-notice" hidden></p>
+    <ol id="todo-list" class="todo-list"></ol>
+    <div id="todo-done" class="todo-done"></div>
   </section>
 
   <!-- GRAPH -->
