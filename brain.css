@@ -2076,20 +2076,6 @@
 /* Polish §6 — mobile tap targets + 16px inputs (brain page only; brain.css
    isn't loaded by the landing page, so overrides here stay scoped to the app). */
 
-/* "← site" back-link: 44px tap target. Swap the border-bottom accent for a text
-   underline so the lime line stays tight to the text while the box grows. */
-.navbar__cta {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 4px;
-  border-bottom: none;
-  text-decoration: underline;
-  text-decoration-color: var(--lime);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
-}
-
 /* Every text-entry field at 16px so iOS Safari doesn't zoom the page on focus.
    Same selectors as the rules that set the smaller sizes, placed later to win
    on source order (the duplicated input blocks are intentionally left as-is). */
