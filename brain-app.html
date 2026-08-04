@@ -4134,12 +4134,16 @@ var recog = new SR();
 recog.lang = 'en-IN';
 recog.continuous = true;
 recog.interimResults = true;
-var finalTranscript = '';
 var lastInterim = '';
 var r = { listening: false };
 var finalCount = 0;
+var GROWTH_WINDOW_MS = 2500;
+var finalBase = '';
+var lastFinalRaw = '';
 var lastFinalText = null;
+var lastFinalAt = 0;
 var interimSinceFinal = false;
+function currentFinal() { return finalBase + lastFinalRaw; }
 function log(kind, detail) {
 if (opts.onDebug) {
 try { opts.onDebug(kind, detail); } catch (err) {}
@@ -4154,19 +4158,33 @@ for (var k = 0; k < e.results.length; k++) {
 raw.push({ i: k, f: !!e.results[k].isFinal, t: e.results[k][0].transcript });
 }
 var beforeCount = finalCount;
-var beforeFinal = finalTranscript;
+var beforeFinal = currentFinal();
 var interim = '';
 var dropped = [];
+var merged = [];
 for (var i = finalCount; i < e.results.length; i++) {
 var chunk = e.results[i][0].transcript;
 if (e.results[i].isFinal) {
 var trimmed = chunk.trim();
+var now = Date.now();
 var isDuplicate = trimmed !== '' && trimmed === lastFinalText && !interimSinceFinal;
+var isGrowth = !isDuplicate && lastFinalText &&
+trimmed.length > lastFinalText.length &&
+trimmed.indexOf(lastFinalText + ' ') === 0 &&
+(now - lastFinalAt) <= GROWTH_WINDOW_MS;
 if (isDuplicate) {
 dropped.push({ i: i, t: chunk });
-} else {
-finalTranscript += chunk;
+} else if (isGrowth) {
+var lead = /^\s*/.exec(lastFinalRaw)[0];
+merged.push({ i: i, from: lastFinalRaw, to: chunk });
+lastFinalRaw = lead + chunk.replace(/^\s+/, '');
 lastFinalText = trimmed;
+lastFinalAt = now;
+} else {
+finalBase += lastFinalRaw;
+lastFinalRaw = chunk;
+lastFinalText = trimmed;
+lastFinalAt = now;
 }
 interimSinceFinal = false;
 finalCount = i + 1;
@@ -4179,10 +4197,10 @@ lastInterim = interim;
 log('onresult', {
 resultIndex: e.resultIndex, len: e.results.length, raw: raw,
 countBefore: beforeCount, countAfter: finalCount,
-finalBefore: beforeFinal, finalAfter: finalTranscript, interim: interim,
-dropped: dropped
+finalBefore: beforeFinal, finalAfter: currentFinal(), interim: interim,
+dropped: dropped, merged: merged
 });
-opts.onText(finalTranscript, interim);
+opts.onText(currentFinal(), interim);
 };
 recog.onerror = function (e) {
 if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
@@ -4197,13 +4215,18 @@ try { recog.stop(); } catch (err) {}
 if (opts.onIdle) opts.onIdle();
 };
 recog.onend = function () {
-log('onend', { foldedInterim: lastInterim, finalBefore: finalTranscript });
-finalTranscript += lastInterim;
+log('onend', { foldedInterim: lastInterim, finalBefore: currentFinal() });
+if (lastInterim) {
+finalBase += lastFinalRaw;
+lastFinalRaw = lastInterim;
+lastFinalText = lastInterim.trim();
+lastFinalAt = Date.now();
+}
 lastInterim = '';
-opts.onText(finalTranscript, '');
+opts.onText(currentFinal(), '');
 r.listening = false;
 if (opts.onIdle) opts.onIdle();
-if (opts.onEnd) opts.onEnd(finalTranscript);
+if (opts.onEnd) opts.onEnd(currentFinal());
 };
 r.start = function () {
 try {
@@ -4212,10 +4235,12 @@ recog.start();
 log('start-refused', { message: String(err && err.message || err) });
 return false;
 }
-finalTranscript = '';
 lastInterim = '';
 finalCount = 0;
+finalBase = '';
+lastFinalRaw = '';
 lastFinalText = null;
+lastFinalAt = 0;
 interimSinceFinal = false;
 r.listening = true;
 log('start-accepted', {});
@@ -4226,7 +4251,7 @@ if (r.listening) recog.stop();
 };
 return r;
 }
-var BUILD_STAMP = 'dedup-2 · 2026-08-04';
+var BUILD_STAMP = 'dedup-3 · 2026-08-04';
 var DICT_DEBUG_KEY = 'praze.brain.dictdebug';
 var dictLog = [];
 var DICT_LOG_MAX = 400;
@@ -4255,6 +4280,11 @@ return '[' + r.i + (r.f ? ' FINAL' : ' interim') + '] "' + clip(r.t, 60) + '"';
 (d.dropped && d.dropped.length
 ? '\n  DROPPED DUP: ' + d.dropped.map(function (x) {
 return '[' + x.i + '] "' + clip(x.t, 40) + '"';
+}).join(', ')
+: '') +
+(d.merged && d.merged.length
+? '\n  MERGED GROWTH: ' + d.merged.map(function (x) {
+return '[' + x.i + '] "' + clip(x.from, 30) + '" → "' + clip(x.to, 40) + '"';
 }).join(', ')
 : '') +
 '\n  final="' + clip(d.finalAfter, 90) + '"' +
