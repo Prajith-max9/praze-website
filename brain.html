@@ -46,14 +46,14 @@
   <button type="button" class="tabs__tab" data-view="goals">GOALS</button>
   <button type="button" class="tabs__tab" data-view="graph">GRAPH</button>
   <button type="button" class="tabs__tab" data-view="timeline">TIMELINE</button>
-  <button type="button" class="tabs__gear" id="settings-toggle" aria-label="Settings">&#9881;</button>
+  <button type="button" class="tabs__gear" id="settings-toggle" aria-label="Settings"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg></button>
   <span id="tabs-indicator" class="tabs__indicator" aria-hidden="true"></span>
 </nav>
 
 <div id="banner" class="banner" hidden>
   <span id="banner-text"></span>
   <button id="banner-action" class="banner__action" type="button" hidden></button>
-  <button id="banner-dismiss" class="banner__dismiss" type="button" aria-label="Dismiss">&times;</button>
+  <button id="banner-dismiss" class="banner__dismiss" type="button" aria-label="Dismiss"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
 </div>
 
 <section id="settings-panel" class="settings" hidden>
@@ -111,7 +111,7 @@
         <div id="tag-suggest" class="tag-suggest"></div>
         <div class="capture__actions">
           <button class="btn" type="submit">CAPTURE</button>
-          <button id="dump-btn" class="toolbar__btn" type="button" hidden>&#127908; Brain dump</button>
+          <button id="dump-btn" class="toolbar__btn" type="button" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="11"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3M8 21h8"/></svg> Brain dump</button>
           <span class="capture__hint">Ctrl/Cmd + Enter</span>
           <span id="capture-streak" class="capture__streak"></span>
         </div>
@@ -145,7 +145,7 @@
         <textarea id="diary-body" class="capture__body" rows="4" placeholder="How was today?" required></textarea>
         <div class="capture__actions">
           <button class="btn" type="submit">SAVE ENTRY</button>
-          <button id="diary-photo-btn" class="toolbar__btn" type="button">&#128247; Photo</button>
+          <button id="diary-photo-btn" class="toolbar__btn" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button>
           <input id="diary-photo-file" type="file" accept="image/*" hidden>
           <span class="capture__hint">Ctrl/Cmd + Enter</span>
         </div>
@@ -213,7 +213,7 @@
           <button class="btn" type="submit">ADD</button>
         </div>
         <div class="capture__actions">
-          <button id="todo-due-toggle" class="toolbar__btn" type="button">&#9200; Add a time</button>
+          <button id="todo-due-toggle" class="toolbar__btn" type="button"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 6.5V12l4 2.5"/></svg> Add a time</button>
           <input id="todo-due" class="todo-add__due" type="datetime-local" aria-label="Due date and time" hidden>
         </div>
       </form>
@@ -225,10 +225,10 @@
 
   <!-- GRAPH -->
   <section id="view-graph" class="view view--graph" hidden>
-    <p class="label">THE WEB <span class="graph-legend">&#9679; idea &nbsp; <span class="graph-legend__diary">&#9679;</span> diary &nbsp; &#9675; clip &nbsp; — [[link]] &nbsp; &#183;&#183;&#183; similar</span></p>
+    <p class="label">THE WEB <span class="graph-legend"><svg class="icon icon--fill" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6"/></svg> idea &nbsp; <span class="graph-legend__diary"><svg class="icon icon--fill" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6"/></svg></span> diary &nbsp; <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor"/></svg> clip &nbsp; — [[link]] &nbsp; &#183;&#183;&#183; similar</span></p>
     <div class="graph-wrap">
       <canvas id="graph-canvas"></canvas>
-      <button type="button" class="graph-settings-toggle" id="graph-settings-toggle" aria-label="Graph settings" hidden>&#9881;</button>
+      <button type="button" class="graph-settings-toggle" id="graph-settings-toggle" aria-label="Graph settings" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg></button>
       <div id="graph-settings-panel" class="graph-settings" hidden>
         <p class="label">GRAPH SETTINGS</p>
 
@@ -306,7 +306,7 @@
     <div class="dump__head">
       <p class="label">BRAIN DUMP</p>
       <span id="dump-time" class="dump__time">0:00</span>
-      <button type="button" class="banner__dismiss" data-action="dump-close" aria-label="Close">&times;</button>
+      <button type="button" class="banner__dismiss" data-action="dump-close" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
     </div>
     <div id="dump-body" class="dump__body"></div>
     <div id="dump-actions" class="dump__actions"></div>
@@ -319,7 +319,7 @@
 <div id="photo-view" class="photo-view" hidden>
   <div class="photo-view__backdrop"></div>
   <img id="photo-view-img" class="photo-view__img" alt="Diary photo">
-  <button type="button" class="banner__dismiss photo-view__close" aria-label="Close">&times;</button>
+  <button type="button" class="banner__dismiss photo-view__close" aria-label="Close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
 </div>
 
 <div id="palette" class="palette" hidden>

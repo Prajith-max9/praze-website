@@ -23,6 +23,45 @@
       .replace(/'/g, '&#39;');
   }
 
+  /* ---------- Interface icons ----------
+     Inline SVG, no icon font and no network request — the app stays one
+     self-contained offline-first bundle. Every glyph is drawn on the same
+     24×24 grid with a 2px stroke, square caps and mitre joins, so the set
+     matches the app's sharp-cornered language and nothing looks borrowed.
+
+     Colour comes from `currentColor` in CSS, never a hardcoded hex, so each
+     icon inherits whatever its button already resolves to and both themes work
+     without a second rule. Icons are decorative: they sit next to a text label,
+     or inside a button that carries its own aria-label, so every one is
+     aria-hidden and the accessible name comes from elsewhere. */
+
+  var ICONS = {
+    mic: '<rect x="9" y="3" width="6" height="11"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3M8 21h8"/>',
+    stop: '<rect x="6" y="6" width="12" height="12"/>',
+    camera: '<path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="3.5"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 6.5V12l4 2.5"/>',
+    flame: '<path d="M12 22a7 7 0 0 0 7-7c0-2.1-1-4-2.6-5.6-.4 1.5-1.4 2.2-2.4 2.3 1.1-3.2-.2-6.4-3.7-8.7.6 3.2-1 4.9-2.6 6.5C6.2 11 5 12.9 5 15a7 7 0 0 0 7 7z"/>',
+    trophy: '<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 5H4v2a3 3 0 0 0 3 3M17 5h3v2a3 3 0 0 1-3 3"/><path d="M12 14v3M9 20h6M10 17h4v3h-4z"/>',
+    gear: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>',
+    play: '<path d="M8 5l11 7-11 7z"/>',
+    close: '<path d="M5 5l14 14M19 5L5 19"/>',
+    chevronRight: '<path d="M9 5l7 7-7 7"/>',
+    chevronDown: '<path d="M5 9l7 7 7-7"/>',
+    dot: '<circle cx="12" cy="12" r="6"/>'
+  };
+
+  // Filled rather than stroked — a hollow play triangle or stop square reads as
+  // an outline box at 14px, not as a control.
+  var ICONS_FILLED = { stop: 1, play: 1, flame: 1, dot: 1 };
+
+  function icon(name, extraClass) {
+    var body = ICONS[name];
+    if (!body) return '';
+    return '<svg class="icon' + (ICONS_FILLED[name] ? ' icon--fill' : '') +
+      (extraClass ? ' ' + extraClass : '') +
+      '" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' + body + '</svg>';
+  }
+
   function escapeRegExp(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -1072,7 +1111,8 @@
       : total + ' NOTES';
 
     var streak = computeStreak('idea');
-    els.captureStreak.textContent = streak.current > 0 ? '🔥 ' + streak.current + '-day streak' : '';
+    els.captureStreak.innerHTML = streak.current > 0
+      ? icon('flame') + ' ' + streak.current + '-day streak' : '';
 
     var selBtn = document.getElementById('select-toggle');
     selBtn.textContent = state.selectMode ? 'Done' : 'Select';
@@ -1193,7 +1233,7 @@
         '<button type="button" class="synth-bar__btn" data-action="synth-run" data-format="reel">REEL SCRIPT</button>' +
         '<button type="button" class="synth-bar__btn" data-action="synth-run" data-format="hooks">HOOK IDEAS</button>' +
         '<button type="button" class="synth-bar__btn" data-action="synth-run" data-format="post">POST</button>' +
-        '<button type="button" class="synth-bar__cancel" data-action="synth-cancel" aria-label="Cancel">&times;</button>';
+        '<button type="button" class="synth-bar__cancel" data-action="synth-cancel" aria-label="Cancel">' + icon('close') + '</button>';
     } else {
       bar.innerHTML =
         '<span class="synth-bar__count">' + count + ' selected</span>' +
@@ -1215,7 +1255,7 @@
       '<span class="synth-result__actions">' +
       '<button type="button" class="toolbar__btn" data-action="synth-copy">Copy</button>' +
       '<button type="button" class="toolbar__btn" data-action="synth-save">Save as idea</button>' +
-      '<button type="button" class="banner__dismiss" data-action="synth-dismiss" aria-label="Dismiss">&times;</button>' +
+      '<button type="button" class="banner__dismiss" data-action="synth-dismiss" aria-label="Dismiss">' + icon('close') + '</button>' +
       '</span></div>' +
       '<p class="synth-result__text">' + escapeHtml(s.text) + '</p>';
   }
@@ -1413,8 +1453,8 @@
       '<p class="empty__text">One honest paragraph a day builds the record.</p></li>';
 
     var streak = computeStreak('diary');
-    els.diaryStreak.textContent = streak.current > 0
-      ? '🔥 ' + streak.current + '-day streak · best ' + streak.best
+    els.diaryStreak.innerHTML = streak.current > 0
+      ? icon('flame') + ' ' + streak.current + '-day streak · best ' + streak.best
       : '';
 
     renderDigest();
@@ -1735,7 +1775,7 @@
         // reserve the box from the aspect ratio before the image arrives
         '<img class="clip__thumb" src="https://img.youtube.com/vi/' + encodeURIComponent(ytId) +
         '/hqdefault.jpg" alt="" width="480" height="360" loading="lazy" onerror="this.style.display=\'none\'">' +
-        '<button type="button" class="clip__play" data-action="clip-play" aria-label="Play video">&#9654;</button>' +
+        '<button type="button" class="clip__play" data-action="clip-play" aria-label="Play video">' + icon('play') + '</button>' +
         '</div>'
       : '';
 
@@ -1814,10 +1854,10 @@
     var ideaStreak = computeStreak('idea');
     var diaryStreak = computeStreak('diary');
     els.streaks.innerHTML =
-      '<div class="streak-card"><span class="streak-card__flame">🔥</span>' +
+      '<div class="streak-card"><span class="streak-card__flame">' + icon('flame') + '</span>' +
       '<span class="streak-card__value" data-streak="idea">' + ideaStreak.current + '</span>' +
       '<span class="streak-card__label">day idea streak · best ' + ideaStreak.best + '</span></div>' +
-      '<div class="streak-card"><span class="streak-card__flame">🔥</span>' +
+      '<div class="streak-card"><span class="streak-card__flame">' + icon('flame') + '</span>' +
       '<span class="streak-card__value" data-streak="diary">' + diaryStreak.current + '</span>' +
       '<span class="streak-card__label">day diary streak · best ' + diaryStreak.best + '</span></div>';
     popStreakIfGrew('idea', ideaStreak.current, els.streaks.querySelector('[data-streak="idea"]'));
@@ -1849,7 +1889,7 @@
 
     els.wins.innerHTML = wins.length
       ? '<p class="label">WINS</p>' + wins.map(function (g) {
-          return '<div class="win">🏆 <span class="win__title">' + escapeHtml(g.title) + '</span>' +
+          return '<div class="win">' + icon('trophy') + ' <span class="win__title">' + escapeHtml(g.title) + '</span>' +
             '<span class="win__meta">' + g.target + ' done · ' + formatDate(g.completedAt) + '</span></div>';
         }).join('')
       : '';
@@ -1914,7 +1954,7 @@
       '<span class="todo__text">' + escapeHtml(t.text) + '</span>' +
       (t.dueAt
         ? '<span class="todo__due' + (overdue ? ' todo__due--over' : '') + '">' +
-          (overdue ? 'overdue · ' : '⏰ ') + escapeHtml(formatDue(t.dueAt)) + '</span>'
+          (overdue ? 'overdue · ' : icon('clock') + ' ') + escapeHtml(formatDue(t.dueAt)) + '</span>'
         : '') +
       '</div>' +
       '<div class="todo__actions">' +
@@ -1957,7 +1997,7 @@
     els.todoDone.innerHTML = done.length
       ? '<button type="button" class="todo-done__toggle" data-action="todo-done-toggle" aria-expanded="' +
         (state.todosDoneOpen ? 'true' : 'false') + '">' +
-        (state.todosDoneOpen ? '▾' : '▸') + ' DONE (' + done.length + ')</button>' +
+        (state.todosDoneOpen ? icon('chevronDown') : icon('chevronRight')) + ' DONE (' + done.length + ')</button>' +
         (state.todosDoneOpen
           ? '<ol class="todo-list todo-list--done">' + done.map(todoRow).join('') + '</ol>'
           : '')
@@ -2264,7 +2304,7 @@
             '<span class="dash-row__meta">' + formatAge(r.note.createdAt) +
             ' · because you wrote about ' + escapeHtml(noteLabel(r.seed)) + '</span></button>' +
             '<button type="button" class="resurface-dismiss" data-action="resurface-dismiss" data-note-id="' +
-            escapeHtml(r.note.id) + '" title="Dismiss" aria-label="Dismiss">✕</button>' +
+            escapeHtml(r.note.id) + '" title="Dismiss" aria-label="Dismiss">' + icon('close') + '</button>' +
             '</div>';
         }).join('') + '</div>';
     }
@@ -2288,10 +2328,10 @@
 
     html += '<div class="dash-card">' +
       '<p class="label">STREAKS</p>' +
-      '<button type="button" class="dash-row" data-action="goto" data-go="goals">🔥 ' +
+      '<button type="button" class="dash-row" data-action="goto" data-go="goals">' + icon('flame') + ' ' +
       '<span class="streak-num" data-streak="idea">' + ideaStreak.current + '</span>' +
       '-day idea streak <span class="dash-row__meta">best ' + ideaStreak.best + '</span></button>' +
-      '<button type="button" class="dash-row" data-action="goto" data-go="goals">🔥 ' +
+      '<button type="button" class="dash-row" data-action="goto" data-go="goals">' + icon('flame') + ' ' +
       '<span class="streak-num" data-streak="diary">' + diaryStreak.current + '</span>' +
       '-day diary streak <span class="dash-row__meta">best ' + diaryStreak.best + '</span></button>' +
       '</div>';
@@ -3599,31 +3639,8 @@
 
     function currentFinal() { return finalBase + lastFinalRaw; }
 
-    // TEMPORARY (dictation debug) — reports raw engine events to whoever asked
-    // for them. Purely an observer: it must never influence what follows.
-    function log(kind, detail) {
-      if (opts.onDebug) {
-        try { opts.onDebug(kind, detail); } catch (err) {}
-      }
-    }
-
-    recog.onstart = function () { log('onstart', {}); };
-    recog.onspeechend = function () { log('onspeechend', {}); };
-    recog.onaudioend = function () { log('onaudioend', {}); };
-
     recog.onresult = function (e) {
-      // snapshot the raw event before any folding, so the log shows what the
-      // engine actually sent rather than what we made of it
-      var raw = [];
-      for (var k = 0; k < e.results.length; k++) {
-        raw.push({ i: k, f: !!e.results[k].isFinal, t: e.results[k][0].transcript });
-      }
-      var beforeCount = finalCount;
-      var beforeFinal = currentFinal();
-
       var interim = '';
-      var dropped = [];
-      var merged = [];
       for (var i = finalCount; i < e.results.length; i++) {
         var chunk = e.results[i][0].transcript;
         if (e.results[i].isFinal) {
@@ -3639,12 +3656,11 @@
             (now - lastFinalAt) <= GROWTH_WINDOW_MS;
 
           if (isDuplicate) {
-            dropped.push({ i: i, t: chunk });
+            // nothing to do — the engine stuttered, so this final is discarded
           } else if (isGrowth) {
             // keep the old segment's leading whitespace so the seam with
             // whatever precedes it is unchanged
             var lead = /^\s*/.exec(lastFinalRaw)[0];
-            merged.push({ i: i, from: lastFinalRaw, to: chunk });
             lastFinalRaw = lead + chunk.replace(/^\s+/, '');
             lastFinalText = trimmed;
             lastFinalAt = now;
@@ -3662,12 +3678,6 @@
       }
       if (interim) interimSinceFinal = true;
       lastInterim = interim;
-      log('onresult', {
-        resultIndex: e.resultIndex, len: e.results.length, raw: raw,
-        countBefore: beforeCount, countAfter: finalCount,
-        finalBefore: beforeFinal, finalAfter: currentFinal(), interim: interim,
-        dropped: dropped, merged: merged
-      });
       opts.onText(currentFinal(), interim);
     };
 
@@ -3682,7 +3692,6 @@
       // what let a second tap restart bookkeeping underneath a running
       // recognizer and replay the whole transcript.
       var wasLive = r.listening;
-      log('onerror', { error: e.error, wasLive: wasLive });
       r.listening = false;
       if (wasLive) {
         try { recog.stop(); } catch (err) {} // onend follows and finishes up
@@ -3691,7 +3700,6 @@
     };
 
     recog.onend = function () {
-      log('onend', { foldedInterim: lastInterim, finalBefore: currentFinal() });
       // fold any trailing interim into the final text so nothing is lost — it
       // becomes its own segment, so a later session cannot merge back into it
       if (lastInterim) {
@@ -3716,7 +3724,6 @@
       try {
         recog.start();
       } catch (err) {
-        log('start-refused', { message: String(err && err.message || err) });
         return false; // guard double-start: start() throws if already running
       }
       lastInterim = '';
@@ -3727,7 +3734,6 @@
       lastFinalAt = 0;
       interimSinceFinal = false;
       r.listening = true;
-      log('start-accepted', {});
       return true;
     };
 
@@ -3736,97 +3742,6 @@
     };
 
     return r;
-  }
-
-  /* ---------- TEMPORARY: dictation debug panel ----------
-     The repeated-fragment bug survived a fix that was validated against a
-     hand-built mock, which means the mock did not match what the real device
-     does. This renders the raw engine events on screen so a phone — where
-     devtools are not reachable — can be photographed instead.
-
-     BUILD_STAMP doubles as the deployment check: if this string is not on
-     screen, the device is running cached or otherwise stale code and nothing
-     else in the panel means anything. Remove this whole block, its callers and
-     its markup once the bug is confirmed fixed on a real device. */
-
-  var BUILD_STAMP = 'dedup-3 · 2026-08-04';
-  var DICT_DEBUG_KEY = 'praze.brain.dictdebug';
-  var dictLog = [];
-  var DICT_LOG_MAX = 400;
-
-  function dictDebugOn() {
-    try { return localStorage.getItem(DICT_DEBUG_KEY) === '1'; } catch (e) { return false; }
-  }
-
-  function setDictDebug(on) {
-    try { localStorage.setItem(DICT_DEBUG_KEY, on ? '1' : '0'); } catch (e) {}
-  }
-
-  function clip(s, n) {
-    s = String(s == null ? '' : s);
-    return s.length > n ? s.slice(0, n) + '…' : s;
-  }
-
-  function dictLogEvent(kind, d) {
-    var t = new Date();
-    var stamp = String(t.getMinutes()).padStart(2, '0') + ':' +
-      String(t.getSeconds()).padStart(2, '0') + '.' +
-      String(t.getMilliseconds()).padStart(3, '0');
-    var line = stamp + ' ' + kind;
-    if (kind === 'onresult') {
-      line += ' idx=' + d.resultIndex + ' len=' + d.len +
-        ' count ' + d.countBefore + '→' + d.countAfter +
-        '\n  raw: ' + d.raw.map(function (r) {
-          return '[' + r.i + (r.f ? ' FINAL' : ' interim') + '] "' + clip(r.t, 60) + '"';
-        }).join('\n       ') +
-        (d.dropped && d.dropped.length
-          ? '\n  DROPPED DUP: ' + d.dropped.map(function (x) {
-              return '[' + x.i + '] "' + clip(x.t, 40) + '"';
-            }).join(', ')
-          : '') +
-        (d.merged && d.merged.length
-          ? '\n  MERGED GROWTH: ' + d.merged.map(function (x) {
-              return '[' + x.i + '] "' + clip(x.from, 30) + '" → "' + clip(x.to, 40) + '"';
-            }).join(', ')
-          : '') +
-        '\n  final="' + clip(d.finalAfter, 90) + '"' +
-        '\n  interim="' + clip(d.interim, 60) + '"';
-    } else if (kind === 'onerror') {
-      line += ' error=' + d.error + ' wasLive=' + d.wasLive;
-    } else if (kind === 'onend') {
-      line += ' folded="' + clip(d.foldedInterim, 40) + '"';
-    } else if (kind === 'start-refused') {
-      line += ' ' + clip(d.message, 60);
-    } else if (kind === 'textarea') {
-      line += ' value="' + clip(d.value, 120) + '"';
-    }
-    dictLog.push(line);
-    if (dictLog.length > DICT_LOG_MAX) dictLog.shift();
-    renderDictLog();
-  }
-
-  function renderDictLog() {
-    var box = els.dictDebug;
-    if (!box || box.hidden) return;
-    var body = box.querySelector('.dictdbg__body');
-    if (!body) return;
-    body.textContent = dictLog.join('\n');
-    body.scrollTop = body.scrollHeight;
-  }
-
-  function buildDictDebugPanel() {
-    var panel = document.createElement('div');
-    panel.className = 'dictdbg';
-    panel.id = 'dict-debug';
-    panel.hidden = !dictDebugOn();
-    panel.innerHTML =
-      '<div class="dictdbg__head">' +
-      '<span class="dictdbg__stamp">BUILD ' + escapeHtml(BUILD_STAMP) + '</span>' +
-      '<button type="button" class="note__action" data-action="dictdbg-copy">Copy</button>' +
-      '<button type="button" class="note__action" data-action="dictdbg-clear">Clear</button>' +
-      '<button type="button" class="note__action" data-action="dictdbg-off">Hide</button>' +
-      '</div><pre class="dictdbg__body"></pre>';
-    return panel;
   }
 
   /* ---------- Diary voice dictation (browser-native, online-only) ---------- */
@@ -3843,45 +3758,12 @@
     micBtn.type = 'button'; // never submit the form
     micBtn.className = 'toolbar__btn diary-mic';
     micBtn.setAttribute('aria-label', 'Dictate diary entry');
-    micBtn.textContent = '🎤 Dictate';
+    micBtn.innerHTML = icon('mic') + ' Dictate';
     // place it right after SAVE ENTRY, before the hint
     var actions = els.diaryForm.querySelector('.capture__actions');
     var hint = actions.querySelector('.capture__hint');
     actions.insertBefore(micBtn, hint || null);
     dictation.btn = micBtn;
-
-    // TEMPORARY (dictation debug): toggle + on-screen log, placed under the
-    // dictation box. The toggle ships visible on purpose — this has to be
-    // reachable on the phone that reproduces the bug, where there is no
-    // devtools and no way to set a flag by hand.
-    var dbgBtn = document.createElement('button');
-    dbgBtn.type = 'button';
-    dbgBtn.className = 'toolbar__btn dictdbg-toggle';
-    dbgBtn.textContent = '🐞 Debug';
-    actions.insertBefore(dbgBtn, hint || null);
-    var dbgPanel = buildDictDebugPanel();
-    els.diaryForm.appendChild(dbgPanel);
-    els.dictDebug = dbgPanel;
-    renderDictLog();
-    dbgBtn.addEventListener('click', function () {
-      var on = !dictDebugOn();
-      setDictDebug(on);
-      dbgPanel.hidden = !on;
-      if (on) {
-        dictLogEvent('debug-on', {});
-        dictLogEvent('ua', { value: navigator.userAgent });
-      }
-    });
-    dbgPanel.addEventListener('click', function (e) {
-      var act = e.target.getAttribute && e.target.getAttribute('data-action');
-      if (act === 'dictdbg-clear') { dictLog = []; renderDictLog(); }
-      else if (act === 'dictdbg-off') { setDictDebug(false); dbgPanel.hidden = true; }
-      else if (act === 'dictdbg-copy') {
-        var text = 'BUILD ' + BUILD_STAMP + '\n' + dictLog.join('\n');
-        if (navigator.clipboard) navigator.clipboard.writeText(text).catch(function () {});
-        showBanner('Debug log copied.');
-      }
-    });
 
     var baseText = '';
     var separator = '';
@@ -3904,20 +3786,11 @@
     var recognizer = makeRecognizer({
       onText: function (finalText, interim) {
         els.diaryBody.value = baseText + separator + finalText + interim;
-        // TEMPORARY (dictation debug): the value the user actually sees, which
-        // is the thing being complained about — logged next to the raw event
-        // that produced it
-        if (dictDebugOn()) {
-          dictLogEvent('textarea', { value: els.diaryBody.value });
-        }
         scheduleGrow();
       },
       onIdle: function () {
-        micBtn.textContent = '🎤 Dictate';
+        micBtn.innerHTML = icon('mic') + ' Dictate';
         micBtn.classList.remove('diary-mic--live');
-      },
-      onDebug: function (kind, detail) { // TEMPORARY (dictation debug)
-        if (dictDebugOn()) dictLogEvent(kind, detail);
       }
     });
     dictation.recognizer = recognizer;
@@ -3935,7 +3808,7 @@
       if (!recognizer.start()) return;
       baseText = existing;
       separator = (baseText && !/\s$/.test(baseText)) ? ' ' : '';
-      micBtn.textContent = '⏹ Stop';
+      micBtn.innerHTML = icon('stop') + ' Stop';
       micBtn.classList.add('diary-mic--live');
       els.diaryBody.focus();
     });
