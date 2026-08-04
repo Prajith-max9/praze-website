@@ -3543,6 +3543,31 @@
     // that the full rebuild gave.
     var finalCount = 0;
 
+    /* Duplicate-final guard.
+
+       Confirmed from a real-device trace, not theory: Android Chrome's engine
+       can emit the same speech segment as several *separate* final results.
+       Saying "hello" once produced six consecutive finals (resultIndex 1–6),
+       every one of them the complete text again rather than a revision of the
+       earlier one. Appending each new final is correct per the spec — the
+       engine is simply handing us the same segment repeatedly, most often
+       around brief pauses.
+
+       Two conditions must both hold before a final is discarded, so a speaker
+       who genuinely repeats themselves is not silently edited:
+
+         1. its text is identical to the final we last appended, and
+         2. no interim result arrived in between.
+
+       Condition 2 is what separates the quirk from real speech. interimResults
+       is on, so genuinely saying a word twice streams interim updates for the
+       second utterance before it finalizes; the duplicate burst arrives with
+       no interim between the copies at all. Comparison is on trimmed text
+       because continuation results carry a leading space, but the stored text
+       is untouched. */
+    var lastFinalText = null;
+    var interimSinceFinal = false;
+
     // TEMPORARY (dictation debug) — reports raw engine events to whoever asked
     // for them. Purely an observer: it must never influence what follows.
     function log(kind, detail) {
@@ -3566,20 +3591,31 @@
       var beforeFinal = finalTranscript;
 
       var interim = '';
+      var dropped = [];
       for (var i = finalCount; i < e.results.length; i++) {
         var chunk = e.results[i][0].transcript;
         if (e.results[i].isFinal) {
-          finalTranscript += chunk;
+          var trimmed = chunk.trim();
+          var isDuplicate = trimmed !== '' && trimmed === lastFinalText && !interimSinceFinal;
+          if (isDuplicate) {
+            dropped.push({ i: i, t: chunk });
+          } else {
+            finalTranscript += chunk;
+            lastFinalText = trimmed;
+          }
+          interimSinceFinal = false;
           finalCount = i + 1;
         } else {
           interim += chunk;
         }
       }
+      if (interim) interimSinceFinal = true;
       lastInterim = interim;
       log('onresult', {
         resultIndex: e.resultIndex, len: e.results.length, raw: raw,
         countBefore: beforeCount, countAfter: finalCount,
-        finalBefore: beforeFinal, finalAfter: finalTranscript, interim: interim
+        finalBefore: beforeFinal, finalAfter: finalTranscript, interim: interim,
+        dropped: dropped
       });
       opts.onText(finalTranscript, interim);
     };
@@ -3629,6 +3665,8 @@
       finalTranscript = '';
       lastInterim = '';
       finalCount = 0;
+      lastFinalText = null;
+      interimSinceFinal = false;
       r.listening = true;
       log('start-accepted', {});
       return true;
@@ -3652,7 +3690,7 @@
      else in the panel means anything. Remove this whole block, its callers and
      its markup once the bug is confirmed fixed on a real device. */
 
-  var BUILD_STAMP = 'dictdebug-1 · 2026-08-04';
+  var BUILD_STAMP = 'dedup-2 · 2026-08-04';
   var DICT_DEBUG_KEY = 'praze.brain.dictdebug';
   var dictLog = [];
   var DICT_LOG_MAX = 400;
@@ -3682,6 +3720,11 @@
         '\n  raw: ' + d.raw.map(function (r) {
           return '[' + r.i + (r.f ? ' FINAL' : ' interim') + '] "' + clip(r.t, 60) + '"';
         }).join('\n       ') +
+        (d.dropped && d.dropped.length
+          ? '\n  DROPPED DUP: ' + d.dropped.map(function (x) {
+              return '[' + x.i + '] "' + clip(x.t, 40) + '"';
+            }).join(', ')
+          : '') +
         '\n  final="' + clip(d.finalAfter, 90) + '"' +
         '\n  interim="' + clip(d.interim, 60) + '"';
     } else if (kind === 'onerror') {
