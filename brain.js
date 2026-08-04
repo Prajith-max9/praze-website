@@ -3531,7 +3531,6 @@
     recog.continuous = true;
     recog.interimResults = true;
 
-    var finalTranscript = '';
     var lastInterim = '';
     var r = { listening: false };
 
@@ -3565,8 +3564,40 @@
        no interim between the copies at all. Comparison is on trimmed text
        because continuation results carry a leading space, but the stored text
        is untouched. */
+    /* Growth-extension merge — the second half of the same quirk.
+
+       The engine also re-transcribes cumulatively: rather than each final
+       carrying only the newly-spoken words, it re-emits the whole utterance
+       from the start, a little longer each time. The trace shows finals of
+       "hello", "hello mike", "hello mike", "hello mike testing". None of those
+       are exact duplicates, so the guard above leaves them alone — but
+       appending each one yields "hellohello mikehello mike testing", which is
+       the reported bug.
+
+       So a final that extends the previous one REPLACES it instead of being
+       appended. The transcript is kept as base + last segment rather than one
+       string, so the last segment can be swapped without disturbing anything
+       before it.
+
+       Telling a growth-extension apart from a genuine near-repeat ("testing",
+       pause, "testing again") cannot be done from the text — both read as one
+       string extending another. The distinguishing signal is the pause: the
+       engine's re-transcriptions arrive as fast as it can revise, while a new
+       thought comes after a deliberate gap. Hence the time window. Getting it
+       wrong in one direction re-opens a badly mangled transcript; in the other
+       it costs one repeated word, so the window is set generously rather than
+       tight. Extension also has to fall on a word boundary, so "test" is never
+       treated as having grown into "testing". */
+    var GROWTH_WINDOW_MS = 2500;
+
+    // invariant: the accumulated final text is always finalBase + lastFinalRaw
+    var finalBase = '';
+    var lastFinalRaw = '';
     var lastFinalText = null;
+    var lastFinalAt = 0;
     var interimSinceFinal = false;
+
+    function currentFinal() { return finalBase + lastFinalRaw; }
 
     // TEMPORARY (dictation debug) — reports raw engine events to whoever asked
     // for them. Purely an observer: it must never influence what follows.
@@ -3588,20 +3619,40 @@
         raw.push({ i: k, f: !!e.results[k].isFinal, t: e.results[k][0].transcript });
       }
       var beforeCount = finalCount;
-      var beforeFinal = finalTranscript;
+      var beforeFinal = currentFinal();
 
       var interim = '';
       var dropped = [];
+      var merged = [];
       for (var i = finalCount; i < e.results.length; i++) {
         var chunk = e.results[i][0].transcript;
         if (e.results[i].isFinal) {
           var trimmed = chunk.trim();
+          var now = Date.now();
+          // identical repeat with no speech in between — the engine stuttering
           var isDuplicate = trimmed !== '' && trimmed === lastFinalText && !interimSinceFinal;
+          // same utterance re-transcribed and extended: strictly longer, split
+          // on a word boundary, and soon enough that it cannot be a new thought
+          var isGrowth = !isDuplicate && lastFinalText &&
+            trimmed.length > lastFinalText.length &&
+            trimmed.indexOf(lastFinalText + ' ') === 0 &&
+            (now - lastFinalAt) <= GROWTH_WINDOW_MS;
+
           if (isDuplicate) {
             dropped.push({ i: i, t: chunk });
-          } else {
-            finalTranscript += chunk;
+          } else if (isGrowth) {
+            // keep the old segment's leading whitespace so the seam with
+            // whatever precedes it is unchanged
+            var lead = /^\s*/.exec(lastFinalRaw)[0];
+            merged.push({ i: i, from: lastFinalRaw, to: chunk });
+            lastFinalRaw = lead + chunk.replace(/^\s+/, '');
             lastFinalText = trimmed;
+            lastFinalAt = now;
+          } else {
+            finalBase += lastFinalRaw;
+            lastFinalRaw = chunk;
+            lastFinalText = trimmed;
+            lastFinalAt = now;
           }
           interimSinceFinal = false;
           finalCount = i + 1;
@@ -3614,10 +3665,10 @@
       log('onresult', {
         resultIndex: e.resultIndex, len: e.results.length, raw: raw,
         countBefore: beforeCount, countAfter: finalCount,
-        finalBefore: beforeFinal, finalAfter: finalTranscript, interim: interim,
-        dropped: dropped
+        finalBefore: beforeFinal, finalAfter: currentFinal(), interim: interim,
+        dropped: dropped, merged: merged
       });
-      opts.onText(finalTranscript, interim);
+      opts.onText(currentFinal(), interim);
     };
 
     recog.onerror = function (e) {
@@ -3640,14 +3691,20 @@
     };
 
     recog.onend = function () {
-      log('onend', { foldedInterim: lastInterim, finalBefore: finalTranscript });
-      // fold any trailing interim into the final text so nothing is lost
-      finalTranscript += lastInterim;
+      log('onend', { foldedInterim: lastInterim, finalBefore: currentFinal() });
+      // fold any trailing interim into the final text so nothing is lost — it
+      // becomes its own segment, so a later session cannot merge back into it
+      if (lastInterim) {
+        finalBase += lastFinalRaw;
+        lastFinalRaw = lastInterim;
+        lastFinalText = lastInterim.trim();
+        lastFinalAt = Date.now();
+      }
       lastInterim = '';
-      opts.onText(finalTranscript, '');
+      opts.onText(currentFinal(), '');
       r.listening = false;
       if (opts.onIdle) opts.onIdle();
-      if (opts.onEnd) opts.onEnd(finalTranscript);
+      if (opts.onEnd) opts.onEnd(currentFinal());
     };
 
     r.start = function () {
@@ -3662,10 +3719,12 @@
         log('start-refused', { message: String(err && err.message || err) });
         return false; // guard double-start: start() throws if already running
       }
-      finalTranscript = '';
       lastInterim = '';
       finalCount = 0;
+      finalBase = '';
+      lastFinalRaw = '';
       lastFinalText = null;
+      lastFinalAt = 0;
       interimSinceFinal = false;
       r.listening = true;
       log('start-accepted', {});
@@ -3690,7 +3749,7 @@
      else in the panel means anything. Remove this whole block, its callers and
      its markup once the bug is confirmed fixed on a real device. */
 
-  var BUILD_STAMP = 'dedup-2 · 2026-08-04';
+  var BUILD_STAMP = 'dedup-3 · 2026-08-04';
   var DICT_DEBUG_KEY = 'praze.brain.dictdebug';
   var dictLog = [];
   var DICT_LOG_MAX = 400;
@@ -3723,6 +3782,11 @@
         (d.dropped && d.dropped.length
           ? '\n  DROPPED DUP: ' + d.dropped.map(function (x) {
               return '[' + x.i + '] "' + clip(x.t, 40) + '"';
+            }).join(', ')
+          : '') +
+        (d.merged && d.merged.length
+          ? '\n  MERGED GROWTH: ' + d.merged.map(function (x) {
+              return '[' + x.i + '] "' + clip(x.from, 30) + '" → "' + clip(x.to, 40) + '"';
             }).join(', ')
           : '') +
         '\n  final="' + clip(d.finalAfter, 90) + '"' +
