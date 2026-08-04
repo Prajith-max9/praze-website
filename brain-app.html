@@ -4138,6 +4138,8 @@ var finalTranscript = '';
 var lastInterim = '';
 var r = { listening: false };
 var finalCount = 0;
+var lastFinalText = null;
+var interimSinceFinal = false;
 function log(kind, detail) {
 if (opts.onDebug) {
 try { opts.onDebug(kind, detail); } catch (err) {}
@@ -4154,20 +4156,31 @@ raw.push({ i: k, f: !!e.results[k].isFinal, t: e.results[k][0].transcript });
 var beforeCount = finalCount;
 var beforeFinal = finalTranscript;
 var interim = '';
+var dropped = [];
 for (var i = finalCount; i < e.results.length; i++) {
 var chunk = e.results[i][0].transcript;
 if (e.results[i].isFinal) {
+var trimmed = chunk.trim();
+var isDuplicate = trimmed !== '' && trimmed === lastFinalText && !interimSinceFinal;
+if (isDuplicate) {
+dropped.push({ i: i, t: chunk });
+} else {
 finalTranscript += chunk;
+lastFinalText = trimmed;
+}
+interimSinceFinal = false;
 finalCount = i + 1;
 } else {
 interim += chunk;
 }
 }
+if (interim) interimSinceFinal = true;
 lastInterim = interim;
 log('onresult', {
 resultIndex: e.resultIndex, len: e.results.length, raw: raw,
 countBefore: beforeCount, countAfter: finalCount,
-finalBefore: beforeFinal, finalAfter: finalTranscript, interim: interim
+finalBefore: beforeFinal, finalAfter: finalTranscript, interim: interim,
+dropped: dropped
 });
 opts.onText(finalTranscript, interim);
 };
@@ -4202,6 +4215,8 @@ return false;
 finalTranscript = '';
 lastInterim = '';
 finalCount = 0;
+lastFinalText = null;
+interimSinceFinal = false;
 r.listening = true;
 log('start-accepted', {});
 return true;
@@ -4211,7 +4226,7 @@ if (r.listening) recog.stop();
 };
 return r;
 }
-var BUILD_STAMP = 'dictdebug-1 · 2026-08-04';
+var BUILD_STAMP = 'dedup-2 · 2026-08-04';
 var DICT_DEBUG_KEY = 'praze.brain.dictdebug';
 var dictLog = [];
 var DICT_LOG_MAX = 400;
@@ -4237,6 +4252,11 @@ line += ' idx=' + d.resultIndex + ' len=' + d.len +
 '\n  raw: ' + d.raw.map(function (r) {
 return '[' + r.i + (r.f ? ' FINAL' : ' interim') + '] "' + clip(r.t, 60) + '"';
 }).join('\n       ') +
+(d.dropped && d.dropped.length
+? '\n  DROPPED DUP: ' + d.dropped.map(function (x) {
+return '[' + x.i + '] "' + clip(x.t, 40) + '"';
+}).join(', ')
+: '') +
 '\n  final="' + clip(d.finalAfter, 90) + '"' +
 '\n  interim="' + clip(d.interim, 60) + '"';
 } else if (kind === 'onerror') {
