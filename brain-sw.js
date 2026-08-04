@@ -5,7 +5,11 @@
    (Google Fonts, the Claude API) are never touched — they pass straight to
    the network, so an offline device just loses fonts and AI, not the app. */
 
-var CACHE = 'praze-brain-v1';
+/* Bumped v1 → v2 so activate() drops the old cache outright. The name had
+   never rotated, which meant a load whose network fetch failed could be served
+   an arbitrarily old copy of the app from the very first deploy — exactly the
+   kind of thing that makes a shipped fix look like it never landed. */
+var CACHE = 'praze-brain-v2';
 
 // Relative to the SW scope (the folder holding brain.html), so it works both
 // at a domain root and under a project subpath like /praze-website/.
