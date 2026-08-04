@@ -977,6 +977,47 @@
   color: var(--gray);
 }
 
+/* TEMPORARY — dictation debug panel. Remove with the JS block that builds it. */
+
+.dictdbg {
+  margin-top: 1rem;
+  border: 2px solid var(--lime);
+  background: var(--surface);
+}
+
+.dictdbg[hidden] { display: none; }
+
+.dictdbg__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.dictdbg__stamp {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  font-weight: 700;
+  margin-right: auto;
+}
+
+.dictdbg__body {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  max-height: 45vh;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-soft);
+}
+
 /* Diary photos */
 
 .photo-preview {

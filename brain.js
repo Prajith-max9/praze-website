@@ -3543,7 +3543,28 @@
     // that the full rebuild gave.
     var finalCount = 0;
 
+    // TEMPORARY (dictation debug) — reports raw engine events to whoever asked
+    // for them. Purely an observer: it must never influence what follows.
+    function log(kind, detail) {
+      if (opts.onDebug) {
+        try { opts.onDebug(kind, detail); } catch (err) {}
+      }
+    }
+
+    recog.onstart = function () { log('onstart', {}); };
+    recog.onspeechend = function () { log('onspeechend', {}); };
+    recog.onaudioend = function () { log('onaudioend', {}); };
+
     recog.onresult = function (e) {
+      // snapshot the raw event before any folding, so the log shows what the
+      // engine actually sent rather than what we made of it
+      var raw = [];
+      for (var k = 0; k < e.results.length; k++) {
+        raw.push({ i: k, f: !!e.results[k].isFinal, t: e.results[k][0].transcript });
+      }
+      var beforeCount = finalCount;
+      var beforeFinal = finalTranscript;
+
       var interim = '';
       for (var i = finalCount; i < e.results.length; i++) {
         var chunk = e.results[i][0].transcript;
@@ -3555,6 +3576,11 @@
         }
       }
       lastInterim = interim;
+      log('onresult', {
+        resultIndex: e.resultIndex, len: e.results.length, raw: raw,
+        countBefore: beforeCount, countAfter: finalCount,
+        finalBefore: beforeFinal, finalAfter: finalTranscript, interim: interim
+      });
       opts.onText(finalTranscript, interim);
     };
 
@@ -3569,6 +3595,7 @@
       // what let a second tap restart bookkeeping underneath a running
       // recognizer and replay the whole transcript.
       var wasLive = r.listening;
+      log('onerror', { error: e.error, wasLive: wasLive });
       r.listening = false;
       if (wasLive) {
         try { recog.stop(); } catch (err) {} // onend follows and finishes up
@@ -3577,6 +3604,7 @@
     };
 
     recog.onend = function () {
+      log('onend', { foldedInterim: lastInterim, finalBefore: finalTranscript });
       // fold any trailing interim into the final text so nothing is lost
       finalTranscript += lastInterim;
       lastInterim = '';
@@ -3595,12 +3623,14 @@
       try {
         recog.start();
       } catch (err) {
+        log('start-refused', { message: String(err && err.message || err) });
         return false; // guard double-start: start() throws if already running
       }
       finalTranscript = '';
       lastInterim = '';
       finalCount = 0;
       r.listening = true;
+      log('start-accepted', {});
       return true;
     };
 
@@ -3609,6 +3639,87 @@
     };
 
     return r;
+  }
+
+  /* ---------- TEMPORARY: dictation debug panel ----------
+     The repeated-fragment bug survived a fix that was validated against a
+     hand-built mock, which means the mock did not match what the real device
+     does. This renders the raw engine events on screen so a phone — where
+     devtools are not reachable — can be photographed instead.
+
+     BUILD_STAMP doubles as the deployment check: if this string is not on
+     screen, the device is running cached or otherwise stale code and nothing
+     else in the panel means anything. Remove this whole block, its callers and
+     its markup once the bug is confirmed fixed on a real device. */
+
+  var BUILD_STAMP = 'dictdebug-1 · 2026-08-04';
+  var DICT_DEBUG_KEY = 'praze.brain.dictdebug';
+  var dictLog = [];
+  var DICT_LOG_MAX = 400;
+
+  function dictDebugOn() {
+    try { return localStorage.getItem(DICT_DEBUG_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function setDictDebug(on) {
+    try { localStorage.setItem(DICT_DEBUG_KEY, on ? '1' : '0'); } catch (e) {}
+  }
+
+  function clip(s, n) {
+    s = String(s == null ? '' : s);
+    return s.length > n ? s.slice(0, n) + '…' : s;
+  }
+
+  function dictLogEvent(kind, d) {
+    var t = new Date();
+    var stamp = String(t.getMinutes()).padStart(2, '0') + ':' +
+      String(t.getSeconds()).padStart(2, '0') + '.' +
+      String(t.getMilliseconds()).padStart(3, '0');
+    var line = stamp + ' ' + kind;
+    if (kind === 'onresult') {
+      line += ' idx=' + d.resultIndex + ' len=' + d.len +
+        ' count ' + d.countBefore + '→' + d.countAfter +
+        '\n  raw: ' + d.raw.map(function (r) {
+          return '[' + r.i + (r.f ? ' FINAL' : ' interim') + '] "' + clip(r.t, 60) + '"';
+        }).join('\n       ') +
+        '\n  final="' + clip(d.finalAfter, 90) + '"' +
+        '\n  interim="' + clip(d.interim, 60) + '"';
+    } else if (kind === 'onerror') {
+      line += ' error=' + d.error + ' wasLive=' + d.wasLive;
+    } else if (kind === 'onend') {
+      line += ' folded="' + clip(d.foldedInterim, 40) + '"';
+    } else if (kind === 'start-refused') {
+      line += ' ' + clip(d.message, 60);
+    } else if (kind === 'textarea') {
+      line += ' value="' + clip(d.value, 120) + '"';
+    }
+    dictLog.push(line);
+    if (dictLog.length > DICT_LOG_MAX) dictLog.shift();
+    renderDictLog();
+  }
+
+  function renderDictLog() {
+    var box = els.dictDebug;
+    if (!box || box.hidden) return;
+    var body = box.querySelector('.dictdbg__body');
+    if (!body) return;
+    body.textContent = dictLog.join('\n');
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function buildDictDebugPanel() {
+    var panel = document.createElement('div');
+    panel.className = 'dictdbg';
+    panel.id = 'dict-debug';
+    panel.hidden = !dictDebugOn();
+    panel.innerHTML =
+      '<div class="dictdbg__head">' +
+      '<span class="dictdbg__stamp">BUILD ' + escapeHtml(BUILD_STAMP) + '</span>' +
+      '<button type="button" class="note__action" data-action="dictdbg-copy">Copy</button>' +
+      '<button type="button" class="note__action" data-action="dictdbg-clear">Clear</button>' +
+      '<button type="button" class="note__action" data-action="dictdbg-off">Hide</button>' +
+      '</div><pre class="dictdbg__body"></pre>';
+    return panel;
   }
 
   /* ---------- Diary voice dictation (browser-native, online-only) ---------- */
@@ -3632,6 +3743,39 @@
     actions.insertBefore(micBtn, hint || null);
     dictation.btn = micBtn;
 
+    // TEMPORARY (dictation debug): toggle + on-screen log, placed under the
+    // dictation box. The toggle ships visible on purpose — this has to be
+    // reachable on the phone that reproduces the bug, where there is no
+    // devtools and no way to set a flag by hand.
+    var dbgBtn = document.createElement('button');
+    dbgBtn.type = 'button';
+    dbgBtn.className = 'toolbar__btn dictdbg-toggle';
+    dbgBtn.textContent = '🐞 Debug';
+    actions.insertBefore(dbgBtn, hint || null);
+    var dbgPanel = buildDictDebugPanel();
+    els.diaryForm.appendChild(dbgPanel);
+    els.dictDebug = dbgPanel;
+    renderDictLog();
+    dbgBtn.addEventListener('click', function () {
+      var on = !dictDebugOn();
+      setDictDebug(on);
+      dbgPanel.hidden = !on;
+      if (on) {
+        dictLogEvent('debug-on', {});
+        dictLogEvent('ua', { value: navigator.userAgent });
+      }
+    });
+    dbgPanel.addEventListener('click', function (e) {
+      var act = e.target.getAttribute && e.target.getAttribute('data-action');
+      if (act === 'dictdbg-clear') { dictLog = []; renderDictLog(); }
+      else if (act === 'dictdbg-off') { setDictDebug(false); dbgPanel.hidden = true; }
+      else if (act === 'dictdbg-copy') {
+        var text = 'BUILD ' + BUILD_STAMP + '\n' + dictLog.join('\n');
+        if (navigator.clipboard) navigator.clipboard.writeText(text).catch(function () {});
+        showBanner('Debug log copied.');
+      }
+    });
+
     var baseText = '';
     var separator = '';
 
@@ -3653,11 +3797,20 @@
     var recognizer = makeRecognizer({
       onText: function (finalText, interim) {
         els.diaryBody.value = baseText + separator + finalText + interim;
+        // TEMPORARY (dictation debug): the value the user actually sees, which
+        // is the thing being complained about — logged next to the raw event
+        // that produced it
+        if (dictDebugOn()) {
+          dictLogEvent('textarea', { value: els.diaryBody.value });
+        }
         scheduleGrow();
       },
       onIdle: function () {
         micBtn.textContent = '🎤 Dictate';
         micBtn.classList.remove('diary-mic--live');
+      },
+      onDebug: function (kind, detail) { // TEMPORARY (dictation debug)
+        if (dictDebugOn()) dictLogEvent(kind, detail);
       }
     });
     dictation.recognizer = recognizer;
