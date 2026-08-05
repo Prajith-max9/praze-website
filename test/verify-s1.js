@@ -293,7 +293,39 @@ const SEED = () => {
   await page.reload();
   await page.waitForSelector('.tabs');
 
-  /* ---------- 9. import ---------- */
+  /* ---------- 9. goal milestone ----------
+     "celebrate only once the milestone is actually on disk" — confetti and a
+     GOAL HIT banner for an increment that was never written would be the most
+     emphatic false success in the app. */
+  await page.evaluate(() => { location.hash = '#goals'; });
+  await page.waitForSelector('[data-action="goal-inc"]');
+  // walk it to one short of the target with writes working
+  for (let i = 0; i < 8; i++) {
+    await page.click('[data-action="goal-inc"]');
+    await page.waitForTimeout(60);
+  }
+  const atEdge = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('praze.brain.v1')).goals[0]);
+  check('goal: increments landed while writes worked',
+    atEdge.progress === 11 && !atEdge.completedAt, JSON.stringify(atEdge));
+
+  await withFullQuota('goal milestone',
+    async () => { await page.click('[data-action="goal-inc"]'); },
+    async () => {
+      const b = await banner();
+      check('goal milestone: no GOAL HIT banner for an unwritten milestone',
+        !/goal hit/i.test(b.text), b.text);
+      check('goal milestone: no confetti for an unwritten milestone',
+        await page.evaluate(() => !document.querySelector('.confetti, .celebrate')));
+      const g = await page.evaluate(() =>
+        JSON.parse(localStorage.getItem('praze.brain.v1')).goals[0]);
+      check('goal milestone: the goal is not marked complete on disk',
+        g.progress === 11 && !g.completedAt, JSON.stringify(g));
+    });
+  await page.reload();
+  await page.waitForSelector('.tabs');
+
+  /* ---------- 10. import ---------- */
   await withFullQuota('import',
     async () => {
       await page.setInputFiles('#import-file', {
@@ -326,6 +358,76 @@ const SEED = () => {
   check('the storage-full banner does not auto-dismiss',
     await page.evaluate(() => !document.getElementById('banner').hidden));
   await setFail(false);
+
+  /* ---------- 12. brain dump ----------
+     "keep the overlay open: the transcript is the only copy". Of every path
+     here this is the one where a false success costs the most: the words only
+     exist in that overlay, so closing it on a failed write destroys speech the
+     user cannot retype. Runs in its own context because it needs a mocked
+     SpeechRecognition installed before the app loads.
+
+     The mock asserts wiring, not engine behaviour — HANDOVER.md §10 is emphatic
+     that a spec-faithful mock proved nothing about the real engine. All this
+     claims is that saveDumpAsOne honours saveStore()'s return value. */
+  const dumpCtx = await browser.newContext({ viewport: PHONE, isMobile: true, hasTouch: true });
+  await dumpCtx.addInitScript(INSTALL_QUOTA_SWITCH);
+  await dumpCtx.addInitScript(() => {
+    window.SpeechRecognition = function () {
+      const self = this;
+      window.__sr = self;
+      this.start = function () {};
+      this.stop = function () { if (self.onend) self.onend(new Event('end')); };
+      this.abort = function () {};
+      this.addEventListener = function () {};
+    };
+  });
+  const dp = await dumpCtx.newPage();
+  await dp.goto(url);
+  await dp.evaluate(SEED);
+  await dp.reload();
+  await dp.evaluate(() => { location.hash = '#ideas'; });
+  await dp.waitForSelector('#dump-btn');
+  await dp.click('#dump-btn');
+  await dp.waitForSelector('#dump-overlay:not([hidden])');
+
+  const TRANSCRIPT = 'this is a dictated thought that only exists inside this overlay ' +
+    'and must not be thrown away when the write fails for any reason at all';
+  await dp.evaluate(text => {
+    const chunk = [{ transcript: text }];
+    chunk.isFinal = true;
+    window.__sr.onresult({ results: Object.assign([chunk], { length: 1 }), resultIndex: 0 });
+  }, TRANSCRIPT);
+  await dp.waitForTimeout(150);
+  await dp.click('[data-action="dump-stop"]');
+  await dp.waitForSelector('[data-action="dump-save-one"]', { timeout: 5000 });
+
+  const dumpBefore = await dp.evaluate(k => localStorage.getItem(k), STORE_KEY);
+  await dp.evaluate(() => { window.__s1FailStore = true; });
+  await dp.click('[data-action="dump-save-one"]');
+  await dp.waitForTimeout(300);
+
+  const dumpState = await dp.evaluate(() => ({
+    overlayOpen: !document.getElementById('dump-overlay').hidden,
+    onScreen: document.getElementById('dump-overlay').textContent,
+    banner: document.getElementById('banner-text').textContent.trim()
+  }));
+  check('dump: the overlay stays open when the write fails', dumpState.overlayOpen);
+  check('dump: the transcript is still on screen',
+    /only exists inside this overlay/.test(dumpState.onScreen));
+  check('dump: storage-full error shown', STORAGE_FULL.test(dumpState.banner), dumpState.banner);
+  check('dump: no success banner', !SUCCESS_WORDS.test(dumpState.banner), dumpState.banner);
+  check('dump: stored payload untouched',
+    (await dp.evaluate(k => localStorage.getItem(k), STORE_KEY)) === dumpBefore);
+
+  // and it saves for real once there is room, which is what proves the above
+  await dp.evaluate(() => { window.__s1FailStore = false; });
+  await dp.click('[data-action="dump-save-one"]');
+  await dp.waitForTimeout(400);
+  check('dump: the same transcript saves once space is free', await dp.evaluate(() =>
+    document.getElementById('dump-overlay').hidden &&
+    JSON.parse(localStorage.getItem('praze.brain.v1')).notes
+      .some(n => /only exists inside this overlay/.test(n.body))));
+  await dumpCtx.close();
 
   /* ---------- KNOWN ISSUE ----------
      Reported, not asserted. Every check above covers the rule as HANDOVER.md §5

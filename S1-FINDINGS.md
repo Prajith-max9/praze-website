@@ -14,9 +14,11 @@ returns a boolean, and with a full quota every path that writes:
 - leaves whatever the user typed in front of them — form, draft and staged photo
 - leaves the stored payload byte-for-byte unchanged
 
-44 assertions across capture, diary, clip, goal, todo, edit, delete, undo and
-import. All pass. The diary path is the best-behaved of the lot: it explicitly
-pops the un-saved note back off the in-memory store, with a comment saying why.
+57 assertions across capture, diary, clip, goal, todo, edit, delete, undo,
+import, the goal milestone and the brain dump. All pass. Two paths deserve
+credit: the diary explicitly pops the un-saved note back off the in-memory store
+with a comment saying why, and the brain dump keeps its overlay open on failure
+because the transcript is the only copy of something the user cannot retype.
 
 ## The hole
 
