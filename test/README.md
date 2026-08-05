@@ -72,6 +72,7 @@ fails in the other — or worse, pins a value the rest of the app has moved off.
 | `verify-polish.js` | Relative timestamps, clamped previews and their toggle, copy, active-tab feedback, destructive-action presentation, offline badge, filter/scroll restore — and an assertion that none of it wrote to the store |
 | `verify-tap-targets.js` | Every control has a 44px **effective** tap area across all views |
 | `verify-s1.js` | **Storage honesty.** Run after touching any save path. Fakes a full quota and checks every write path refuses to claim success, keeps what was typed, and leaves the stored payload byte-identical |
+| `verify-photos.js` | The `PHOTO_URL_RE` security boundary — a hostile `photo` value from an imported store must never reach an `<img src>` — plus compression to jpeg at 800px |
 
 ### Two things those suites learned the hard way
 
@@ -85,9 +86,11 @@ see an `::after` hit box, and more importantly cannot see a *neighbour* stealing
 the point. Tag chips were reaching ~10px above their pills and swallowing taps
 meant for "Show more". Only `elementFromPoint` finds that.
 
-Photos, the back button and dictation still have **no coverage here**. Those
-suites existed once and were lost. Treat this table as the real state, not the
-intended one.
+The back button and dictation still have **no coverage here**. Those suites
+existed once and were lost. Treat this table as the real state, not the intended
+one. Dictation is the one to be careful with: §10 of the handover records a green
+mock sitting alongside an engine that misbehaved in two distinct ways on a real
+device, so a suite there should claim wiring only.
 
 ### Trust an assertion only after you have seen it fail
 
