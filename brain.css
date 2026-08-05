@@ -1490,6 +1490,81 @@ body {
   margin-bottom: 1.25rem;
 }
 
+/* Dashboard capture box. Every option is a shortcut into a capture flow that
+   already exists on another tab — nothing captures from here directly. The
+   margin lives on this block rather than on the line above it, so spacing is
+   the same whether or not the link-line is showing. */
+
+.dash-capture {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.dash-capture__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-capture__prompt {
+  font-family: var(--body);
+  font-size: 0.95rem;
+  color: var(--gray);
+  margin-bottom: 0.35rem;
+}
+
+.dash-capture__opts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dash-capture__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Divider between options, never before the first one. */
+.dash-capture__opt + .dash-capture__opt {
+  margin-left: 0.7rem;
+  padding-left: 0.7rem;
+  border-left: 1px solid var(--border);
+}
+
+.dash-capture__opt:hover {
+  color: var(--gray);
+}
+
+.dash-capture__fab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 50%;
+  /* Same pairing every other lime chip uses (.banner, .note__pinned): the dark
+     theme darkens --lime and flips --ink, so the pair travels together. Do not
+     pin either to a literal here — that is what makes it drift from the rest. */
+  background: var(--lime);
+  color: var(--ink);
+  font-size: 1.3rem;
+  cursor: pointer;
+  box-shadow: 0 2px 10px var(--border);
+}
+
 .dash-row {
   display: block;
   width: 100%;
@@ -2109,8 +2184,9 @@ body {
     grid-column: 1 / -1;
   }
 
-  .onboard-unlocks,
-  .dash-linkline {
+  /* .dash-linkline used to sit here too, as a direct grid child below the hero
+     card. It now renders inside that card, so it is no longer a grid item. */
+  .onboard-unlocks {
     grid-column: 1 / -1;
   }
 }

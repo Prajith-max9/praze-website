@@ -47,7 +47,10 @@
     close: '<path d="M5 5l14 14M19 5L5 19"/>',
     chevronRight: '<path d="M9 5l7 7-7 7"/>',
     chevronDown: '<path d="M5 9l7 7 7-7"/>',
-    dot: '<circle cx="12" cy="12" r="6"/>'
+    dot: '<circle cx="12" cy="12" r="6"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    pencil: '<path d="M4 20v-4L16 4l4 4L8 20z"/><path d="M14 6l4 4"/>',
+    link: '<path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.4 1.4"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1.4-1.4"/>'
   };
 
   // Filled rather than stroked — a hollow play triangle or stop square reads as
@@ -2332,6 +2335,13 @@
     renderDashboardCards();
   }
 
+  // One capture option in the dashboard box. Each is a thin wrapper over a
+  // capture flow that already exists elsewhere — no new capture path lives here.
+  function dashCaptureOpt(action, iconName, label) {
+    return '<button type="button" class="dash-capture__opt" data-action="' + action + '">' +
+      icon(iconName) + '<span>' + label + '</span></button>';
+  }
+
   function renderDashboardCards() {
     var h = new Date().getHours();
     var greeting = h < 12 ? 'Morning.' : h < 18 ? 'Afternoon.' : 'Evening.';
@@ -2346,21 +2356,39 @@
       .sort(function (a, b) { return b.score - a.score; }).slice(0, 2);
     var byId = notesById();
 
+    // Below the similarity gate, one quiet line under the greeting. It sits
+    // inside the hero card rather than after it: it is the supporting line for
+    // the greeting, not a separate card.
+    var eligible = eligibleNoteCount();
+    var minLinks = window.BrainAI.MIN_NOTES_FOR_LINKS;
+    var linkline = '';
+    if (eligible < minLinks) {
+      var left = minLinks - eligible;
+      linkline = '<p class="dash-linkline">' + left + ' more note' + (left === 1 ? '' : 's') +
+        ' until your ideas start linking.</p>';
+    }
+
+    // Speak is gated on SpeechRecognition exactly as #dump-btn is — offering a
+    // mic that cannot listen (Firefox, some WebViews) is worse than no mic.
+    var captureOpts =
+      dashCaptureOpt('dash-write', 'pencil', 'Write') +
+      (window.SpeechRecognition || window.webkitSpeechRecognition
+        ? dashCaptureOpt('dash-speak', 'mic', 'Speak') : '') +
+      dashCaptureOpt('dash-clip', 'link', 'Clip');
+
     var html =
       '<div class="dash-card dash-card--hero">' +
       '<p class="dash-greeting">' + greeting + '</p>' +
-      '<p class="dash-tagline">BUILT NOT BORN.</p>' +
-      '<button type="button" class="btn" data-action="dash-capture">CAPTURE AN IDEA</button>' +
+      linkline +
+      '<div class="dash-capture">' +
+      '<div class="dash-capture__main">' +
+      '<p class="dash-capture__prompt">What’s on your mind?</p>' +
+      '<div class="dash-capture__opts">' + captureOpts + '</div>' +
+      '</div>' +
+      '<button type="button" class="dash-capture__fab" data-action="dash-capture"' +
+      ' aria-label="Capture an idea">' + icon('plus') + '</button>' +
+      '</div>' +
       '</div>';
-
-    // below the similarity gate, one quiet line where ECHOES/RESURFACED will live
-    var eligible = eligibleNoteCount();
-    var minLinks = window.BrainAI.MIN_NOTES_FOR_LINKS;
-    if (eligible < minLinks) {
-      var left = minLinks - eligible;
-      html += '<p class="dash-linkline">' + left + ' more note' + (left === 1 ? '' : 's') +
-        ' until your ideas start linking.</p>';
-    }
 
     var resurfaced = computeResurface();
     if (resurfaced.length) {
@@ -3275,9 +3303,21 @@
       return;
     }
 
-    if (action === 'dash-capture') {
+    // The + button and Write are the same thing: the default capture action.
+    if (action === 'dash-capture' || action === 'dash-write') {
       setView('ideas');
       els.captureBody.focus();
+      return;
+    }
+
+    if (action === 'dash-speak') {
+      openDump();
+      return;
+    }
+
+    if (action === 'dash-clip') {
+      setView('clips');
+      els.clipUrl.focus();
       return;
     }
 
