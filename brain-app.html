@@ -2334,10 +2334,12 @@ return '<button type="button" class="note__photo" data-action="photo-open" ' +
 function openPhotoView(src) {
 els.photoViewImg.src = src;
 els.photoView.hidden = false;
+syncBackGuard();
 }
 function closePhotoView() {
 els.photoView.hidden = true;
 els.photoViewImg.removeAttribute('src');
+syncBackGuard();
 }
 var MOOD_POSITIVE = ['good', 'great', 'happy', 'proud', 'win', 'won', 'strong', 'calm', 'grateful', 'progress', 'pumped', 'focused', 'best', 'love', 'enjoyed'];
 var MOOD_NEGATIVE = ['bad', 'tired', 'sad', 'angry', 'stressed', 'anxious', 'failed', 'weak', 'worried', 'frustrated', 'lost', 'hurt', 'skipped', 'lazy', 'guilty'];
@@ -2864,6 +2866,7 @@ els.todoNotice.textContent = notice;
 els.todoNotice.hidden = !notice;
 var count = open.length;
 els.todoCount.textContent = count === 1 ? '1 OPEN' : count + ' OPEN';
+syncBackGuard();
 }
 function celebrate() {
 if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -3285,6 +3288,7 @@ if (graphSettingsOutside) {
 document.removeEventListener('click', graphSettingsOutside);
 graphSettingsOutside = null;
 }
+syncBackGuard();
 }
 function openGraphSettings(open) {
 var show = open === undefined ? els.graphSettingsPanel.hidden : !!open;
@@ -3294,6 +3298,7 @@ return;
 }
 els.graphSettingsPanel.hidden = false;
 renderGraphSettingsPanel();
+syncBackGuard();
 if (graphSettingsOutside) return;
 graphSettingsOutside = function (e) {
 if (els.graphSettingsPanel.hidden) return;
@@ -3334,12 +3339,81 @@ function currentViewFromHash() {
 var h = location.hash.replace('#', '');
 return VIEWS.indexOf(h) !== -1 ? h : 'dashboard';
 }
+var backGuard = false;
+var lastHash = location.hash;
+function topLayer() {
+if (els.photoView && !els.photoView.hidden) return 'photo';
+if (palette.open) return 'palette';
+if (dump.open) return 'dump';
+if (els.graphSettingsPanel && !els.graphSettingsPanel.hidden) return 'graphSettings';
+if (els.settingsPanel && !els.settingsPanel.hidden) return 'settings';
+if (state.editingId) return 'editor';
+if (state.todoDueId) return 'todoDue';
+if (state.confirmingDeleteId || state.confirmingGoalId) return 'confirm';
+if (state.selectMode) return 'select';
+return null;
+}
+function closeTopLayer() {
+switch (topLayer()) {
+case 'photo': closePhotoView(); return true;
+case 'palette': closePalette(); return true;
+case 'dump': closeDump(); return true;
+case 'graphSettings': closeGraphSettings(); return true;
+case 'settings': closeSettings(); return true;
+case 'editor':
+state.editingId = null;
+state.editPhoto = undefined;
+render();
+return true;
+case 'todoDue':
+state.todoDueId = null;
+renderTodos();
+return true;
+case 'confirm':
+state.confirmingDeleteId = null;
+state.confirmingGoalId = null;
+render();
+return true;
+case 'select':
+exitSelectMode();
+render();
+return true;
+}
+return false;
+}
+function syncBackGuard() {
+if (backGuard || topLayer() === null) return;
+backGuard = true;
+history.pushState({ brainLayer: true }, '', location.href);
+}
+function handlePopState() {
+if (location.hash !== lastHash) {
+lastHash = location.hash;
+return;
+}
+if (!backGuard) return;
+backGuard = false;
+if (!closeTopLayer()) {
+history.back();
+return;
+}
+syncBackGuard();
+}
 function setView(view) {
 if (dump.open) closeDump();
+if (!els.photoView.hidden) closePhotoView();
+if (!els.settingsPanel.hidden) closeSettings();
+if (!els.graphSettingsPanel.hidden) closeGraphSettings();
 if (state.view === 'graph' && view !== 'graph') teardownGraph();
 state.view = view;
 if (location.hash !== '#' + view) {
+if (backGuard) {
+backGuard = false;
+location.replace('#' + view);
+} else {
 location.hash = '#' + view;
+}
+lastHash = '#' + view;
 }
 render();
 }
@@ -3363,6 +3437,7 @@ else if (state.view === 'clips') renderClips();
 else if (state.view === 'goals') renderGoals();
 else if (state.view === 'todos') renderTodos();
 else if (state.view === 'graph') renderGraph();
+syncBackGuard();
 }
 function showBanner(text, type, persistent, action) {
 var banner = els.banner || document.getElementById('banner');
@@ -4131,10 +4206,12 @@ els.palette.hidden = false;
 els.paletteInput.value = '';
 renderPalette();
 els.paletteInput.focus();
+syncBackGuard();
 }
 function closePalette() {
 palette.open = false;
 els.palette.hidden = true;
+syncBackGuard();
 }
 function runPaletteItem(item) {
 if (!item) return;
@@ -4174,6 +4251,7 @@ if (settingsOutside) {
 document.removeEventListener('click', settingsOutside);
 settingsOutside = null;
 }
+syncBackGuard();
 }
 function openSettings(open) {
 var show = open === undefined ? els.settingsPanel.hidden : !!open;
@@ -4183,6 +4261,7 @@ return;
 }
 els.settingsPanel.hidden = false;
 renderSettings();
+syncBackGuard();
 if (settingsOutside) return;
 settingsOutside = function (e) {
 if (els.settingsPanel.hidden) return;
@@ -4376,6 +4455,7 @@ els.dumpOverlay.hidden = false;
 updateDumpTime();
 dump.recog.start();
 renderDump();
+syncBackGuard();
 }
 function closeDump() {
 dump.open = false;
@@ -4383,6 +4463,7 @@ dump.phase = null;
 clearInterval(dump.timer);
 if (dump.recog) dump.recog.stop();
 els.dumpOverlay.hidden = true;
+syncBackGuard();
 }
 function updateDumpTime() {
 var s = Math.max(0, Math.floor((Date.now() - dump.startedAt) / 1000));
@@ -4749,7 +4830,9 @@ positionTabIndicator();
 updateTabFades();
 });
 }
+window.addEventListener('popstate', handlePopState);
 window.addEventListener('hashchange', function () {
+lastHash = location.hash;
 var v = currentViewFromHash();
 if (v !== state.view) {
 if (dump.open) closeDump();

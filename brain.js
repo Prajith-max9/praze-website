@@ -1429,11 +1429,13 @@
   function openPhotoView(src) {
     els.photoViewImg.src = src;
     els.photoView.hidden = false;
+    syncBackGuard();
   }
 
   function closePhotoView() {
     els.photoView.hidden = true;
     els.photoViewImg.removeAttribute('src'); // don't keep a second copy decoded
+    syncBackGuard();
   }
 
   /* ---------- DIARY view ---------- */
@@ -2073,6 +2075,8 @@
 
     var count = open.length;
     els.todoCount.textContent = count === 1 ? '1 OPEN' : count + ' OPEN';
+
+    syncBackGuard(); // the inline due editor opens without a full render()
   }
 
   function celebrate() {
@@ -2583,6 +2587,7 @@
       document.removeEventListener('click', graphSettingsOutside);
       graphSettingsOutside = null;
     }
+    syncBackGuard();
   }
 
   function openGraphSettings(open) {
@@ -2593,6 +2598,7 @@
     }
     els.graphSettingsPanel.hidden = false;
     renderGraphSettingsPanel();
+    syncBackGuard();
     if (graphSettingsOutside) return;
     graphSettingsOutside = function (e) {
       if (els.graphSettingsPanel.hidden) return;
@@ -2646,13 +2652,112 @@
     return VIEWS.indexOf(h) !== -1 ? h : 'dashboard';
   }
 
+  /* ---------- Android back button ----------
+     Without this, the system back gesture leaves the app while a modal or a
+     panel is still on screen — the single loudest tell that this is a web page
+     in a shell rather than an app.
+
+     The mechanism: whenever anything dismissible is open, one spare history
+     entry is held so the back gesture has something of ours to consume instead
+     of the app itself. Popping it closes the topmost layer and re-arms if
+     another is underneath; closing a layer by button or Escape gives the spare
+     entry back, so back never needs pressing twice for nothing.
+
+     Composing with hash routing is the fiddly part, because popstate fires for
+     hash navigation too. Two things keep them apart: the spare entry is pushed
+     at the current URL, so consuming it never changes the hash; and a popstate
+     that *did* change the hash is left entirely to the tab router below. */
+
+  var backGuard = false;   // is our spare entry currently on top of the stack?
+  var lastHash = location.hash;
+
+  // topmost first — the order a user expects them to peel off
+  function topLayer() {
+    if (els.photoView && !els.photoView.hidden) return 'photo';
+    if (palette.open) return 'palette';
+    if (dump.open) return 'dump';
+    if (els.graphSettingsPanel && !els.graphSettingsPanel.hidden) return 'graphSettings';
+    if (els.settingsPanel && !els.settingsPanel.hidden) return 'settings';
+    if (state.editingId) return 'editor';
+    if (state.todoDueId) return 'todoDue';
+    if (state.confirmingDeleteId || state.confirmingGoalId) return 'confirm';
+    if (state.selectMode) return 'select';
+    return null;
+  }
+
+  function closeTopLayer() {
+    switch (topLayer()) {
+      case 'photo': closePhotoView(); return true;
+      case 'palette': closePalette(); return true;
+      case 'dump': closeDump(); return true;
+      case 'graphSettings': closeGraphSettings(); return true;
+      case 'settings': closeSettings(); return true;
+      case 'editor':
+        state.editingId = null;
+        state.editPhoto = undefined;
+        render();
+        return true;
+      case 'todoDue':
+        state.todoDueId = null;
+        renderTodos();
+        return true;
+      case 'confirm':
+        state.confirmingDeleteId = null;
+        state.confirmingGoalId = null;
+        render();
+        return true;
+      case 'select':
+        exitSelectMode();
+        render();
+        return true;
+    }
+    return false;
+  }
+
+  // Idempotent: safe to call from anywhere that might have opened or closed
+  // something, which is why every open/close path just calls it rather than
+  // trying to account for its own entry.
+  function syncBackGuard() {
+    if (backGuard || topLayer() === null) return;
+    backGuard = true;
+    history.pushState({ brainLayer: true }, '', location.href);
+  }
+
+  function handlePopState() {
+    // a hash navigation is the tab router's business, not ours
+    if (location.hash !== lastHash) {
+      lastHash = location.hash;
+      return;
+    }
+    if (!backGuard) return; // nothing of ours was on top
+    backGuard = false;
+    if (!closeTopLayer()) {
+      // the spare entry outlived whatever opened it (closed by button, then
+      // nothing reopened) — pass the press through rather than swallow it
+      history.back();
+      return;
+    }
+    syncBackGuard(); // another layer underneath? hold a fresh entry for it
+  }
+
   function setView(view) {
     if (dump.open) closeDump(); // tab switch never leaves the mic hot behind an overlay
+    if (!els.photoView.hidden) closePhotoView();
+    if (!els.settingsPanel.hidden) closeSettings();
+    if (!els.graphSettingsPanel.hidden) closeGraphSettings();
     if (state.view === 'graph' && view !== 'graph') teardownGraph();
     state.view = view;
     if (location.hash !== '#' + view) {
-      // pushes a history entry — browser back walks tabs, the Chrome feel
-      location.hash = '#' + view;
+      if (backGuard) {
+        // Reuse the spare entry rather than stacking the tab on top of it —
+        // otherwise it is stranded below and costs a dead back press later.
+        backGuard = false;
+        location.replace('#' + view);
+      } else {
+        // pushes a history entry — browser back walks tabs, the Chrome feel
+        location.hash = '#' + view;
+      }
+      lastHash = '#' + view;
     }
     render();
   }
@@ -2681,6 +2786,8 @@
     else if (state.view === 'goals') renderGoals();
     else if (state.view === 'todos') renderTodos();
     else if (state.view === 'graph') renderGraph();
+
+    syncBackGuard(); // editor / confirm / select-mode all settle here
   }
 
   // action (optional): { label, fn } renders a button in the banner (e.g. Undo).
@@ -3546,11 +3653,13 @@
     els.paletteInput.value = '';
     renderPalette();
     els.paletteInput.focus();
+    syncBackGuard();
   }
 
   function closePalette() {
     palette.open = false;
     els.palette.hidden = true;
+    syncBackGuard();
   }
 
   function runPaletteItem(item) {
@@ -3606,6 +3715,7 @@
       document.removeEventListener('click', settingsOutside);
       settingsOutside = null;
     }
+    syncBackGuard();
   }
 
   function openSettings(open) {
@@ -3616,6 +3726,7 @@
     }
     els.settingsPanel.hidden = false;
     renderSettings();
+    syncBackGuard();
     if (settingsOutside) return;
     settingsOutside = function (e) {
       if (els.settingsPanel.hidden) return;
@@ -3927,6 +4038,7 @@
     updateDumpTime();
     dump.recog.start();
     renderDump();
+    syncBackGuard();
   }
 
   function closeDump() {
@@ -3937,6 +4049,7 @@
     clearInterval(dump.timer);
     if (dump.recog) dump.recog.stop();
     els.dumpOverlay.hidden = true;
+    syncBackGuard();
   }
 
   function updateDumpTime() {
@@ -4354,7 +4467,9 @@
         updateTabFades(); // label widths change, so what's off-screen does too
       });
     }
+    window.addEventListener('popstate', handlePopState);
     window.addEventListener('hashchange', function () {
+      lastHash = location.hash;
       var v = currentViewFromHash();
       if (v !== state.view) {
         if (dump.open) closeDump();
