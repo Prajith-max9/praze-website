@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- interactive-widget: the virtual keyboard shrinks the viewport instead of
+     covering it, so the save button under a focused textarea stays reachable.
+     Ignored by browsers that don't know the key, so nothing regresses. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
 <meta name="robots" content="noindex, nofollow">
 <title>Second Brain</title>
 <link rel="manifest" href="manifest.webmanifest">

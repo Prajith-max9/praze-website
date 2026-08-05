@@ -23,6 +23,16 @@
   --graph-edge-sim: rgba(245, 243, 238, 0.34);
 }
 
+/* Dragging down at the top of the app must not reload it. On Android that
+   browser-style pull-to-refresh is one of the loudest "this is a web page"
+   tells, and here it would throw away an unsaved capture. Scoped to the app
+   rather than styles.css on purpose: the landing page is a web page, and
+   pull-to-refresh is the right behaviour there. */
+html,
+body {
+  overscroll-behavior-y: contain;
+}
+
 .brain {
   padding: 2.5rem 1.5rem 4rem;
   max-width: 760px;
