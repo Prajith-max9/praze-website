@@ -1,8 +1,16 @@
 # S-1 findings
 
-Written while rebuilding `test/verify-s1.js`. **Nothing in the app was changed.**
-The suite is green; this is a hole the S-1 rule does not currently cover, left
-for a decision.
+Written while rebuilding `test/verify-s1.js`.
+
+> **Status: fixed.** The hole described below was found by this suite, left
+> unfixed pending a decision, and then closed by *Option A* — deletes now put
+> the item back when the write fails. Landed in `b49e3fc`. The three
+> `rollback/*` assertions in `verify-s1.js` guard it, and were confirmed to
+> fail against the pre-fix code before being trusted.
+>
+> Kept as-is because the reasoning is worth having on the record: it explains
+> why the delete paths look the way they do, and the analysis in "Options" is
+> the argument for the shape that was chosen.
 
 ## The good news first
 
@@ -104,13 +112,35 @@ already chosen once for exactly this problem, and it is easy to write an
 assertion for. B is the better end state if you ever restructure writes, but it
 is not a polish-pass change.
 
-Whichever you pick, `test/verify-s1.js` has a `KNOWN ISSUE` block at the bottom
-that currently *reports* this. Once it is fixed, promote it to a real assertion —
-it already detects the fixed state and will say so.
+## What was done
 
-## What I deliberately did not do
+**Option A was chosen, with no user-facing message on rollback.**
 
-- Did not change any app logic. The instruction was to flag a real bug rather
-  than fix it, and this is squarely one.
-- Did not make the suite fail. A red build with no accompanying fix would just
-  be noise; the finding is printed on every run instead, and linked here.
+```js
+if (saveStore()) {
+  state.lastDeleted = { kind: 'note', item: note, index: noteIdx };
+  render();
+  showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
+} else {
+  store.notes.splice(noteIdx, 0, note);   // disk still has it; so should memory
+  render();
+}
+```
+
+The same shape in all three handlers. Two details worth knowing:
+
+- **`lastDeleted` is now set only on success.** After a rollback there is nothing
+  to undo, and offering it would propose restoring an item that is already there.
+- **No extra banner.** `saveStore()` has already raised the storage-full error,
+  and a second message about a path the user cannot act on differently is noise.
+
+### How the assertions were trusted
+
+A test that cannot fail is worth nothing, so the three `rollback/*` checks were
+run against the pre-fix commit in a throwaway worktree. All three failed there
+and pass on the fix.
+
+Worth noting: the *first* half of each — "survives the failed delete itself" —
+passes either way. Disk was always correct at that moment; that was never the
+bug. The load-bearing assertion is the second half, after an unrelated
+successful write.

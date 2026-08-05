@@ -116,6 +116,15 @@ an XSS hole. This is why a few emoji survive in banner strings.
 **Every piece of user text goes through `escapeHtml`.** No raw user text in
 `innerHTML`, ever. Model output too — it's untrusted.
 
+**A write that fails must not leave memory disagreeing with disk.** The banner
+half of S-1 is only half the rule. Deletes remove the item from `store` before
+saving; if the save fails and the item is not put back, disk is still correct but
+memory is not — and the *next* successful write persists memory, committing a
+deletion the user was never told about and was never offered Undo for. All three
+delete paths splice the item back on failure, and `handleDiarySubmit` pops its
+un-saved note off for the same reason. Any new path that mutates `store` before
+saving needs the same treatment. `verify-s1.js` `rollback/*` guards it.
+
 **An empty `photo` is omitted from the serialized store** (`omitEmptyPhoto`
 replacer). Writing `"photo":""` on every note made the first write after that
 upgrade *larger* than what it replaced — which broke the guarantee that deleting
@@ -216,10 +225,10 @@ import, each checking that the storage-full error is shown, no success banner is
 what was typed is still on screen, and the stored payload is byte-for-byte
 unchanged.
 
-It also carries a `KNOWN ISSUE` block it reports but does not fail on — a delete
-whose write failed is silently made permanent by the next successful save. See
-`S1-FINDINGS.md` and §9. Promote that block to a real assertion once it is fixed;
-it already detects the fixed state.
+Rebuilding it found a real bug, since fixed: a delete whose write failed was
+silently committed by the next successful save. The `rollback/*` assertions guard
+it now, and were confirmed to fail against the pre-fix code before being trusted.
+`S1-FINDINGS.md` has the reasoning and the options that were weighed.
 
 **The earlier 32 suites are still gone.** They lived in a session scratchpad
 (`/tmp/claude-0/…/scratchpad/`) that no longer exists, and covered a lot of
@@ -262,17 +271,6 @@ Two traps that have bitten repeatedly:
 
 ## 9. Open items
 
-- **A failed delete is silently made permanent by the next successful save.**
-  Found by `verify-s1.js`, confirmed for notes, todos and goals, **not fixed** —
-  it is delete/save logic and wanted a decision. Deletes remove the item from
-  the in-memory store before saving and never put it back when the save fails.
-  Disk is still correct at that moment, so nothing is lost yet; but memory and
-  disk now disagree and the next successful write persists memory. The user is
-  never shown "deleted" and is never offered Undo, so the one affordance that
-  could recover the note is deliberately unavailable. `handleDiarySubmit`
-  already solves exactly this for the insert case with an explicit
-  `store.notes.pop()`. Full write-up, reproduction and three options in
-  **`S1-FINDINGS.md`**; the recommendation there is to mirror the diary path.
 - **Sticky tab bar — a product decision, not made.** `#tabs` is
   `position: relative`, so reaching it means scrolling to the top; by the time
   a tab is tapped there is no offset left to preserve. Scroll restoration

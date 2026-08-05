@@ -89,8 +89,15 @@ Photos, the back button and dictation still have **no coverage here**. Those
 suites existed once and were lost. Treat this table as the real state, not the
 intended one.
 
-`verify-s1.js` prints a `KNOWN ISSUE` block it does not fail on: a delete whose
-write failed is silently made permanent by the next successful save. It is
-recorded in `S1-FINDINGS.md` and `HANDOVER.md` §9, and left unfixed on purpose —
-the fix is in delete/save logic, not in a test. The block already detects the
-fixed state, so promote it to a real assertion once that lands.
+### Trust an assertion only after you have seen it fail
+
+`verify-s1.js` found a real bug — a delete whose write failed was silently
+committed by the next successful save. Before the `rollback/*` checks were
+believed, they were run against the pre-fix commit in a throwaway worktree and
+confirmed to fail there.
+
+That was worth doing: the *first* half of each check ("survives the failed delete
+itself") passes either way, because disk was always correct at that moment. Only
+the second half, after an unrelated successful write, actually catches it. A
+plausible-looking assertion that cannot fail is worse than none — it reads as
+coverage.
