@@ -207,16 +207,25 @@ Each suite starts its own static server, so nothing needs to be running first.
 `npm` lives in `test/` and nowhere else: the app itself still has no build step
 and no dependencies, and that must stay true.
 
-**The earlier 32 suites are gone.** They lived in a session scratchpad
-(`/tmp/claude-0/…/scratchpad/`) that no longer exists, and they covered a lot of
-hard-won behaviour — storage-full, dictation, back button, photos, offline,
-icons. None of that is covered today. `test/` currently holds **one** suite,
-`verify-dash-capture.js`. Read the coverage table in `test/README.md` as the
-real state, not the intended one.
+**`verify-s1.js` is the storage-honesty suite — run it after touching any save
+path.** It fakes a full quota by wrapping `Storage.prototype.setItem` before the
+app loads and throwing a real `QuotaExceededError` for the store key alone;
+drafts live under other keys and keep working, which is the whole point of the
+rule. 44 assertions over capture, diary, clip, goal, todo, edit, delete, undo and
+import, each checking that the storage-full error is shown, no success banner is,
+what was typed is still on screen, and the stored payload is byte-for-byte
+unchanged.
 
-The most valuable thing anyone could do here is rebuild **`verify-s1.js`**, the
-storage-honesty suite that guards the S-1 rule in §5. Until it exists, every
-change to a save path is unguarded.
+It also carries a `KNOWN ISSUE` block it reports but does not fail on — a delete
+whose write failed is silently made permanent by the next successful save. See
+`S1-FINDINGS.md` and §9. Promote that block to a real assertion once it is fixed;
+it already detects the fixed state.
+
+**The earlier 32 suites are still gone.** They lived in a session scratchpad
+(`/tmp/claude-0/…/scratchpad/`) that no longer exists, and covered a lot of
+hard-won behaviour. Dictation, the back button, photos and offline still have
+**no coverage**. Read the coverage table in `test/README.md` as the real state,
+not the intended one.
 
 The lost suites seeded `localStorage` directly, mocked `api.anthropic.com` via
 `page.route`, and mocked `SpeechRecognition` and `navigator.vibrate` via
@@ -253,6 +262,17 @@ Two traps that have bitten repeatedly:
 
 ## 9. Open items
 
+- **A failed delete is silently made permanent by the next successful save.**
+  Found by `verify-s1.js`, confirmed for notes, todos and goals, **not fixed** —
+  it is delete/save logic and wanted a decision. Deletes remove the item from
+  the in-memory store before saving and never put it back when the save fails.
+  Disk is still correct at that moment, so nothing is lost yet; but memory and
+  disk now disagree and the next successful write persists memory. The user is
+  never shown "deleted" and is never offered Undo, so the one affordance that
+  could recover the note is deliberately unavailable. `handleDiarySubmit`
+  already solves exactly this for the insert case with an explicit
+  `store.notes.pop()`. Full write-up, reproduction and three options in
+  **`S1-FINDINGS.md`**; the recommendation there is to mirror the diary path.
 - **Sticky tab bar — a product decision, not made.** `#tabs` is
   `position: relative`, so reaching it means scrolling to the top; by the time
   a tab is tapped there is no offset left to preserve. Scroll restoration

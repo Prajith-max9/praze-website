@@ -71,6 +71,7 @@ fails in the other — or worse, pins a value the rest of the app has moved off.
 | `verify-dash-capture.js` | Dashboard capture box: layout order, the three options and their wiring to existing capture flows, the `+` button, phone-viewport geometry, dark theme tokens |
 | `verify-polish.js` | Relative timestamps, clamped previews and their toggle, copy, active-tab feedback, destructive-action presentation, offline badge, filter/scroll restore — and an assertion that none of it wrote to the store |
 | `verify-tap-targets.js` | Every control has a 44px **effective** tap area across all views |
+| `verify-s1.js` | **Storage honesty.** Run after touching any save path. Fakes a full quota and checks every write path refuses to claim success, keeps what was typed, and leaves the stored payload byte-identical |
 
 ### Two things those suites learned the hard way
 
@@ -84,6 +85,12 @@ see an `::after` hit box, and more importantly cannot see a *neighbour* stealing
 the point. Tag chips were reaching ~10px above their pills and swallowing taps
 meant for "Show more". Only `elementFromPoint` finds that.
 
-Large parts of the app — storage honesty (the S-1 rule), photos, offline, the
-back button, dictation — have **no coverage here yet**. Those suites existed
-once and were lost. Treat this table as the real state, not the intended one.
+Photos, the back button and dictation still have **no coverage here**. Those
+suites existed once and were lost. Treat this table as the real state, not the
+intended one.
+
+`verify-s1.js` prints a `KNOWN ISSUE` block it does not fail on: a delete whose
+write failed is silently made permanent by the next successful save. It is
+recorded in `S1-FINDINGS.md` and `HANDOVER.md` §9, and left unfixed on purpose —
+the fix is in delete/save logic, not in a test. The block already detects the
+fixed state, so promote it to a real assertion once that lands.
