@@ -1097,8 +1097,8 @@
   function renderEmptyState() {
     if (!ideas().length) {
       return '<li class="empty">' +
-        '<p class="empty__title">Nothing captured yet.</p>' +
-        '<p class="empty__text">First thought goes above.</p>' +
+        '<p class="empty__title">Capture what you’d otherwise forget.</p>' +
+        '<p class="empty__text">Everything else in here grows from these.</p>' +
         '<ul class="empty__tips">' +
         '<li>Add tags — <em>training, ideas</em> — to organize</li>' +
         '<li>Write [[Note Title]] to link notes together</li>' +
@@ -1515,7 +1515,7 @@
     });
 
     els.diaryList.innerHTML = html ||
-      '<li class="empty"><p class="empty__title">No entries yet.</p>' +
+      '<li class="empty"><p class="empty__title">Write down how today actually went.</p>' +
       '<p class="empty__text">One honest paragraph a day builds the record.</p></li>';
 
     var streak = computeStreak('diary');
@@ -1767,8 +1767,8 @@
     }).join('');
 
     if (!store.notes.length) {
-      els.timelineList.innerHTML = '<li class="empty"><p class="empty__title">Nothing here yet.</p>' +
-        '<p class="empty__text">Capture your first thought in Ideas and it shows up here.</p></li>';
+      els.timelineList.innerHTML = '<li class="empty"><p class="empty__title">Nothing to look back on yet.</p>' +
+        '<p class="empty__text">Capture something in Ideas and it lands here by date.</p></li>';
       els.timelineSentinel.hidden = true;
       if (timelineObserver) timelineObserver.disconnect();
       return;
@@ -1869,8 +1869,8 @@
 
     els.clipList.innerHTML = clips.length
       ? clips.map(renderClipCard).join('')
-      : '<li class="empty"><p class="empty__title">No clips saved.</p>' +
-        '<p class="empty__text">Paste a video link above — it lives here with your reason for saving it.</p></li>';
+      : '<li class="empty"><p class="empty__title">Save a link worth coming back to.</p>' +
+        '<p class="empty__text">Kept with your reason for saving it, not just the URL.</p></li>';
   }
 
   /* ---------- GOALS view ---------- */
@@ -1950,8 +1950,8 @@
                 '<button type="button" class="note__action note__action--danger" data-action="goal-del-ask">Delete</button>') +
             '</div></div>';
         }).join('')
-      : '<div class="empty"><p class="empty__title">No active goals.</p>' +
-        '<p class="empty__text">Set one above — make it a number you can count.</p></div>';
+      : '<div class="empty"><p class="empty__title">Set something you’re working toward.</p>' +
+        '<p class="empty__text">Make it a number you can count.</p></div>';
 
     els.wins.innerHTML = wins.length
       ? '<p class="label">WINS</p>' + wins.map(function (g) {
@@ -2057,8 +2057,8 @@
 
     els.todoList.innerHTML = open.length
       ? open.map(todoRow).join('')
-      : '<li class="empty"><p class="empty__title">Nothing on the list.</p>' +
-        '<p class="empty__text">Type it above and hit ADD — this is for fast capture, not planning.</p></li>';
+      : '<li class="empty"><p class="empty__title">Park what you keep almost forgetting.</p>' +
+        '<p class="empty__text">Fast capture — not a project plan.</p></li>';
 
     els.todoDone.innerHTML = done.length
       ? '<button type="button" class="todo-done__toggle" data-action="todo-done-toggle" aria-expanded="' +
