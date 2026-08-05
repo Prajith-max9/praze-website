@@ -1266,6 +1266,13 @@ return '<svg class="icon' + (ICONS_FILLED[name] ? ' icon--fill' : '') +
 (extraClass ? ' ' + extraClass : '') +
 '" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' + body + '</svg>';
 }
+function haptic(pattern) {
+try {
+if (navigator.vibrate) navigator.vibrate(pattern);
+} catch (e) {}
+}
+var HAPTIC_SAVE = 15;
+var HAPTIC_WIN = [30, 50, 30];
 function escapeRegExp(text) {
 return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -3404,6 +3411,7 @@ els.captureForm.reset();
 els.captureBody.style.height = '';
 render();
 els.captureBody.focus();
+haptic(HAPTIC_SAVE);
 showBanner('Idea captured.');
 recordNoteSaved(prevEligible);
 }
@@ -3426,6 +3434,7 @@ els.diaryBody.style.height = '';
 state.pendingPhoto = '';
 render();
 els.diaryBody.focus();
+haptic(HAPTIC_SAVE);
 showBanner('Entry saved.');
 recordNoteSaved(prevEligible);
 }
@@ -3444,6 +3453,7 @@ return;
 }
 els.clipForm.reset();
 render();
+haptic(HAPTIC_SAVE);
 showBanner('Clip saved.');
 recordNoteSaved(prevEligible);
 }
@@ -3466,6 +3476,7 @@ return;
 }
 els.goalForm.reset();
 render();
+haptic(HAPTIC_SAVE);
 showBanner('Goal set.');
 }
 function handleTodoSubmit(e) {
@@ -3494,6 +3505,7 @@ if (due) maybeRequestNotifications();
 scheduleTodoReminders();
 render();
 els.todoText.focus();
+haptic(HAPTIC_SAVE);
 showBanner('Added to the list.');
 }
 function openTodoDueField() {
@@ -3765,6 +3777,7 @@ goal.completedAt = Date.now();
 hitNow = true;
 }
 if (saveStore() && hitNow) {
+haptic(HAPTIC_WIN);
 celebrate();
 showBanner('GOAL HIT — ' + goal.title + ' 🏆');
 }
@@ -4390,6 +4403,7 @@ store.notes.push(createNote('Brain dump — ' + formatDate(Date.now()), text, ''
 if (!saveStore()) return;
 closeDump();
 render();
+haptic(HAPTIC_SAVE);
 showBanner('Saved as one note.');
 recordNoteSaved(prevEligible);
 }
@@ -4403,6 +4417,7 @@ store.notes.push(createNote(p.title, p.body, p.tags.join(', '), 'idea'));
 if (!saveStore()) return;
 closeDump();
 render();
+haptic(HAPTIC_SAVE);
 showBanner('Saved ' + chosen.length + ' note' + (chosen.length === 1 ? '' : 's') + '.');
 recordNoteSaved(prevEligible);
 }

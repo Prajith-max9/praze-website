@@ -62,6 +62,28 @@
       '" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' + body + '</svg>';
   }
 
+  /* ---------- Haptics ----------
+     A short tick when something is actually committed — a note written, a
+     todo added, a dump turned into notes — and a distinct three-beat only for
+     hitting a goal, alongside the confetti that already marks that moment.
+
+     Deliberately not on ordinary taps: a device that buzzes at everything is
+     worse than one that never buzzes, and the tick only means something
+     because it is rare. Every call is gated on the save having landed, so a
+     failed write never feels like a success.
+
+     navigator.vibrate is absent on desktop and iOS, and a no-op when the user
+     has silenced it at the OS level, so this degrades to nothing. */
+
+  function haptic(pattern) {
+    try {
+      if (navigator.vibrate) navigator.vibrate(pattern);
+    } catch (e) {}
+  }
+
+  var HAPTIC_SAVE = 15;
+  var HAPTIC_WIN = [30, 50, 30];
+
   function escapeRegExp(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -2706,6 +2728,7 @@
     els.captureBody.style.height = '';
     render();
     els.captureBody.focus();
+    haptic(HAPTIC_SAVE);
     showBanner('Idea captured.');
     recordNoteSaved(prevEligible); // after the save banner so the connect moment wins the slot
   }
@@ -2735,6 +2758,7 @@
     state.pendingPhoto = '';
     render();
     els.diaryBody.focus();
+    haptic(HAPTIC_SAVE);
     showBanner('Entry saved.');
     recordNoteSaved(prevEligible);
   }
@@ -2754,6 +2778,7 @@
     }
     els.clipForm.reset();
     render();
+    haptic(HAPTIC_SAVE);
     showBanner('Clip saved.');
     recordNoteSaved(prevEligible); // clips don't move the eligible count, but they do count as a first note
   }
@@ -2777,6 +2802,7 @@
     }
     els.goalForm.reset();
     render();
+    haptic(HAPTIC_SAVE);
     showBanner('Goal set.');
   }
 
@@ -2806,6 +2832,7 @@
     scheduleTodoReminders();
     render();
     els.todoText.focus();
+    haptic(HAPTIC_SAVE);
     showBanner('Added to the list.');
   }
 
@@ -3124,6 +3151,7 @@
         }
         // celebrate only once the milestone is actually on disk
         if (saveStore() && hitNow) {
+          haptic(HAPTIC_WIN);
           celebrate();
           showBanner('GOAL HIT — ' + goal.title + ' 🏆');
         }
@@ -3917,6 +3945,7 @@
     if (!saveStore()) return; // keep the overlay open: the transcript is the only copy
     closeDump();
     render();
+    haptic(HAPTIC_SAVE);
     showBanner('Saved as one note.');
     recordNoteSaved(prevEligible);
   }
@@ -3931,6 +3960,7 @@
     if (!saveStore()) return; // keep the overlay open: the transcript is the only copy
     closeDump();
     render();
+    haptic(HAPTIC_SAVE);
     showBanner('Saved ' + chosen.length + ' note' + (chosen.length === 1 ? '' : 's') + '.');
     recordNoteSaved(prevEligible);
   }
