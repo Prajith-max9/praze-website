@@ -429,59 +429,66 @@ const SEED = () => {
       .some(n => /only exists inside this overlay/.test(n.body))));
   await dumpCtx.close();
 
-  /* ---------- KNOWN ISSUE ----------
-     Reported, not asserted. Every check above covers the rule as HANDOVER.md §5
-     states it — no false success, no cleared draft, no reset form — and the app
-     passes all of it. What follows is a hole the rule does not currently cover,
-     found by this suite and left for a decision rather than patched, because
-     the fix is in delete/save logic rather than in a test.
+  /* ---------- 13. a failed delete must not be committed later ----------
+     The hole this suite originally found, now closed and asserted.
 
-     A delete removes the item from the in-memory store BEFORE saving, and does
-     not put it back when the save fails. Disk is still correct at that moment,
-     so nothing is lost yet — but memory and disk now disagree, and the NEXT
-     successful write persists memory. The item is then gone for good, without
-     the user ever seeing "deleted" or being offered Undo.
+     A delete removes the item from the in-memory store BEFORE saving. If the
+     save fails and the item is not put back, disk is still correct at that
+     moment — but memory and disk disagree, and the NEXT successful write
+     persists memory, committing a deletion the user was never told happened
+     and was never offered Undo for. Undo is withheld precisely because the
+     write failed, so the one affordance that could recover it is unavailable.
 
-     handleDiarySubmit already solves exactly this for the insert case, with an
-     explicit store.notes.pop() and a comment explaining why. The delete paths
-     have no equivalent.
+     Each case below: fail the delete, confirm the item survived on disk, then
+     make an unrelated write that DOES land and confirm it is still there. The
+     second half is the real assertion — the first half passed even when the
+     bug was present. */
+  async function survivesALaterWrite(name, hash, prepare, present) {
+    const dcx = await browser.newContext({ viewport: PHONE, isMobile: true, hasTouch: true });
+    await dcx.addInitScript(INSTALL_QUOTA_SWITCH);
+    const dpg = await dcx.newPage();
+    await dpg.goto(url);
+    await dpg.evaluate(SEED);
+    await dpg.reload();
+    await dpg.evaluate(h => { location.hash = h; }, hash);
+    await dpg.waitForTimeout(400);
 
-     Turn this into a hard assertion once it is fixed. */
-  const known = await (async () => {
-    await page.evaluate(() => { location.hash = '#ideas'; });
-    await page.waitForSelector('.note[data-id="dia"], .note', { timeout: 5000 }).catch(() => {});
-    const target = await page.evaluate(() => {
-      const n = JSON.parse(localStorage.getItem('praze.brain.v1')).notes[0];
-      return n ? n.id : null;
-    });
-    if (!target) return null;
-    await setFail(true);
-    const card = await page.$('.note[data-id="' + target + '"] [data-action="delete-ask"]');
-    if (!card) { await setFail(false); return null; }
-    await card.click();
-    await page.waitForSelector('[data-action="delete-yes"]');
-    await page.click('[data-action="delete-yes"]');
-    await page.waitForTimeout(250);
-    const stillOnDisk = await page.evaluate(t =>
-      JSON.parse(localStorage.getItem('praze.brain.v1')).notes.some(n => n.id === t), target);
-    await setFail(false);
-    // an unrelated write that DOES land
-    await page.fill('#capture-body', 'an unrelated later note');
-    await page.click('#capture-form button[type="submit"]');
-    await page.waitForTimeout(400);
-    const survived = await page.evaluate(t =>
-      JSON.parse(localStorage.getItem('praze.brain.v1')).notes.some(n => n.id === t), target);
-    return { stillOnDisk, survived };
-  })();
+    await dpg.evaluate(() => { window.__s1FailStore = true; });
+    await prepare(dpg);
+    await dpg.waitForTimeout(300);
+    check(name + ': survives the failed delete itself', await dpg.evaluate(present));
 
-  if (known && known.stillOnDisk && !known.survived) {
-    console.log('\n  KNOWN ISSUE  a delete whose write failed is silently made permanent');
-    console.log('               by the next successful save. Confirmed for notes, todos');
-    console.log('               and goals. See S1-FINDINGS.md — not fixed here on purpose.');
-  } else if (known && known.survived) {
-    console.log('\n  NOTE  the failed-delete divergence appears to be FIXED — promote the');
-    console.log('        KNOWN ISSUE block in this file to a real assertion.');
+    // an unrelated write that lands — this is what used to commit the deletion
+    await dpg.evaluate(() => { window.__s1FailStore = false; });
+    await dpg.evaluate(() => { location.hash = '#ideas'; });
+    await dpg.waitForTimeout(250);
+    await dpg.fill('#capture-body', 'an unrelated later note');
+    await dpg.click('#capture-form button[type="submit"]');
+    await dpg.waitForTimeout(400);
+    check(name + ': NOT silently committed by a later successful save',
+      await dpg.evaluate(present));
+    await dcx.close();
   }
+
+  await survivesALaterWrite('rollback/note', '#ideas',
+    async p => {
+      await p.click('.note[data-id="keep"] [data-action="delete-ask"]');
+      await p.waitForSelector('[data-action="delete-yes"]');
+      await p.click('[data-action="delete-yes"]');
+    },
+    () => JSON.parse(localStorage.getItem('praze.brain.v1')).notes.some(n => n.id === 'keep'));
+
+  await survivesALaterWrite('rollback/todo', '#todos',
+    async p => { await p.click('[data-action="todo-del"]'); },
+    () => JSON.parse(localStorage.getItem('praze.brain.v1')).todos.some(t => t.id === 't1'));
+
+  await survivesALaterWrite('rollback/goal', '#goals',
+    async p => {
+      await p.click('[data-action="goal-del-ask"]');
+      await p.waitForTimeout(200);
+      await p.click('[data-action="goal-del-yes"]');
+    },
+    () => JSON.parse(localStorage.getItem('praze.brain.v1')).goals.some(g => g.id === 'g1'));
 
   await browser.close();
   server.close();

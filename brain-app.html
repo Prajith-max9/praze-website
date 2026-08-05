@@ -3750,12 +3750,17 @@ return true;
 if (action === 'todo-del') {
 var idx = store.todos.indexOf(todo);
 store.todos = store.todos.filter(function (t) { return t.id !== todo.id; });
-state.lastDeleted = { kind: 'todo', item: todo, index: idx };
 state.todoDueId = null;
-var gone = saveStore();
+if (saveStore()) {
+state.lastDeleted = { kind: 'todo', item: todo, index: idx };
 scheduleTodoReminders();
 renderTodos();
-if (gone) showBanner('Todo deleted.', null, true, { label: 'Undo', fn: undoDelete });
+showBanner('Todo deleted.', null, true, { label: 'Undo', fn: undoDelete });
+} else {
+store.todos.splice(idx, 0, todo);
+scheduleTodoReminders();
+renderTodos();
+}
 return true;
 }
 if (action === 'todo-due-ask') {
@@ -4009,10 +4014,14 @@ render();
 var goalIdx = store.goals.indexOf(goal);
 store.goals = store.goals.filter(function (g) { return g.id !== goalId; });
 state.confirmingGoalId = null;
+if (saveStore()) {
 state.lastDeleted = { kind: 'goal', item: goal, index: goalIdx };
-var goalGone = saveStore();
 render();
-if (goalGone) showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
+showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
+} else {
+store.goals.splice(goalIdx, 0, goal);
+render();
+}
 } else if (action === 'goal-del-no') {
 state.confirmingGoalId = null;
 render();
@@ -4137,10 +4146,14 @@ case 'delete-yes':
 var noteIdx = store.notes.indexOf(note);
 store.notes = store.notes.filter(function (n) { return n.id !== note.id; });
 state.confirmingDeleteId = null;
+if (saveStore()) {
 state.lastDeleted = { kind: 'note', item: note, index: noteIdx };
-var noteGone = saveStore();
 render();
-if (noteGone) showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
+showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
+} else {
+store.notes.splice(noteIdx, 0, note);
+render();
+}
 break;
 case 'delete-no':
 state.confirmingDeleteId = null;

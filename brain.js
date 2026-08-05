@@ -3192,12 +3192,18 @@
     if (action === 'todo-del') {
       var idx = store.todos.indexOf(todo);
       store.todos = store.todos.filter(function (t) { return t.id !== todo.id; });
-      state.lastDeleted = { kind: 'todo', item: todo, index: idx };
       state.todoDueId = null;
-      var gone = saveStore();
-      scheduleTodoReminders();
-      renderTodos();
-      if (gone) showBanner('Todo deleted.', null, true, { label: 'Undo', fn: undoDelete });
+      // rolled back when the write fails — see the note on 'delete-yes'
+      if (saveStore()) {
+        state.lastDeleted = { kind: 'todo', item: todo, index: idx };
+        scheduleTodoReminders();
+        renderTodos();
+        showBanner('Todo deleted.', null, true, { label: 'Undo', fn: undoDelete });
+      } else {
+        store.todos.splice(idx, 0, todo);
+        scheduleTodoReminders(); // the restored todo keeps its pending reminder
+        renderTodos();
+      }
       return true;
     }
 
@@ -3495,10 +3501,15 @@
         var goalIdx = store.goals.indexOf(goal);
         store.goals = store.goals.filter(function (g) { return g.id !== goalId; });
         state.confirmingGoalId = null;
-        state.lastDeleted = { kind: 'goal', item: goal, index: goalIdx };
-        var goalGone = saveStore();
-        render();
-        if (goalGone) showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
+        // rolled back when the write fails — see the note on 'delete-yes'
+        if (saveStore()) {
+          state.lastDeleted = { kind: 'goal', item: goal, index: goalIdx };
+          render();
+          showBanner('Goal deleted.', null, true, { label: 'Undo', fn: undoDelete });
+        } else {
+          store.goals.splice(goalIdx, 0, goal);
+          render();
+        }
       } else if (action === 'goal-del-no') {
         state.confirmingGoalId = null;
         render();
@@ -3628,14 +3639,29 @@
         state.confirmingDeleteId = note.id;
         render();
         break;
+      /* A delete that could not be written is put back. Disk still holds the
+         note at that point, so leaving it out of the in-memory store would make
+         the two disagree — and the next save that DOES succeed writes memory,
+         silently committing a deletion the user was never told had happened and
+         was never offered an Undo for. Same reasoning as the rollback in
+         handleDiarySubmit, which solves this for the insert case.
+
+         lastDeleted is only set on success: after a rollback there is nothing
+         to undo, and claiming otherwise would offer to restore a note that is
+         already there. No extra message either — saveStore has already put the
+         storage-full banner up, and saying it twice is noise. */
       case 'delete-yes':
         var noteIdx = store.notes.indexOf(note);
         store.notes = store.notes.filter(function (n) { return n.id !== note.id; });
         state.confirmingDeleteId = null;
-        state.lastDeleted = { kind: 'note', item: note, index: noteIdx };
-        var noteGone = saveStore();
-        render();
-        if (noteGone) showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
+        if (saveStore()) {
+          state.lastDeleted = { kind: 'note', item: note, index: noteIdx };
+          render();
+          showBanner('Note deleted.', null, true, { label: 'Undo', fn: undoDelete });
+        } else {
+          store.notes.splice(noteIdx, 0, note);
+          render();
+        }
         break;
       case 'delete-no':
         state.confirmingDeleteId = null;
