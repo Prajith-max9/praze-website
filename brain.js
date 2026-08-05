@@ -1202,13 +1202,42 @@
     });
   }
 
+  /* The model's line breaks are the structure — a reel's hook sits on its own
+     line, hooks come numbered, a caption breaks between thoughts — so the
+     plain text is normalised rather than reflowed: consistent newlines, no
+     trailing spaces (which silently break a markdown line break), and no runs
+     of blank lines. */
+  function synthPlain(s) {
+    return String(s.text || '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/[ \t]+$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  // The same content as real markup, so a rich editor keeps the shape instead
+  // of collapsing it into one paragraph.
+  function synthHtml(s) {
+    return '<h2>' + escapeHtml(SYNTH_LABELS[s.format]) + '</h2>' +
+      synthPlain(s).split('\n\n').map(function (block) {
+        return '<p>' + block.split('\n').map(escapeHtml).join('<br>') + '</p>';
+      }).join('');
+  }
+
+  /* Both flavours go on the clipboard at once. Paste into a rich editor and
+     you get the heading and paragraphs; paste into a caption box and you get
+     exactly the text with no markup to delete — the destination picks, rather
+     than one choice being wrong half the time. */
   function copySynth() {
-    var text = state.synth && state.synth.text;
-    if (!text) return;
+    var s = state.synth;
+    if (!s || !s.text) return;
+    var plain = synthPlain(s);
+    var html = synthHtml(s);
+
     function done() { showBanner('Copied to clipboard.'); }
-    function fallback() {
+    function legacy() {
       var ta = document.createElement('textarea');
-      ta.value = text;
+      ta.value = plain;
       document.body.appendChild(ta);
       ta.select();
       var ok = false;
@@ -1217,11 +1246,24 @@
       if (ok) done();
       else showBanner('Copy failed — select the text manually.', 'error');
     }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, fallback);
-    } else {
-      fallback();
+    function plainOnly() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(plain).then(done, legacy);
+      } else {
+        legacy();
+      }
     }
+
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      try {
+        navigator.clipboard.write([new ClipboardItem({
+          'text/plain': new Blob([plain], { type: 'text/plain' }),
+          'text/html': new Blob([html], { type: 'text/html' })
+        })]).then(done, plainOnly);
+        return;
+      } catch (e) { /* older ClipboardItem shapes throw — fall through */ }
+    }
+    plainOnly();
   }
 
   function saveSynthAsIdea() {

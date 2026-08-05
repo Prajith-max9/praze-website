@@ -2150,13 +2150,28 @@ showBanner(err.message || 'AI request failed.', 'error');
 render();
 });
 }
+function synthPlain(s) {
+return String(s.text || '')
+.replace(/\r\n?/g, '\n')
+.replace(/[ \t]+$/gm, '')
+.replace(/\n{3,}/g, '\n\n')
+.trim();
+}
+function synthHtml(s) {
+return '<h2>' + escapeHtml(SYNTH_LABELS[s.format]) + '</h2>' +
+synthPlain(s).split('\n\n').map(function (block) {
+return '<p>' + block.split('\n').map(escapeHtml).join('<br>') + '</p>';
+}).join('');
+}
 function copySynth() {
-var text = state.synth && state.synth.text;
-if (!text) return;
+var s = state.synth;
+if (!s || !s.text) return;
+var plain = synthPlain(s);
+var html = synthHtml(s);
 function done() { showBanner('Copied to clipboard.'); }
-function fallback() {
+function legacy() {
 var ta = document.createElement('textarea');
-ta.value = text;
+ta.value = plain;
 document.body.appendChild(ta);
 ta.select();
 var ok = false;
@@ -2165,11 +2180,23 @@ ta.remove();
 if (ok) done();
 else showBanner('Copy failed — select the text manually.', 'error');
 }
+function plainOnly() {
 if (navigator.clipboard && navigator.clipboard.writeText) {
-navigator.clipboard.writeText(text).then(done, fallback);
+navigator.clipboard.writeText(plain).then(done, legacy);
 } else {
-fallback();
+legacy();
 }
+}
+if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+try {
+navigator.clipboard.write([new ClipboardItem({
+'text/plain': new Blob([plain], { type: 'text/plain' }),
+'text/html': new Blob([html], { type: 'text/html' })
+})]).then(done, plainOnly);
+return;
+} catch (e) {  }
+}
+plainOnly();
 }
 function saveSynthAsIdea() {
 var s = state.synth;
