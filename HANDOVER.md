@@ -194,39 +194,34 @@ in `brain-ai.js`: `fast` = `claude-haiku-4-5`, `balanced` = `claude-sonnet-5`,
 
 ## 7. Testing — READ THIS
 
-There is **no test directory in the repo**. All 32 Playwright suites live in a
-session scratchpad:
-
-```
-/tmp/claude-0/-home-user-praze-website/<session-id>/scratchpad/
-```
-
-**That directory is session-specific and will not exist for you.** This is the
-single biggest gap in this handover. The suites cover a lot of hard-won
-behaviour — storage-full, dictation, back button, photos, offline, icons. If
-they are gone, they are gone.
-
-**Recommendation: move them into the repo** (e.g. `test/`, with `runall.sh`) so
-they survive. This was deliberately not done unilaterally because the repo has
-never had a test directory and that is a structural change worth a decision.
-
-How they work, if you still have them or rebuild them:
+There is now a **`test/` directory in the repo** — see `test/README.md`.
 
 ```bash
-python3 -m http.server 8123     # must be running
-node verify-back.js             # one suite
-bash runall.sh                  # the 18 in the standard set
+cd test
+npm install && npx playwright install chromium   # first time only
+node runall.js                                   # every suite
+node verify-dash-capture.js                      # one suite
 ```
 
-Chromium is at `/opt/pw-browsers/chromium`. Suites seed `localStorage`
-directly, mock `api.anthropic.com` via `page.route`, and mock
-`SpeechRecognition` and `navigator.vibrate` via `addInitScript`.
+Each suite starts its own static server, so nothing needs to be running first.
+`npm` lives in `test/` and nowhere else: the app itself still has no build step
+and no dependencies, and that must stay true.
 
-`runall.sh` runs 18 of the 32. The rest (`verify-s1.js` … `verify-s789.js`,
-`verify-todos.js`, `verify-graph-settings.js`, `verify-dictation-repeat.js`,
-`verify-s3-photos.js`, `verify-s4-taborder.js`, …) are run individually.
-**`verify-s1.js` is the storage-honesty suite — run it after touching any save
-path.**
+**The earlier 32 suites are gone.** They lived in a session scratchpad
+(`/tmp/claude-0/…/scratchpad/`) that no longer exists, and they covered a lot of
+hard-won behaviour — storage-full, dictation, back button, photos, offline,
+icons. None of that is covered today. `test/` currently holds **one** suite,
+`verify-dash-capture.js`. Read the coverage table in `test/README.md` as the
+real state, not the intended one.
+
+The most valuable thing anyone could do here is rebuild **`verify-s1.js`**, the
+storage-honesty suite that guards the S-1 rule in §5. Until it exists, every
+change to a save path is unguarded.
+
+The lost suites seeded `localStorage` directly, mocked `api.anthropic.com` via
+`page.route`, and mocked `SpeechRecognition` and `navigator.vibrate` via
+`addInitScript`. `test/lib/harness.js` re-establishes the first of those; the
+rest are worth copying back as they are needed.
 
 Two traps that have bitten repeatedly:
 - `page.goto(url + '#hash')` from the same page is a *same-document* navigation
@@ -241,15 +236,20 @@ Two traps that have bitten repeatedly:
    merged, restart it from `main` rather than stacking on merged history.
 2. Commit one logical change at a time.
 3. `node build-brain-app.js` and commit the bundle.
-4. Run the suites. Full set if the change is broad; at minimum the ones
-   covering what you touched, plus `verify-s1.js` for save paths.
+4. `cd test && node runall.js`. If you touched something the suites do not
+   cover — which today is most of the app (§7) — say so plainly rather than
+   letting a green run imply more than it checked.
 5. PR into `main`, merge.
 6. GitHub Pages builds automatically — check the `pages build and deployment`
-   workflow succeeded before telling anyone to test on a phone.
-7. **Verifying a fix on the device**: the sandbox's egress policy blocks
-   `prajith-max9.github.io`, so you cannot fetch the live site to confirm what
-   is being served. The technique that worked was putting a visible build stamp
-   in the UI, so the user's screenshot answers "is this current?" definitively.
+   workflow succeeded before telling anyone to test on a phone. With the `gh`
+   CLI: `gh run list --limit 1 --json headSha,status,conclusion`, and confirm
+   the `headSha` matches your commit rather than trusting the newest run.
+7. **Verifying what is actually being served.** From a normal machine you can
+   just fetch it, which is the fastest confirmation there is:
+   `curl https://prajith-max9.github.io/praze-website/brain.js | grep …`.
+   From the original cloud sandbox you could not — its egress policy blocked
+   `prajith-max9.github.io` — and the technique that worked there was putting a
+   visible build stamp in the UI so a screenshot answered "is this current?".
 
 ## 9. Open items
 

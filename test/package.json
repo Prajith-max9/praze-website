@@ -1,0 +1,13 @@
+{
+  "name": "second-brain-test",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Verification suites for Second Brain. Deliberately scoped to test/ so the app itself stays dependency-free and buildless.",
+  "scripts": {
+    "test": "node runall.js",
+    "shot": "node screenshot.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
