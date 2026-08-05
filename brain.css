@@ -2398,6 +2398,74 @@ textarea:focus-visible,
   animation: banner-in 0.18s ease-out;
 }
 
+/* §8 tab content: the indicator already slides, but the content underneath it
+   swapped instantly. Views toggle [hidden], so unhiding restarts the animation
+   the same way the banner's does.
+
+   Opacity only, deliberately. A translate on .view would make it a containing
+   block for the whole 180ms, and #synth-bar is position:fixed *inside*
+   #view-ideas — it would jump to the view's box and back on every tab switch.
+   A fade alone reads as the transition without buying that bug. */
+@keyframes view-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.view {
+  animation: view-in 0.18s ease-out;
+}
+
+/* §9 panel + overlay entrance, matching the banner's 180ms.
+   Panels drop from the edge they're anchored to; sheets rise; backdrops just
+   dim in, so the dimming and the content arrive together. */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.settings,
+.graph-settings {
+  animation: panel-in 0.18s ease-out;
+}
+
+.dump__box,
+.palette__box,
+.photo-view__img {
+  animation: sheet-in 0.18s ease-out;
+}
+
+.dump__backdrop,
+.palette__backdrop,
+.photo-view__backdrop {
+  animation: fade-in 0.18s ease-out;
+}
+
+/* §10 AI results arriving. Height cannot be transitioned to auto, so the block
+   fades and rises into the space instead of snapping into it — the jump is
+   what reads as jarring, not the reflow itself. Each of these is either
+   rebuilt or unhidden per result, so the animation fires once per answer. */
+@keyframes result-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.ask-answer,
+.synth-result,
+#digest-result,
+.reflect {
+  animation: result-in 0.18s ease-out;
+}
+
 /* the press state replaces the mobile gray tap flash — ours is better */
 button,
 a {

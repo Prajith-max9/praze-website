@@ -2668,6 +2668,39 @@
      at the current URL, so consuming it never changes the hash; and a popstate
      that *did* change the hash is left entirely to the tab router below. */
 
+  /* Switching to a short tab clamps the document scroll to 0, and switching
+     back leaves it there — a long IDEAS list threw the user to the top every
+     time they glanced at another tab. Each view's offset is remembered as it
+     is left and restored once the new one has rendered tall enough to hold it. */
+  var viewScroll = {};
+
+  function rememberScroll() {
+    viewScroll[state.view] = window.scrollY || window.pageYOffset || 0;
+  }
+
+  /* The offset cannot simply be set once. A view's height settles over the
+     next few frames — swapped fonts reflow the text, textareas grow to their
+     content — so an early scrollTo is clamped against a document that is still
+     short, and lands at the top. Each attempt forces layout and retries until
+     the target is reachable, giving up after a handful of frames so a view
+     that genuinely got shorter (notes deleted) just stops where it can. */
+  var SCROLL_RESTORE_FRAMES = 8;
+
+  function restoreScroll(view) {
+    var y = viewScroll[view] || 0;
+    if (!y) return;
+    var tries = 0;
+    (function attempt() {
+      if (state.view !== view) return; // the user moved on; leave them alone
+      void document.documentElement.scrollHeight; // force the queued layout
+      if (window.scrollY !== y) window.scrollTo(0, y);
+      // Every frame in the window, not just until the first success: setting
+      // location.hash makes the browser adjust the scroll itself a frame or
+      // two later, which silently undid an offset that had already landed.
+      if (++tries < SCROLL_RESTORE_FRAMES) requestAnimationFrame(attempt);
+    })();
+  }
+
   var backGuard = false;   // is our spare entry currently on top of the stack?
   var lastHash = location.hash;
 
@@ -2741,6 +2774,7 @@
   }
 
   function setView(view) {
+    if (view !== state.view) rememberScroll();
     if (dump.open) closeDump(); // tab switch never leaves the mic hot behind an overlay
     if (!els.photoView.hidden) closePhotoView();
     if (!els.settingsPanel.hidden) closeSettings();
@@ -2760,6 +2794,7 @@
       lastHash = '#' + view;
     }
     render();
+    restoreScroll(view);
   }
 
   function render() {
@@ -4472,10 +4507,12 @@
       lastHash = location.hash;
       var v = currentViewFromHash();
       if (v !== state.view) {
+        rememberScroll();
         if (dump.open) closeDump();
         if (state.view === 'graph') teardownGraph();
         state.view = v;
         render();
+        restoreScroll(v);
       }
     });
 
