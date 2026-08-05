@@ -69,6 +69,20 @@ fails in the other — or worse, pins a value the rest of the app has moved off.
 | Suite | Covers |
 |---|---|
 | `verify-dash-capture.js` | Dashboard capture box: layout order, the three options and their wiring to existing capture flows, the `+` button, phone-viewport geometry, dark theme tokens |
+| `verify-polish.js` | Relative timestamps, clamped previews and their toggle, copy, active-tab feedback, destructive-action presentation, offline badge, filter/scroll restore — and an assertion that none of it wrote to the store |
+| `verify-tap-targets.js` | Every control has a 44px **effective** tap area across all views |
+
+### Two things those suites learned the hard way
+
+**Assert what is painted, not what is set.** `.note__more` sets `display`, which
+beats the UA stylesheet's `[hidden] { display: none }` — so `el.hidden` was
+`true` while the button was still on screen. A check reading the property passed;
+the bug was visible in a screenshot. Prefer `offsetParent` and a real height.
+
+**Measure tap targets by probing, not by rect.** `getBoundingClientRect` cannot
+see an `::after` hit box, and more importantly cannot see a *neighbour* stealing
+the point. Tag chips were reaching ~10px above their pills and swallowing taps
+meant for "Show more". Only `elementFromPoint` finds that.
 
 Large parts of the app — storage honesty (the S-1 rule), photos, offline, the
 back button, dictation — have **no coverage here yet**. Those suites existed

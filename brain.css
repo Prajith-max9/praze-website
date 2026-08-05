@@ -283,6 +283,7 @@ body {
 }
 
 .tag-chip {
+  position: relative;
   font-family: var(--mono);
   font-size: 0.7rem;
   letter-spacing: 0.06em;
@@ -292,6 +293,20 @@ body {
   padding: 0.35rem 0.7rem;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
+}
+
+/* The pill has to stay small to stay quiet, so the tap target is an invisible
+   box centred on it rather than padding. Vertical only: widening it would let
+   neighbouring chips in the same row steal each other's taps. The containers
+   below carry a row-gap big enough that stacked rows cannot overlap either. */
+.tag-chip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 44px;
 }
 
 .tag-chip:hover {
@@ -358,6 +373,46 @@ body {
   margin-bottom: 1rem;
   /* cap measure for readability; wider than any phone, so no effect on mobile */
   max-width: 70ch;
+}
+
+/* Keeps a list scannable when one entry runs long. -webkit-box is still the
+   only line-clamp that works everywhere this app runs; it is unprefixed in
+   newer engines but the prefixed pair is what actually applies today. */
+.note__body--clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+}
+
+.note__more {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  color: var(--gray);
+  cursor: pointer;
+  /* text stays small; the tappable box does not */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  margin-bottom: 0.3rem;
+}
+
+.note__more:hover {
+  color: var(--ink);
+}
+
+/* An author `display` beats the UA stylesheet's [hidden] { display: none },
+   so setting .hidden on this button would otherwise do nothing at all and
+   every short note would offer to expand text it is already showing. */
+.note__more[hidden] {
+  display: none;
 }
 
 .note__body mark,
@@ -448,11 +503,34 @@ body {
   animation: note-flash 1.2s ease;
 }
 
+/* Row-gap has to exceed the 44px tap box minus the pill height, or a chip in
+   the next row overlaps the one above and steals its taps. Column-gap stays
+   tight because the tap box only grows vertically. Only visible when tags
+   actually wrap, which is the minority of notes. */
 .note__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 1.4rem 0.4rem;
+  /* clears the chips' tap boxes, which reach ~10px above the pills and would
+     otherwise steal taps from whatever sits directly above — "Show more" did */
+  margin-top: 0.7rem;
   margin-bottom: 0.9rem;
+}
+
+/* Quieter than the filter rail: on a card the tags are context, and the note
+   itself should stay the loudest thing in it. Type and border only — the tap
+   box set on .tag-chip is unchanged. */
+.note__tags .tag-chip {
+  font-size: 0.62rem;
+  color: var(--gray);
+  border-color: transparent;
+  background: var(--bone);
+  padding: 0.2rem 0.5rem;
+}
+
+.note__tags .tag-chip:hover {
+  color: var(--ink);
+  border-color: var(--border);
 }
 
 .note__meta {
@@ -476,6 +554,9 @@ body {
   gap: 0.75rem;
 }
 
+/* The row of actions under a card. These read as quiet text, and must keep
+   reading that way — so the type size is untouched and only the box around it
+   grows to a thumb-sized target. */
 .note__action {
   font-family: var(--mono);
   font-size: 0.7rem;
@@ -487,6 +568,12 @@ body {
   cursor: pointer;
   padding: 0.15rem 0;
   border-bottom: 1px solid transparent;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 .note__action:hover {
@@ -2591,4 +2678,72 @@ a {
   .settings {
     max-width: 860px;
   }
+}
+
+/* ---------- Tap targets ----------
+   Everything below grows the box a thumb has to hit without growing the thing
+   an eye sees. Measured at 390px, which is where it matters; `test/
+   verify-tap-targets.js` fails the build if any of it regresses.
+   .clip__play (54px), .synth-bar__cancel and .tabs__gear were already fine. */
+
+/* Icon-only dismiss controls: the glyph stays the size it was. */
+.banner__dismiss,
+.resurface-dismiss {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* The checkbox is a deliberate 1.35rem square — it reads as a checkbox at that
+   size and no bigger. So the target goes around it rather than on it. */
+.todo__check {
+  position: relative;
+}
+
+.todo__check::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+}
+
+/* Row-gap clears the tap boxes on .tag-chip so stacked rows cannot overlap. */
+.tag-rail {
+  gap: 1.15rem 0.5rem;
+}
+
+.echo__link,
+.dash-capture__opt,
+.dash-row,
+.tl-row {
+  min-height: 44px;
+}
+
+.dash-capture__opt,
+.echo__link {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---------- Offline ----------
+   Offline is the working state for everything except the AI calls, so this
+   marks a fact rather than raising an alarm — no red, no banner, no layout
+   shift when it appears. */
+
+.offline-badge {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gray);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.45rem;
+  margin-left: 0.75rem;
+  white-space: nowrap;
 }

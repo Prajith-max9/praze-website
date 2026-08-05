@@ -110,6 +110,34 @@
 
   var DAY_MS = 86400000;
 
+  // Exact stamp, for when the point is *which* moment rather than how long ago:
+  // the edit view, and the title= on every relative stamp.
+  function formatExact(ms) {
+    var d = new Date(ms);
+    return formatDate(ms) + ' · ' + String(d.getHours()).padStart(2, '0') +
+      ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  // Card stamps. formatRelative below stops at day granularity because it also
+  // labels diary day headings, where "4m ago" would be nonsense — so anything
+  // written today collapses to "today" there. On a card that is the least
+  // useful thing it could say, hence the minutes and hours here.
+  function formatStamp(ms) {
+    var mins = Math.floor((Date.now() - ms) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    var hours = Math.floor(mins / 60);
+    // still today: hours read better than "today" once it is the afternoon
+    if (hours < 24) return hours + 'h ago';
+    return formatAge(ms);
+  }
+
+  // A relative stamp always carries the exact moment underneath it.
+  function stampHtml(ms, extra) {
+    return '<span title="' + escapeHtml(formatExact(ms)) + '">' +
+      escapeHtml(formatStamp(ms)) + '</span>' + (extra || '');
+  }
+
   function formatRelative(ms) {
     var now = new Date();
     var startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -594,6 +622,9 @@
     query: '',
     activeTag: null,
     editingId: null,
+    expanded: {},    // note id -> preview un-clamped. Render-time only: this is
+                     // a reading preference for this session, not note data,
+                     // and must never reach the store or an export.
     confirmingDeleteId: null,
     confirmingGoalId: null,
     aiBusy: {},
@@ -1026,11 +1057,45 @@
       '<textarea class="note__edit-body" rows="4">' + escapeHtml(note.body) + '</textarea>' +
       '<input class="note__edit-tags" type="text" value="' + escapeHtml(note.tags.join(', ')) + '" placeholder="tags: training, content">' +
       renderEditPhotoRow(note) +
-      '<div class="note__meta"><span class="note__date">' + formatDate(note.createdAt) + '</span>' +
+      '<div class="note__meta"><span class="note__date">' + escapeHtml(formatExact(note.createdAt)) + '</span>' +
       '<div class="note__actions">' +
       '<button type="button" class="note__action" data-action="edit-save">Save</button>' +
       '<button type="button" class="note__action" data-action="edit-cancel">Cancel</button>' +
       '</div></div></li>';
+  }
+
+  /* A clamped preview plus its toggle. `openNote` only scrolls to a card and
+     flashes it — there is no detail view to expand into — so the card has to be
+     able to show everything itself. The toggle starts hidden and is revealed
+     only for bodies that actually overflow; see measureClamps. */
+  function clampedBody(note, inner, extraClass) {
+    var open = !!state.expanded[note.id];
+    return '<p class="note__body' + (extraClass ? ' ' + extraClass : '') +
+      (open ? '' : ' note__body--clamped') + '">' + inner + '</p>' +
+      '<button type="button" class="note__more" data-action="note-expand"' +
+      (open ? '' : ' hidden') + '>' + (open ? 'Show less' : 'Show more') + '</button>';
+  }
+
+  /* Whether a clamped body is actually cut off is a layout question, so it can
+     only be answered after paint. Heights also settle over a few frames as the
+     self-hosted fonts swap in — the same reason scroll restore re-asserts — so
+     this runs on the next frame and again once fonts report ready. */
+  function measureClamps() {
+    var bodies = document.querySelectorAll('.note__body--clamped');
+    for (var i = 0; i < bodies.length; i++) {
+      var el = bodies[i];
+      var more = el.nextElementSibling;
+      if (!more || more.className.indexOf('note__more') === -1) continue;
+      more.hidden = el.scrollHeight <= el.clientHeight + 2;
+    }
+  }
+
+  function scheduleClampMeasure() {
+    requestAnimationFrame(measureClamps);
+    if (document.fonts && document.fonts.ready && !scheduleClampMeasure.armed) {
+      scheduleClampMeasure.armed = true;
+      document.fonts.ready.then(measureClamps);
+    }
   }
 
   function deleteOrActions(note, extraActions) {
@@ -1040,6 +1105,7 @@
         '<button type="button" class="note__action" data-action="delete-no">No</button>';
     }
     return (extraActions || '') +
+      '<button type="button" class="note__action" data-action="note-copy">Copy</button>' +
       '<button type="button" class="note__action" data-action="edit">Edit</button>' +
       '<button type="button" class="note__action note__action--danger" data-action="delete-ask">Delete</button>';
   }
@@ -1056,7 +1122,7 @@
       ? '<div class="note__tags">' + note.tags.map(function (t) { return renderTagChip(t, null); }).join('') + '</div>'
       : '';
     var edited = note.updatedAt > note.createdAt
-      ? ' &middot; edited ' + formatRelative(note.updatedAt)
+      ? ' &middot; edited ' + escapeHtml(formatStamp(note.updatedAt))
       : '';
 
     var sources = links.backlinks[note.id];
@@ -1070,7 +1136,7 @@
 
     var aiBtn = '<button type="button" class="note__action" data-action="ai-organize"' +
       (state.aiBusy[note.id] ? ' disabled' : '') + '>' +
-      (state.aiBusy[note.id] ? 'AI…' : 'AI tags') + '</button>';
+      (state.aiBusy[note.id] ? 'Tagging…' : 'AI tags') + '</button>';
 
     var actionsHtml = deleteOrActions(note,
       '<button type="button" class="note__action" data-action="pin">' + (note.pinned ? 'Unpin' : 'Pin') + '</button>' + aiBtn);
@@ -1085,14 +1151,18 @@
     return '<li class="note' + (note.pinned ? ' note--pinned' : '') + selectCls + '" data-id="' + escapeHtml(note.id) + '">' +
       checkHtml +
       titleHtml +
-      '<p class="note__body">' + renderBody(bodySnippet(note.body, tokens), tokens, links.titleIndex) + '</p>' +
+      // expanded shows the whole body, not the 280-char snippet: before this
+      // there was no way to read past that cut without opening the editor
+      clampedBody(note, renderBody(
+        state.expanded[note.id] ? note.body : bodySnippet(note.body, tokens),
+        tokens, links.titleIndex)) +
       tagsHtml +
       renderAiSuggestRow(note) +
       renderSimTagRow(note, byId) +
       backlinksHtml +
       renderRelatedRow(note, byId) +
       '<div class="note__meta">' +
-      '<span class="note__date">' + pinnedMark + formatRelative(note.createdAt) + edited + '</span>' +
+      '<span class="note__date">' + pinnedMark + stampHtml(note.createdAt, edited) + '</span>' +
       '<div class="note__actions">' + actionsHtml + '</div>' +
       '</div></li>';
   }
@@ -1234,8 +1304,14 @@
   function copySynth() {
     var s = state.synth;
     if (!s || !s.text) return;
-    var plain = synthPlain(s);
-    var html = synthHtml(s);
+    copyText(synthPlain(s), synthHtml(s));
+  }
+
+  /* Read-only: reads text that is already on screen and hands it to the
+     clipboard. Touches no store state and never calls saveStore.
+     `html` is optional — omit it for plain text like a note body. */
+  function copyText(plain, html) {
+    if (!plain) return;
 
     function done() { showBanner('Copied to clipboard.'); }
     function legacy() {
@@ -1257,7 +1333,7 @@
       }
     }
 
-    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+    if (html && window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
       try {
         navigator.clipboard.write([new ClipboardItem({
           'text/plain': new Blob([plain], { type: 'text/plain' }),
@@ -1267,6 +1343,18 @@
       } catch (e) { /* older ClipboardItem shapes throw — fall through */ }
     }
     plainOnly();
+  }
+
+  /* What a note copies as. Diary marks are stripped so the pasted text matches
+     what the card actually reads, rather than leaking ==syntax==; a clip leads
+     with its link, which is the thing worth pasting. */
+  function noteCopyText(note) {
+    var parts = [];
+    if (note.title) parts.push(note.title);
+    if (note.kind === 'clip' && note.url) parts.push(note.url);
+    var body = note.kind === 'diary' ? stripMarks(note.body) : note.body;
+    if (body) parts.push(body);
+    return parts.join('\n\n');
   }
 
   function saveSynthAsIdea() {
@@ -1485,16 +1573,18 @@
 
     var aiBtn = '<button type="button" class="note__action" data-action="ai-reflect"' +
       (state.aiBusy[note.id] ? ' disabled' : '') + '>' +
-      (state.aiBusy[note.id] ? 'AI…' : 'AI reflect') + '</button>';
+      (state.aiBusy[note.id] ? 'Reflecting…' : 'AI reflect') + '</button>';
 
     return '<li class="note note--diary" data-id="' + escapeHtml(note.id) + '">' +
-      '<p class="note__body">' + renderBody(note.body, [], links.titleIndex, true) + '</p>' +
+      clampedBody(note, renderBody(note.body, [], links.titleIndex, true)) +
       photoThumb(note) +
       tagsHtml +
       reflectHtml +
       renderRelatedRow(note, byId) +
       '<div class="note__meta">' +
-      '<span class="note__date">' + moodHtml + '</span>' +
+      // the day heading above carries the date; this is the time within it,
+      // which only matters once there is more than one entry in a day
+      '<span class="note__date">' + moodHtml + stampHtml(note.createdAt) + '</span>' +
       '<div class="note__actions">' + deleteOrActions(note, aiBtn) + '</div>' +
       '</div></li>';
   }
@@ -1757,7 +1847,8 @@
       (preview ? '<span class="tl-row__preview">' + escapeHtml(preview) + '</span>' : '') +
       tagsHtml +
       '</span>' +
-      '<span class="tl-row__age">' + formatAge(n.createdAt) + '</span>' +
+      '<span class="tl-row__age" title="' + escapeHtml(formatExact(n.createdAt)) + '">' +
+        escapeHtml(formatStamp(n.createdAt)) + '</span>' +
       '</button></li>';
   }
 
@@ -1855,10 +1946,10 @@
     return '<li class="note clip" data-id="' + escapeHtml(note.id) + '">' +
       '<span class="clip__badge clip__badge--' + platform + '">' + platform.toUpperCase() + '</span>' +
       thumbHtml +
-      (note.body ? '<p class="note__body">' + escapeHtml(note.body) + '</p>' : '') +
+      (note.body ? clampedBody(note, escapeHtml(note.body)) : '') +
       tagsHtml +
       '<div class="note__meta">' +
-      '<span class="note__date">' + formatRelative(note.createdAt) + '</span>' +
+      '<span class="note__date">' + stampHtml(note.createdAt) + '</span>' +
       '<div class="note__actions">' +
       (href ? '<a class="note__action clip__open" href="' + escapeHtml(href) + '" target="_blank" rel="noopener">Open ↗</a>' : '') +
       deleteOrActions(note) +
@@ -2831,7 +2922,12 @@
     // tab bar
     var tabs = els.tabs.querySelectorAll('.tabs__tab');
     for (var i = 0; i < tabs.length; i++) {
-      tabs[i].classList.toggle('tabs__tab--active', tabs[i].getAttribute('data-view') === state.view);
+      var isActive = tabs[i].getAttribute('data-view') === state.view;
+      tabs[i].classList.toggle('tabs__tab--active', isActive);
+      // the colour, weight and lime underline say "active" to anyone looking;
+      // aria-current is what says it to anyone who isn't
+      if (isActive) tabs[i].setAttribute('aria-current', 'page');
+      else tabs[i].removeAttribute('aria-current');
     }
     positionTabIndicator();
     updateTabFades();
@@ -2851,6 +2947,7 @@
     else if (state.view === 'graph') renderGraph();
 
     syncBackGuard(); // editor / confirm / select-mode all settle here
+    scheduleClampMeasure(); // reveals "Show more" only where the body is cut off
   }
 
   // action (optional): { label, fn } renders a button in the banner (e.g. Undo).
@@ -3516,6 +3613,15 @@
       case 'edit-cancel':
         state.editingId = null;
         state.editPhoto = undefined; // a staged photo change dies with the edit
+        render();
+        break;
+      // read-only: nothing is mutated and no re-render is needed, so a copy
+      // never disturbs an open edit or a pending delete confirmation
+      case 'note-copy':
+        copyText(noteCopyText(note));
+        break;
+      case 'note-expand':
+        state.expanded[note.id] = !state.expanded[note.id];
         render();
         break;
       case 'delete-ask':
@@ -4713,8 +4819,22 @@
     }
 
     setupDictation();
+    setupOfflineBadge();
     render();
     restoreDraft();
+  }
+
+  /* Read-only: reflects navigator.onLine, stores nothing, polls nothing.
+     navigator.onLine only really proves the negative — false means definitely
+     no network, true only means an interface is up — which is the right way
+     round here, since the badge exists to explain why AI is unavailable. */
+  function setupOfflineBadge() {
+    var badge = document.getElementById('offline-badge');
+    if (!badge) return;
+    function sync() { badge.hidden = navigator.onLine !== false; }
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    sync();
   }
 
   init();
