@@ -17,10 +17,13 @@ every byte lives in that browser's `localStorage`.
 - **Live**: <https://prajith-max9.github.io/praze-website/brain.html>
   (GitHub Pages, served from `main` at the repo root — there is no `gh-pages`
   branch and no build workflow)
-- **Android**: a Trusted Web Activity wrapping that exact URL, packaged via
-  PWABuilder. See `BUILD-APK.md`. The phone is running the live site, not a
-  separate build — so a deploy reaches the app.
-- **Working branch**: `claude/second-brain-master-plan-hst2eu`
+- **Android**: a Trusted Web Activity wrapping that exact URL. The phone is
+  running the live site, not a separate build — so a deploy reaches the app.
+  `BUILD-APK.md` describes the PWABuilder web route; **§11 describes the local
+  Bubblewrap build**, which now works and is the reproducible one.
+- **Working branch**: `claude/second-brain-master-plan-hst2eu` — its PR (#21)
+  was **merged into `main` on 2026-08-05**, so per §8 start new work from `main`
+  rather than stacking on merged history.
 - `index.html` is an unrelated public landing page for the "PRAZE" brand. It
   shares `styles.css` with the app. Don't break it.
 
@@ -265,6 +268,27 @@ Two traps that have bitten repeatedly:
   reported bug; never fixed.
 - **The undo toast is persistent, not a 5-second window.** Delete banners pass
   `persistent: true`. Briefs have described it as 5 seconds; it isn't.
+- **The TWA is not Digital Asset Links verified, and structurally cannot be
+  from its current URL.** `assetlinks.json` has never existed in this repo (checked
+  across all branches), and `https://prajith-max9.github.io/.well-known/assetlinks.json`
+  is a 404. So the APK shows a browser URL bar instead of running full-screen.
+  This is a **hosting** problem, not a build or signing one — no amount of
+  rebuilding or re-keying fixes it. Asset links must be served from the *origin
+  root*, but the app lives on a GitHub Pages **project** path (`/praze-website/`),
+  and only a repo literally named `prajith-max9.github.io` can serve that root.
+  Fixing it means creating that repo, or moving to a custom domain. **Ask before
+  deciding** — it is a hosting change, not a code change.
+- **A website-independent (fully offline) APK was scoped but not built.**
+  `brain-app.html` is genuinely self-contained — fonts are embedded as data URIs
+  and the only outbound references are `api.anthropic.com` and YouTube thumbnail/
+  embed URLs — so it drops straight into a WebView app serving assets over
+  `WebViewAssetLoader`. The blocker worth discussing first: **the Web Speech API
+  does not exist in Android WebView**, so diary dictation and Brain Dump splitting
+  would be dead unless someone bridges the native `SpeechRecognizer` — and §5 is
+  emphatic that `makeRecognizer` must not be casually reworked. Web Notifications
+  (todo reminders) and `<input type=file>` photo capture also need explicit
+  WebView plumbing. Note also that a WebView app has its **own** storage origin,
+  so no existing data carries over; users would have to export/import.
 
 ## 10. History worth knowing
 
@@ -283,3 +307,84 @@ Two traps that have bitten repeatedly:
   the ten minutes.
 - **The stress-test pass (S-1 … S-9)** found and fixed real data-loss bugs.
   `verify-s1.js` … `verify-s789.js` encode them. Don't regress them.
+
+## 11. Building the APK locally
+
+`BUILD-APK.md`'s "Why not build it here?" section is **no longer the whole
+story**. It was true of the cloud environment this was developed in (no Android
+SDK, `dl.google.com` blocked). On an ordinary machine with network access the
+local Bubblewrap build works, and it is the reproducible route — PWABuilder's web
+UI hands you a key and a zip you cannot regenerate.
+
+Nothing here touches the web app. The APK is a thin shell around the **live**
+URL, so shipping a code change still means deploying to Pages (§8), not
+rebuilding the APK. Rebuild only when the app's *identity* changes: name, icons,
+version, package ID.
+
+### What you need
+
+Git, Node, **JDK 17**, and the Android SDK (`platform-tools`, plus `build-tools`
+and a `platforms` entry matching the `BUILD_TOOLS_VERSION` pinned by the
+installed Bubblewrap — it was `36.1.0` / API 36 as of 2026-08-05; check, don't
+assume). Then `npm install -g @bubblewrap/cli`. Android Studio is **not**
+needed — a TWA has no native code.
+
+### Three Windows traps, each of which cost a build
+
+1. **Bubblewrap only looks for `sdkmanager` at the legacy `<sdk>\tools\bin\`
+   path.** Modern SDKs put it in `cmdline-tools\latest\bin`. Copy that folder to
+   `<sdk>\tools`. `sdkmanager` then warns about an "inconsistent location" —
+   harmless. The misleading error if you skip this is *"the androidSdkPath isn't
+   correct … must contain the folder `build`"*, which is not what it checks.
+2. **Bubblewrap does not quote the `java.exe` path when it invokes `apksigner`.**
+   A JDK under `C:\Program Files` therefore fails with `'C:\Program' is not
+   recognized` — *after* Gradle has successfully built and aligned the APK, so it
+   looks like a signing bug rather than a path bug. Point Bubblewrap's `jdkPath`
+   at a copy of the JDK in a directory with **no spaces**.
+3. **`bubblewrap update` prompts for a version name** and dies with
+   `ERR_USE_AFTER_CLOSE` on a non-interactive stdin. Use
+   `bubblewrap update --skipVersionUpgrade`.
+
+Bubblewrap config lives in `~/.bubblewrap/config.json` (`jdkPath`,
+`androidSdkPath`). Write it as UTF-8 **without a BOM** — Bubblewrap's JSON parse
+fails on one.
+
+### The build
+
+Hand-writing `twa-manifest.json` and running `update` then `build` avoids
+`bubblewrap init`'s long interactive prompt chain entirely:
+
+```bash
+bubblewrap update --skipVersionUpgrade   # generates the Gradle project
+bubblewrap build --skipPwaValidation     # assembles + signs
+```
+
+Pass the keystore passwords as `BUBBLEWRAP_KEYSTORE_PASSWORD` and
+`BUBBLEWRAP_KEY_PASSWORD` to keep it non-interactive. Output is
+`app-release-signed.apk` (sideload) and `app-release-bundle.aab` (Play only —
+a phone cannot install an `.aab`). Verify with
+`apksigner verify --print-certs`; v1/v2/v3 schemes should all pass. The
+`META-INF/... not protected by signature` warnings are normal for Gradle output.
+
+Generate the Gradle project **outside this repo**. It has no `.gitignore` for
+Android artifacts, and Gradle plus Windows `MAX_PATH` is a real failure mode —
+keep the build directory short.
+
+### Signing keys — the part that bites
+
+An Android app can only be updated by an APK signed with the **same key**. Lose
+the keystore and the app can never be updated; users must uninstall and
+reinstall — and since every note lives in `localStorage`, *that wipes their
+data*. Back the keystore up off-machine. Never commit it.
+
+Two consequences worth knowing before you generate a fresh key:
+
+- Because no `assetlinks.json` has ever pinned a fingerprint (§9), a new key
+  breaks **no** existing verification. There is nothing to preserve there.
+- A locally built APK will not replace a PWABuilder-installed one — different
+  key *and* usually a different package ID, so it installs **alongside** it as a
+  second app, with separate storage. Uninstall the old one for a clean swap.
+
+As of 2026-08-05 this is set up on the maintainer's Windows PC with a helper
+script that pins all of the above; the keystore and its password live outside
+this repo. Machine-specific paths are deliberately not recorded here.
