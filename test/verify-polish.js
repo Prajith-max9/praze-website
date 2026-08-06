@@ -21,7 +21,8 @@ const SEED = () => {
       { id: 'long', title: 'Long one', body: 'protein training content that runs on '.repeat(12),
         tags: ['training', 'content'], pinned: false, kind: 'idea',
         createdAt: now - 8 * 60000, updatedAt: now - 8 * 60000 },
-      { id: 'short', title: 'Short one', body: 'brief', tags: ['training'], pinned: false,
+      // pinned, so the accent-bar radius rule has something to assert against
+      { id: 'short', title: 'Short one', body: 'brief', tags: ['training'], pinned: true,
         kind: 'idea', createdAt: now - 3 * 3600000, updatedAt: now - 3 * 3600000 },
       { id: 'dry', title: '', body: 'today was ==good==', tags: [], pinned: false,
         kind: 'diary', createdAt: now - 30000, updatedAt: now - 30000 }
@@ -33,7 +34,10 @@ const SEED = () => {
         pinned: false, kind: 'idea', createdAt: now - (i + 20) * 86400000,
         updatedAt: now - (i + 20) * 86400000
       }))),
-    goals: [], todos: []
+    goals: [],
+    // one todo, so the checkbox radius rule has something to assert against
+    todos: [{ id: 't1', text: 'A todo', done: false, dueAt: null, notified: false,
+              createdAt: now, completedAt: null, updatedAt: now }]
   }));
   localStorage.setItem('praze.brain.onboarded', '1');
 };
@@ -58,9 +62,11 @@ const SEED = () => {
     text: e.textContent.trim(),
     title: (e.querySelector('[title]') || {}).title || ''
   })));
-  check('cards show minute-level relative time', stamps.some(s => /^8m ago/.test(s.text)),
+  // not anchored: the stamp shares its line with a "Pinned" badge and an
+  // "edited …" suffix, either of which can sit either side of it
+  check('cards show minute-level relative time', stamps.some(s => /\b8m ago\b/.test(s.text)),
     JSON.stringify(stamps.map(s => s.text)));
-  check('cards show hour-level relative time', stamps.some(s => /^3h ago/.test(s.text)),
+  check('cards show hour-level relative time', stamps.some(s => /\b3h ago\b/.test(s.text)),
     JSON.stringify(stamps.map(s => s.text)));
   check('every relative stamp carries the exact moment',
     stamps.every(s => /^\d{2} [A-Z]{3} \d{4} · \d{2}:\d{2}$/.test(s.title)),
@@ -245,7 +251,62 @@ const SEED = () => {
     beforeLeave > 200 && Math.abs(afterReturn - beforeLeave) < 40,
     JSON.stringify({ beforeLeave, afterReturn }));
 
-  /* ---------- 8. the whole pass wrote nothing ---------- */
+  /* ---------- 8. the corner-radius design system ----------
+     One token, referenced everywhere, with three deliberate departures. Each
+     of those was a decision, so each gets an assertion — otherwise the next
+     person "tidies" one back to the token and quietly undoes it. */
+  const radius = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const px = sel => {
+      const el = document.querySelector(sel);
+      return el ? getComputedStyle(el).borderRadius : null;
+    };
+    return {
+      token: root.getPropertyValue('--radius').trim(),
+      tokenSm: root.getPropertyValue('--radius-sm').trim(),
+      // an unpinned card: a pinned one deliberately squares its left edge
+      note: px('.note[data-id="long"]'),
+      pinned: px('.note--pinned'),
+      chip: px('.tag-chip'),
+      input: px('#capture-body')
+    };
+  });
+  check('a --radius token is defined', /^\d+px$/.test(radius.token), radius.token);
+  check('a separate --radius-sm exists for small controls',
+    /^\d+px$/.test(radius.tokenSm) && parseFloat(radius.tokenSm) < parseFloat(radius.token),
+    radius.tokenSm);
+  check('cards use the token', radius.note === radius.token, radius.note);
+  check('inputs use the token', radius.input === radius.token, radius.input);
+  check('chips use the token', radius.chip === radius.token, radius.chip);
+
+  // an accent bar keeps its hard edge: left corners square, right corners not
+  check('an accented surface keeps its left edge square',
+    /^0px \d+px \d+px 0px$/.test(radius.pinned), radius.pinned);
+
+  await page.evaluate(() => { location.hash = '#todos'; });
+  await page.waitForTimeout(300);
+  const control = await page.evaluate(() => {
+    const cb = document.querySelector('.todo__check');
+    const root = getComputedStyle(document.documentElement);
+    return { cb: cb ? getComputedStyle(cb).borderRadius : null,
+             sm: root.getPropertyValue('--radius-sm').trim(),
+             full: root.getPropertyValue('--radius').trim() };
+  });
+  check('a checkbox takes the small token, so it cannot round into a radio button',
+    control.cb === control.sm && control.cb !== control.full, JSON.stringify(control));
+
+  await page.evaluate(() => { location.hash = '#goals'; });
+  await page.waitForTimeout(300);
+  check('the streak cells stay square so the pair does not double-round',
+    await page.evaluate(() => {
+      const cell = document.querySelector('.streak-card');
+      return !cell || getComputedStyle(cell).borderRadius === '0px';
+    }));
+
+  await page.evaluate(() => { location.hash = '#ideas'; });
+  await page.waitForTimeout(300);
+
+  /* ---------- 9. the whole pass wrote nothing ---------- */
   // A single rev covering everything above: the store must be byte-identical to
   // what was seeded, because not one of these features is allowed to write.
   const storeNow = await page.evaluate(() => localStorage.getItem('praze.brain.v1'));

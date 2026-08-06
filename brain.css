@@ -8,6 +8,15 @@
   --danger: #b30000;
   --graph-edge: rgba(19, 19, 19, 0.18);
   --graph-edge-sim: rgba(19, 19, 19, 0.30);
+
+  /* One radius for the whole app. Every rounded corner refers to this token,
+     so the shape is changed in one place rather than hunted per element. It
+     lives here rather than in styles.css deliberately: styles.css is shared
+     with the PRAZE landing page, which keeps its square corners. */
+  --radius: 10px;
+  /* Small controls only. --radius on a 22px checkbox rounds it into a circle,
+     and a circle means "pick one of these" — the wrong promise for a checkbox. */
+  --radius-sm: 4px;
 }
 
 [data-theme="dark"] {
@@ -2749,4 +2758,152 @@ a {
   padding: 0.2rem 0.45rem;
   margin-left: 0.75rem;
   white-space: nowrap;
+}
+
+/* ---------- Corner radius ----------
+   Every rounded corner in the app resolves to --radius, so the shape is one
+   edit rather than fifty. Grouped here rather than sprinkled through the file
+   for the same reason: it is a design-system decision and reads as one.
+
+   Deliberate exceptions, both of which would be wrong at --radius:
+     .tabs, .banner   full-bleed strips — rounding a full-width bar leaves
+                      slivers of background at the corners
+     .clip__play      a circular play overlay is a convention worth keeping
+     .tabs__indicator a 3px underline, not a surface
+
+   Bars keep the token too: at 6px tall the browser clamps a 10px radius to a
+   pill, which is what a progress bar should look like anyway. */
+
+/* Surfaces */
+.capture,
+.note,
+.dash-card,
+.settings,
+.streaks,
+.goal,
+.empty,
+.todo,
+.clip__thumb,
+.clip__embed,
+.photo-thumb,
+.photo-view__img,
+.graph-wrap,
+.graph-tooltip,
+.graph-settings,
+.synth-bar,
+.synth-result,
+.dump__box,
+.dump__item,
+.timeline-bucket,
+.palette__box,
+#digest-result {
+  border-radius: var(--radius);
+}
+
+/* Inputs */
+.capture__title,
+.capture__body,
+.capture__tags,
+.toolbar__search input,
+.settings__row input,
+.note--editing .note__edit-title,
+.note--editing .note__edit-body,
+.note--editing .note__edit-tags,
+.todo-add__due,
+.todo__due-input,
+.palette__box input {
+  border-radius: var(--radius);
+}
+
+/* Controls */
+.btn,
+.toolbar__btn,
+.banner__action,
+.tag-chip,
+.goal__plus,
+.echo__link,
+.synth-bar__btn,
+.graph-settings-toggle,
+.dash-row,
+.tl-row,
+#digest-btn {
+  border-radius: var(--radius);
+}
+
+/* Badges and inline marks */
+.note__pinned,
+.mood,
+.clip__badge,
+.tl-row__badge,
+.offline-badge,
+.backlink,
+.empty__tips em,
+.note__body mark,
+.note__title mark {
+  border-radius: var(--radius);
+}
+
+/* Progress bars — track and fill must match or the fill corners poke out */
+.dash-bar,
+.dash-bar__fill,
+.goal__bar,
+.goal__fill {
+  border-radius: var(--radius);
+}
+
+/* The dashboard + button is the one place a slightly larger radius reads
+   better, because it is a 48px square rather than a strip of text. */
+.dash-capture__fab {
+  border-radius: calc(var(--radius) + 4px);
+}
+
+/* Checkboxes take the small token. At 22px the full one rounds them into
+   circles, and a circle is the radio-button promise: pick exactly one. These
+   are independent toggles, so they stay square-ish. */
+.todo__check,
+.note__check {
+  border-radius: var(--radius-sm);
+}
+
+/* A lime accent bar keeps its hard edge. The bar is the left border of the
+   surface it marks, so rounding the surface rounds the bar with it and blunts
+   the one thing on the card meant to be sharp. Squaring only that edge keeps
+   the accent and the rounding, which is why this is a rule rather than an
+   exception list: every accented surface gets the same treatment. */
+.note--pinned,
+.dash-card--hero,
+.synth-result,
+.reflect,
+.todo-notice,
+.why-text {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+/* The streaks pair is one card containing two cells. Rounding the cells too
+   leaves notches either side of the divider — the container owns the shape. */
+.streak-card {
+  border-radius: 0;
+}
+
+/* ---------- Dashboard card labels ----------
+   Scoped to .dash-card rather than .label: the same class heads the graph
+   panel and the brain-dump overlay, where it already carries its own layout. */
+
+.dash-card .label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* The label is 0.65rem, so a 1.15em icon lands at ~12px — right for a heading
+   marker, and it inherits the label's grey rather than shouting. */
+.dash-card .label .icon {
+  flex: none;
+  opacity: 0.85;
+}
+
+/* A streak's progress against its own best. Sits under the row's text, so it
+   needs to clear the meta line above it. */
+.dash-row .dash-bar {
+  margin-top: 0.45rem;
 }
