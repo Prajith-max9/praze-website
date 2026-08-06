@@ -91,7 +91,10 @@ const check = makeChecker();
       insideViewport: fr.right <= 390 && fr.left >= 0
     };
   });
-  check('+ button is round', fab && /50%|9999px|\d+px/.test(fab.radius), fab && fab.radius);
+  // a rounded square, deliberately not a circle — see the note in brain.css
+  check('+ button is a rounded square, not a circle',
+    fab && /px$/.test(fab.radius) && parseFloat(fab.radius) > 4 && parseFloat(fab.radius) < 24,
+    fab && fab.radius);
   // token-resolved, not a literal — same reasoning as the dark theme block below
   const limeLight = await page.evaluate(() => {
     const cs = getComputedStyle(document.querySelector('.dash-capture__fab'));
