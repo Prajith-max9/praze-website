@@ -1641,7 +1641,10 @@ body {
   width: 48px;
   height: 48px;
   border: 0;
-  border-radius: 50%;
+  /* rounded square, not a circle: a pill reads as a floating action button
+     borrowed from another app, where this is the app's own square-cornered
+     language with the corners taken off */
+  border-radius: 14px;
   /* Same pairing every other lime chip uses (.banner, .note__pinned): the dark
      theme darkens --lime and flips --ink, so the pair travels together. Do not
      pin either to a literal here — that is what makes it drift from the rest. */

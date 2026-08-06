@@ -2435,7 +2435,9 @@
 
   function renderDashboardCards() {
     var h = new Date().getHours();
-    var greeting = h < 12 ? 'Morning.' : h < 18 ? 'Afternoon.' : 'Evening.';
+    // "Good morning." rather than "Morning." — warmer, and it is the whole of
+    // the change: no name, because the store has no user profile to hold one.
+    var greeting = h < 12 ? 'Good morning.' : h < 18 ? 'Good afternoon.' : 'Good evening.';
     var ideaStreak = computeStreak('idea');
     var diaryStreak = computeStreak('diary');
     var activeGoals = store.goals.filter(function (g) { return !g.completedAt; });
