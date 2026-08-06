@@ -49,6 +49,8 @@
     chevronDown: '<path d="M5 9l7 7 7-7"/>',
     dot: '<circle cx="12" cy="12" r="6"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
+    target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
+    sparkle: '<path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/><path d="M18 16.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
     pencil: '<path d="M4 20v-4L16 4l4 4L8 20z"/><path d="M14 6l4 4"/>',
     link: '<path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.4 1.4"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1.4-1.4"/>'
   };
@@ -2485,7 +2487,7 @@
 
     var resurfaced = computeResurface();
     if (resurfaced.length) {
-      html += '<div class="dash-card"><p class="label">RESURFACED</p>' +
+      html += '<div class="dash-card"><p class="label">' + icon('sparkle') + ' RESURFACED</p>' +
         resurfaced.map(function (r) {
           return '<div class="resurface-row">' +
             '<button type="button" class="dash-row" data-action="open-note" data-note-id="' +
@@ -2515,17 +2517,26 @@
         }).join('') + '</div>';
     }
 
+    // A streak bar is progress against your own best, which is the only number
+    // a streak can meaningfully be measured against. A first-ever streak is its
+    // own best, so it reads full — correct, not a bug.
+    function streakRow(streak, kind, label) {
+      var pct = streak.best > 0 ? Math.min(100, Math.round((streak.current / streak.best) * 100)) : 0;
+      return '<button type="button" class="dash-row" data-action="goto" data-go="goals">' +
+        icon('flame') + ' ' +
+        '<span class="streak-num" data-streak="' + kind + '">' + streak.current + '</span>' +
+        '-day ' + label + ' streak <span class="dash-row__meta">best ' + streak.best + '</span>' +
+        '<span class="dash-bar"><span class="dash-bar__fill" style="width:' + pct + '%"></span></span>' +
+        '</button>';
+    }
+
     html += '<div class="dash-card">' +
-      '<p class="label">STREAKS</p>' +
-      '<button type="button" class="dash-row" data-action="goto" data-go="goals">' + icon('flame') + ' ' +
-      '<span class="streak-num" data-streak="idea">' + ideaStreak.current + '</span>' +
-      '-day idea streak <span class="dash-row__meta">best ' + ideaStreak.best + '</span></button>' +
-      '<button type="button" class="dash-row" data-action="goto" data-go="goals">' + icon('flame') + ' ' +
-      '<span class="streak-num" data-streak="diary">' + diaryStreak.current + '</span>' +
-      '-day diary streak <span class="dash-row__meta">best ' + diaryStreak.best + '</span></button>' +
+      '<p class="label">' + icon('flame') + ' STREAKS</p>' +
+      streakRow(ideaStreak, 'idea', 'idea') +
+      streakRow(diaryStreak, 'diary', 'diary') +
       '</div>';
 
-    html += '<div class="dash-card"><p class="label">ACTIVE GOALS</p>' +
+    html += '<div class="dash-card"><p class="label">' + icon('target') + ' ACTIVE GOALS</p>' +
       (activeGoals.length
         ? activeGoals.map(function (g) {
             var pct = Math.min(100, Math.round((g.progress / g.target) * 100));
