@@ -291,6 +291,65 @@ const idbHas = (id) => new Promise((resolve) => {
     await ctx.close();
   }
 
+  /* ---------- 6. photos across two tabs ----------
+     The cross-tab merge covers the localStorage payload, and photos are not in
+     it. Before this was fixed, a second tab never learned a photo existed — and
+     then read its own empty `photo` field as an instruction to delete it.
+     Both halves are asserted: what the other tab SEES, and what survives. */
+  {
+    const ctx = await browser.newContext({ viewport: PHONE });
+    const A = await ctx.newPage();
+    await A.goto(url);
+    await A.evaluate(SEED, '');
+    await A.reload();
+    await A.waitForSelector('.tabs');
+    await A.waitForTimeout(800);
+
+    const B = await ctx.newPage();          // same origin, so same IndexedDB
+    await B.goto(url);
+    await B.waitForSelector('.tabs');
+    await B.waitForTimeout(800);
+
+    // A attaches a photo to the shared diary entry
+    await A.evaluate(() => { location.hash = '#diary'; });
+    await A.waitForSelector('.note--diary');
+    await A.click('.note--diary [data-action="edit"]');
+    await A.waitForSelector('.note--editing');
+    const png = await A.evaluate(() => {
+      const c = document.createElement('canvas'); c.width = 30; c.height = 30;
+      c.getContext('2d').fillRect(0, 0, 30, 30);
+      return c.toDataURL('image/png').split(',')[1];
+    });
+    await A.setInputFiles('#edit-photo-file', {
+      name: 'a.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64')
+    });
+    await A.waitForTimeout(600);
+    await A.click('.note--editing [data-action="edit-save"]');
+    await A.waitForTimeout(900);
+    check('cross-tab: tab A stored the photo', await A.evaluate(idbHas, 'd1'));
+
+    // B must learn about it from the merge, without a reload
+    await B.evaluate(() => { location.hash = '#diary'; });
+    await B.waitForSelector('.note--diary');
+    await B.waitForTimeout(900);
+    check('cross-tab: tab B sees the photo without reloading',
+      await B.evaluate(() => !!document.querySelector('.note--diary img')));
+
+    // and editing that note in B must not destroy it
+    await B.click('.note--diary [data-action="edit"]');
+    await B.waitForSelector('.note--editing');
+    await B.fill('.note--editing .note__edit-body', 'edited in tab B');
+    await B.click('.note--editing [data-action="edit-save"]');
+    await B.waitForTimeout(1000);
+    check('cross-tab: editing the note in B does not delete the photo',
+      await B.evaluate(idbHas, 'd1'));
+    check('cross-tab: B’s text edit still landed', await B.evaluate(() =>
+      JSON.parse(localStorage.getItem('praze.brain.v1')).notes.some(n => n.body === 'edited in tab B')));
+    check('cross-tab: the photo is still on screen in B after the edit',
+      await B.evaluate(() => !!document.querySelector('.note--diary img')));
+    await ctx.close();
+  }
+
   await browser.close();
   server.close();
   process.exit(check.summary('interactions') ? 1 : 0);

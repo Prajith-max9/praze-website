@@ -322,6 +322,25 @@
     return photoWrite(function (os) { os.delete(id); });
   }
 
+  // Only the ids asked for. readAllPhotos would pull every photo blob into
+  // memory to answer a question about two of them.
+  function getPhotos(ids) {
+    if (!ids.length) return Promise.resolve({});
+    return photoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(PHOTO_STORE_NAME, 'readonly');
+        var os = tx.objectStore(PHOTO_STORE_NAME);
+        var out = {};
+        ids.forEach(function (id) {
+          var req = os.get(id);
+          req.onsuccess = function () { if (req.result) out[id] = req.result; };
+        });
+        tx.oncomplete = function () { resolve(out); };
+        tx.onerror = function () { reject(tx.error || new Error('photo read failed')); };
+      });
+    });
+  }
+
   function readAllPhotos() {
     return photoDb().then(function (db) {
       return new Promise(function (resolve, reject) {
@@ -380,6 +399,33 @@
       // IndexedDB unavailable: photos stay in localStorage exactly as before
       photosInIdb = false;
     });
+  }
+
+  /* Photos are not in the payload the cross-tab merge covers, so a merge leaves
+     any note it took from the other tab with an empty `photo` — even when
+     IndexedDB holds one. Two things went wrong because of that: the photo did
+     not appear in this tab until a reload, and worse, the next edit here read
+     that empty value as "there should be none" and deleted it.
+
+     So after every merge, any note without a photo in memory asks IndexedDB
+     whether one exists. Cheap: only the ids actually missing are fetched, and
+     the common case — nothing missing — does no I/O at all. */
+  function reattachPhotosAfterMerge() {
+    if (!photosInIdb) return;
+    var missing = store.notes
+      .filter(function (n) { return !n.photo; })
+      .map(function (n) { return n.id; });
+    if (!missing.length) return;
+    getPhotos(missing).then(function (found) {
+      var byId = notesById();
+      var changed = false;
+      Object.keys(found).forEach(function (id) {
+        var note = byId[id];
+        // sanitised on the way out, exactly as at boot
+        if (note && !note.photo) { note.photo = sanitizePhoto(found[id]); changed = true; }
+      });
+      if (changed) render();
+    }).catch(function () { /* nothing recoverable; the photo stays in IndexedDB */ });
   }
 
   /* Persist one note's photo after the note itself has been saved. If the write
@@ -628,6 +674,9 @@
     scheduleTodoReminders(); // the other tab may have added or cleared a due time
     render();
     if (weHoldMore) saveStore();
+    // the merge cannot see photos — reunite them before anything reads the gap
+    // as an instruction to delete
+    reattachPhotosAfterMerge();
   }
 
   // Returns true when the write actually landed. Callers MUST check it before
