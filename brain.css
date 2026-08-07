@@ -2957,19 +2957,35 @@ a {
   vertical-align: -0.12em;
 }
 
-/* CAPTURE is deliberately the one lime primary button in the app. Capture is
-   the thing this app exists for, and it is the only action worth pulling the
-   eye on its own tab. Every other primary button — SAVE ENTRY, SAVE CLIP, SET
-   GOAL, ADD — stays bone: this is an exception on purpose, not the start of a
-   design-system change, so do not propagate it by "tidying". */
-#capture-form .btn {
+/* Every primary action in the app is lime. This supersedes an earlier decision
+   that made CAPTURE the single lime exception — the exception is gone, and the
+   rule is now the shared .btn rather than one scoped selector, so a new primary
+   button is lime by existing rather than by being remembered.
+
+   .btn's base state used to be ink with a lime *hover*, so the hover needs a
+   different job now: it dips opacity instead, since "turns lime" is no longer
+   available to it.
+
+   In brain.css and not styles.css on purpose: styles.css is shared with the
+   PRAZE landing page, whose buttons stay as they are. */
+.btn {
   background: var(--lime);
   color: var(--ink);
+  border-color: var(--ink);
 }
 
-#capture-form .btn:hover {
+.btn:hover:not(:disabled) {
   background: var(--lime);
+  color: var(--ink);
+  border-color: var(--ink);
   opacity: 0.88;
+}
+
+/* A lime button that cannot be pressed must not look pressable — the dump's
+   save-checked button spends most of its life disabled. */
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* ---------- Diary tab ---------- */
