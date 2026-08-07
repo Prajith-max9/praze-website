@@ -2232,13 +2232,21 @@
   function renderGoals() {
     var ideaStreak = computeStreak('idea');
     var diaryStreak = computeStreak('diary');
+    // The number, its label and the best sit on their own lines rather than
+    // running together on one. `best` leaves the label string with them — it
+    // was only ever joined by a "·" because everything shared a line.
+    function streakCard(streak, kind, label) {
+      return '<div class="streak-card">' +
+        '<span class="streak-card__flame">' + icon('flame') + '</span>' +
+        '<span class="streak-card__body">' +
+        '<span class="streak-card__value" data-streak="' + kind + '">' + streak.current + '</span>' +
+        '<span class="streak-card__label">day ' + label + ' streak</span>' +
+        '<span class="streak-card__best">best ' + streak.best + '</span>' +
+        '</span></div>';
+    }
+
     els.streaks.innerHTML =
-      '<div class="streak-card"><span class="streak-card__flame">' + icon('flame') + '</span>' +
-      '<span class="streak-card__value" data-streak="idea">' + ideaStreak.current + '</span>' +
-      '<span class="streak-card__label">day idea streak · best ' + ideaStreak.best + '</span></div>' +
-      '<div class="streak-card"><span class="streak-card__flame">' + icon('flame') + '</span>' +
-      '<span class="streak-card__value" data-streak="diary">' + diaryStreak.current + '</span>' +
-      '<span class="streak-card__label">day diary streak · best ' + diaryStreak.best + '</span></div>';
+      streakCard(ideaStreak, 'idea', 'idea') + streakCard(diaryStreak, 'diary', 'diary');
     popStreakIfGrew('idea', ideaStreak.current, els.streaks.querySelector('[data-streak="idea"]'));
     popStreakIfGrew('diary', diaryStreak.current, els.streaks.querySelector('[data-streak="diary"]'));
 
@@ -2263,7 +2271,8 @@
                 '<button type="button" class="note__action note__action--danger" data-action="goal-del-ask">Delete</button>') +
             '</div></div>';
         }).join('')
-      : '<div class="empty"><p class="empty__title">Set something you’re working toward.</p>' +
+      : '<div class="empty"><span class="empty__glyph">' + icon('target') + '</span>' +
+        '<p class="empty__title">Set something you’re working toward.</p>' +
         '<p class="empty__text">Make it a number you can count.</p></div>';
 
     els.wins.innerHTML = wins.length
