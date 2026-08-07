@@ -183,9 +183,13 @@ this. `makeRecognizer` is shared by diary dictation and Brain Dump — changing 
 changes both.
 
 **Back button layering.** While anything dismissible is open, one spare history
-entry is held. It is **never popped asynchronously** — an early version called
+entry is held — **one, regardless of depth**, because `syncBackGuard` is
+idempotent. It is **never popped asynchronously** — an early version called
 `history.back()` on close, which raced `setView`'s hash push and silently undid
 tab navigation. `setView` reuses the entry via `location.replace` instead.
+`verify-back.js` guards all of it, and all three ways of breaking it (leaking
+the guard, popping asynchronously, pushing a tab on top of the guard) were
+confirmed to fail the suite before it was trusted.
 
 **The view fade is opacity-only, not translate.** `#synth-bar` is
 `position: fixed` *inside* `#view-ideas`; a transform on `.view` would make it a
@@ -264,9 +268,9 @@ it now, and were confirmed to fail against the pre-fix code before being trusted
 `S1-FINDINGS.md` has the reasoning and the options that were weighed.
 
 **The earlier 32 suites are still gone.** They lived in a session scratchpad
-(`/tmp/claude-0/…/scratchpad/`) that no longer exists, and covered a lot of
-hard-won behaviour. Dictation, the back button, photos and offline still have
-**no coverage**. Read the coverage table in `test/README.md` as the real state,
+(`/tmp/claude-0/…/scratchpad/`) that no longer exists. Storage honesty, photos
+and the back button have since been rebuilt; **dictation and offline still have
+no coverage**. Read the coverage table in `test/README.md` as the real state,
 not the intended one.
 
 The lost suites seeded `localStorage` directly, mocked `api.anthropic.com` via
