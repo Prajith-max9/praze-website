@@ -306,28 +306,46 @@ const SEED = () => {
   await page.evaluate(() => { location.hash = '#ideas'; });
   await page.waitForTimeout(300);
 
-  /* ---------- 8b. CAPTURE is the one lime primary button ----------
-     A deliberate exception, so it gets an assertion in both directions: the
-     button must be lime, and no other primary button may become lime by
-     someone "tidying" the rule into the shared .btn. */
+  /* ---------- 8b. every primary action is lime ----------
+     This assertion used to guard the opposite: CAPTURE lime, nothing else. That
+     was right for the decision at the time and is now superseded — so it is
+     repurposed to protect the new invariant rather than deleted, because the
+     thing worth guarding was never "CAPTURE is special", it was "the primary
+     button colour is a decision somebody made on purpose".
+
+     Asserted across every .btn the app renders, not a hand-listed few: a new
+     primary button that forgets to be lime should fail here. */
   await page.evaluate(() => { location.hash = '#ideas'; });
   await page.waitForSelector('#capture-form');
   const primary = await page.evaluate(() => {
     const root = getComputedStyle(document.documentElement);
     const asRgb = v => { const d = document.createElement('div'); d.style.color = v.trim();
       document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; };
-    const bg = s => { const e = document.querySelector(s); return e ? getComputedStyle(e).backgroundColor : null; };
-    return {
-      lime: asRgb(root.getPropertyValue('--lime')),
-      capture: bg('#capture-form .btn'),
-      others: ['#diary-form .btn', '#clip-form .btn', '#goal-form .btn', '#todo-form .btn']
-        .map(s => bg(s)).filter(Boolean)
-    };
+    const named = { ask: '#ask-form .btn', capture: '#capture-form .btn', diary: '#diary-form .btn',
+                    clip: '#clip-form .btn', goal: '#goal-form .btn', todo: '#todo-form .btn' };
+    const out = { lime: asRgb(root.getPropertyValue('--lime')),
+                  ink: asRgb(root.getPropertyValue('--ink')), named: {}, offColour: [] };
+    Object.keys(named).forEach(k => {
+      const e = document.querySelector(named[k]);
+      out.named[k] = e ? getComputedStyle(e).backgroundColor : 'NOT FOUND';
+    });
+    // every .btn in the document, including any nobody thought to list
+    document.querySelectorAll('.btn').forEach(e => {
+      const bg = getComputedStyle(e).backgroundColor;
+      if (bg !== out.lime) out.offColour.push((e.textContent.trim() || e.id) + ' -> ' + bg);
+    });
+    return out;
   });
-  check('CAPTURE is lime', primary.capture === primary.lime, JSON.stringify(primary));
-  check('no other primary button went lime with it',
-    primary.others.length > 0 && primary.others.every(c => c !== primary.lime),
-    JSON.stringify(primary.others));
+
+  const named = primary.named;
+  Object.keys(named).forEach(k => {
+    check('primary button is lime: ' + k, named[k] === primary.lime, named[k]);
+  });
+  check('no .btn anywhere is off-colour', primary.offColour.length === 0,
+    JSON.stringify(primary.offColour));
+  check('the lime primary keeps ink text',
+    await page.evaluate(() => getComputedStyle(document.querySelector('#capture-form .btn')).color)
+      === primary.ink);
 
   /* A glyph inside an input is decoration. If it ever starts taking the tap,
      the field becomes unfocusable at exactly the point people aim for. */

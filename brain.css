@@ -2957,17 +2957,124 @@ a {
   vertical-align: -0.12em;
 }
 
-/* CAPTURE is deliberately the one lime primary button in the app. Capture is
-   the thing this app exists for, and it is the only action worth pulling the
-   eye on its own tab. Every other primary button — SAVE ENTRY, SAVE CLIP, SET
-   GOAL, ADD — stays bone: this is an exception on purpose, not the start of a
-   design-system change, so do not propagate it by "tidying". */
-#capture-form .btn {
+/* Every primary action in the app is lime. This supersedes an earlier decision
+   that made CAPTURE the single lime exception — the exception is gone, and the
+   rule is now the shared .btn rather than one scoped selector, so a new primary
+   button is lime by existing rather than by being remembered.
+
+   .btn's base state used to be ink with a lime *hover*, so the hover needs a
+   different job now: it dips opacity instead, since "turns lime" is no longer
+   available to it.
+
+   In brain.css and not styles.css on purpose: styles.css is shared with the
+   PRAZE landing page, whose buttons stay as they are. */
+.btn {
   background: var(--lime);
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--lime);
+  color: var(--ink);
+  border-color: var(--ink);
+  opacity: 0.88;
+}
+
+/* A lime button that cannot be pressed must not look pressable — the dump's
+   save-checked button spends most of its life disabled. */
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ---------- Diary tab ---------- */
+
+/* The prompt moves out of the placeholder and above the field, so it survives
+   the first keystroke instead of vanishing the moment you start writing. The
+   placeholder underneath goes quiet rather than repeating it. Same voice as the
+   dashboard prompt, and the same treatment. */
+.capture__prompt {
+  font-family: var(--body);
+  font-size: 0.95rem;
+  color: var(--gray);
+  margin-bottom: 0.6rem;
+}
+
+/* The three actions read as one row. Deliberately NOT equal thirds with stacked
+   sublabels: every other tab lays its primary action out at natural width with
+   the keyboard hint as a separate quiet span, and matching that matters more
+   than matching a reference. The hint takes a whole line of its own so the
+   buttons stay grouped when they wrap on a narrow screen. */
+#diary-form .capture__actions {
+  gap: 0.5rem;
+  /* stretch so the three read as one row of equal blocks: .btn carries more
+     vertical padding than .toolbar__btn, and centred they sit at three
+     different heights */
+  align-items: stretch;
+}
+
+/* Three actions where other tabs have one or two, so at 390px they share the
+   row instead of dropping Dictate onto a line of its own. The primary keeps
+   its own type and weight — only its generous horizontal padding gives way,
+   since that padding exists for a button sitting alone. */
+/* Measured, not assumed: at 390px this row is 292px wide and the three labelled
+   buttons need about 440. Forcing them onto one line costs either the labels or
+   the type size, and neither is worth it — so they wrap and stay grouped, which
+   is what every other tab does too. From 640px up they sit on one line by
+   themselves. */
+#diary-form .capture__actions .btn,
+#diary-form .capture__actions .toolbar__btn {
+  justify-content: center;
+  white-space: nowrap;
+}
+
+#diary-form .capture__actions .capture__hint {
+  flex-basis: 100%;
+}
+
+/* The weekly digest is an offer, not an instruction — so it sits in a quiet
+   strip rather than shouting with a bordered button. Surface + border + the
+   radius token, the same shape as every other panel in the app. */
+.digest {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.digest__glyph {
+  flex: none;
+  color: var(--gray);
+}
+
+/* Quiet inside the strip: no border of its own, and it earns emphasis on hover
+   rather than holding it permanently. */
+#digest-btn {
+  border-color: transparent;
+  color: var(--gray);
+  padding-left: 0;
+  padding-right: 0.5rem;
+}
+
+#digest-btn:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
   color: var(--ink);
 }
 
-#capture-form .btn:hover {
-  background: var(--lime);
-  opacity: 0.88;
+#digest-hint {
+  margin-left: 0;
+}
+
+/* the result belongs under the strip, not inline inside it */
+#digest-result {
+  flex-basis: 100%;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
