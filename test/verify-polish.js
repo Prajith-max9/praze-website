@@ -306,6 +306,35 @@ const SEED = () => {
   await page.evaluate(() => { location.hash = '#ideas'; });
   await page.waitForTimeout(300);
 
+  /* ---------- 8b. CAPTURE is the one lime primary button ----------
+     A deliberate exception, so it gets an assertion in both directions: the
+     button must be lime, and no other primary button may become lime by
+     someone "tidying" the rule into the shared .btn. */
+  await page.evaluate(() => { location.hash = '#ideas'; });
+  await page.waitForSelector('#capture-form');
+  const primary = await page.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const asRgb = v => { const d = document.createElement('div'); d.style.color = v.trim();
+      document.body.appendChild(d); const c = getComputedStyle(d).color; d.remove(); return c; };
+    const bg = s => { const e = document.querySelector(s); return e ? getComputedStyle(e).backgroundColor : null; };
+    return {
+      lime: asRgb(root.getPropertyValue('--lime')),
+      capture: bg('#capture-form .btn'),
+      others: ['#diary-form .btn', '#clip-form .btn', '#goal-form .btn', '#todo-form .btn']
+        .map(s => bg(s)).filter(Boolean)
+    };
+  });
+  check('CAPTURE is lime', primary.capture === primary.lime, JSON.stringify(primary));
+  check('no other primary button went lime with it',
+    primary.others.length > 0 && primary.others.every(c => c !== primary.lime),
+    JSON.stringify(primary.others));
+
+  /* A glyph inside an input is decoration. If it ever starts taking the tap,
+     the field becomes unfocusable at exactly the point people aim for. */
+  check('field glyphs do not steal the tap from their input',
+    await page.$$eval('.field-icon > .icon', els =>
+      els.length > 0 && els.every(e => getComputedStyle(e).pointerEvents === 'none')));
+
   /* ---------- 9. the whole pass wrote nothing ---------- */
   // A single rev covering everything above: the store must be byte-identical to
   // what was seeded, because not one of these features is allowed to write.

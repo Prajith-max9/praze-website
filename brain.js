@@ -50,6 +50,9 @@
     dot: '<circle cx="12" cy="12" r="6"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
     target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
+    tag: '<path d="M4 13V4h9l7 7-9 9z"/><circle cx="8.5" cy="8.5" r="1.5"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/>',
+    doc: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
     sparkle: '<path d="M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z"/><path d="M18 16.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
     pencil: '<path d="M4 20v-4L16 4l4 4L8 20z"/><path d="M14 6l4 4"/>',
     link: '<path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.4 1.4"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1.4-1.4"/>'
@@ -1332,7 +1335,7 @@
     if (state.editingId === note.id) return renderEditForm(note);
 
     var titleHtml = note.title
-      ? '<h2 class="note__title">' + highlight(note.title, tokens) + '</h2>'
+      ? '<h2 class="note__title">' + icon('doc') + highlight(note.title, tokens) + '</h2>'
       : '';
     var tagsHtml = note.tags.length
       ? '<div class="note__tags">' + note.tags.map(function (t) { return renderTagChip(t, null); }).join('') + '</div>'

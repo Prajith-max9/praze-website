@@ -109,11 +109,11 @@
   <!-- IDEAS -->
   <section id="view-ideas" class="view">
     <section class="capture">
-      <p class="label">CAPTURE</p>
+      <p class="label"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20v-4L16 4l4 4L8 20z"/><path d="M14 6l4 4"/></svg> CAPTURE</p>
       <form id="capture-form">
         <input id="capture-title" class="capture__title" type="text" placeholder="Title (optional)" autocomplete="off">
         <textarea id="capture-body" class="capture__body" rows="4" placeholder="What's on your mind? Link notes with [[Title]]" required></textarea>
-        <input id="capture-tags" class="capture__tags" type="text" placeholder="tags: training, content" autocomplete="off">
+        <span class="field-icon"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 13V4h9l7 7-9 9z"/><circle cx="8.5" cy="8.5" r="1.5"/></svg><input id="capture-tags" class="capture__tags" type="text" placeholder="tags: training, content" autocomplete="off"></span>
         <div id="tag-suggest" class="tag-suggest"></div>
         <div class="capture__actions">
           <button class="btn" type="submit">CAPTURE</button>
@@ -125,7 +125,8 @@
     </section>
 
     <section class="toolbar">
-      <div class="toolbar__search">
+      <div class="toolbar__search field-icon">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
         <input id="search" type="search" placeholder="Search your brain&hellip; ( / )" autocomplete="off">
         <span id="note-count" class="toolbar__count">0 NOTES</span>
       </div>
