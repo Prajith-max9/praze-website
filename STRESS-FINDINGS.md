@@ -95,7 +95,7 @@ three failures.
 
 ## Finding 2 — `.graph-cold` missed the corner-radius sweep
 
-**Severity: cosmetic. One line.**
+**Severity: cosmetic. One line. FIXED.**
 
 `#graph-cold` is a bordered notice on the Graph tab, shown only when there are
 too few notes to draw a useful graph. It is still square-cornered while every
@@ -106,11 +106,13 @@ conditionally, so the screenshot pass never saw it. A static sweep of
 `brain.css` found it — 29 surfaces, 24 rounded, 9 documented exceptions, one
 genuine omission.
 
-**Fix:** add `.graph-cold` to the surfaces list in the radius section. It uses
-the existing token; no new value, no decision.
+**Fixed** by adding `.graph-cold` to the surfaces list in the radius section. It
+uses the existing token; no new value, no decision.
 
-Left undone only because the instruction for this pass was to document rather
-than fix. It is a one-liner whenever you want it.
+Verified in the state that actually renders it — a store with one note, below
+the five-note similarity gate — rather than by trusting the rule. Computed
+radius resolves to `--radius` in both themes, and the notice now matches the
+graph container around it.
 
 ---
 

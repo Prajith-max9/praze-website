@@ -2790,6 +2790,9 @@ a {
 .graph-wrap,
 .graph-tooltip,
 .graph-settings,
+/* only rendered when the graph is too sparse to draw, so no screenshot pass
+   ever reached it — it was still square after the rest of the app rounded */
+.graph-cold,
 .synth-bar,
 .synth-result,
 .dump__box,
