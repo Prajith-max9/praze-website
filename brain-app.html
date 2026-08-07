@@ -1446,6 +1446,22 @@ return photoWrite(function (os) { os.put(dataUrl, id); });
 function deletePhoto(id) {
 return photoWrite(function (os) { os.delete(id); });
 }
+function getPhotos(ids) {
+if (!ids.length) return Promise.resolve({});
+return photoDb().then(function (db) {
+return new Promise(function (resolve, reject) {
+var tx = db.transaction(PHOTO_STORE_NAME, 'readonly');
+var os = tx.objectStore(PHOTO_STORE_NAME);
+var out = {};
+ids.forEach(function (id) {
+var req = os.get(id);
+req.onsuccess = function () { if (req.result) out[id] = req.result; };
+});
+tx.oncomplete = function () { resolve(out); };
+tx.onerror = function () { reject(tx.error || new Error('photo read failed')); };
+});
+});
+}
 function readAllPhotos() {
 return photoDb().then(function (db) {
 return new Promise(function (resolve, reject) {
@@ -1489,6 +1505,22 @@ render();
 }).catch(function () {
 photosInIdb = false;
 });
+}
+function reattachPhotosAfterMerge() {
+if (!photosInIdb) return;
+var missing = store.notes
+.filter(function (n) { return !n.photo; })
+.map(function (n) { return n.id; });
+if (!missing.length) return;
+getPhotos(missing).then(function (found) {
+var byId = notesById();
+var changed = false;
+Object.keys(found).forEach(function (id) {
+var note = byId[id];
+if (note && !note.photo) { note.photo = sanitizePhoto(found[id]); changed = true; }
+});
+if (changed) render();
+}).catch(function () {  });
 }
 function persistPhoto(noteId) {
 if (!photosInIdb) return;
@@ -1679,6 +1711,7 @@ if (typeof theirs.rev === 'number') store.rev = Math.max(store.rev || 0, theirs.
 scheduleTodoReminders();
 render();
 if (weHoldMore) saveStore();
+reattachPhotosAfterMerge();
 }
 function omitEmptyPhoto(key, value) {
 if (key !== 'photo') return value;

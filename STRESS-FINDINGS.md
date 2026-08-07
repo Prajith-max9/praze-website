@@ -4,14 +4,23 @@ A pass aimed specifically at the seams between new code (photos → IndexedDB, t
 back-button layer stack, the dashboard rebuild, the radius token) and old code.
 Not a re-run of S-1…S-9.
 
-Seven areas probed. **Five clean, two real findings.** Neither is fixed here —
-both are recorded for a decision, in the same way `S1-FINDINGS.md` was.
+Seven areas probed. **Five clean, two real findings.**
+
+> **Status: both fixed.** Finding 1 was closed by option A —
+> `reattachPhotosAfterMerge` — and Finding 2 by adding `.graph-cold` to the
+> radius sweep. The reproduction below was run before and after; the new
+> assertions in `verify-interactions.js` were confirmed to fail against two
+> mutations of the fix before being trusted.
+>
+> Kept as written because the reasoning is the useful part: it explains why the
+> merge is blind to photos, which is a question to ask of anything else that
+> ends up living outside the merged payload.
 
 ---
 
 ## Finding 1 — a photo added in one tab is deleted by an edit in another
 
-**Severity: moderate. Silent data loss. Needs two tabs open at once.**
+**Severity: moderate. Silent data loss. Needs two tabs open at once. FIXED.**
 
 ### What happens
 
@@ -59,10 +68,28 @@ of how the empty value got there.
 **Recommendation: C**, with A as the priority half if only one gets done. A is
 maybe 15 lines in `handleStorageEvent`.
 
-### Not tested for on purpose
+### What was done
 
-`verify-interactions.js` deliberately does **not** pin this behaviour. A test
-asserting what happens today would enshrine the bug. Add one with the fix.
+**Option A.** `reattachPhotosAfterMerge` runs after every merge: any note
+without a photo in memory asks IndexedDB whether one exists, and reattaches it
+through `sanitizePhoto`, exactly as at boot. Only the missing ids are fetched —
+the common case, nothing missing, does no I/O at all.
+
+That closes both halves. B sees the photo without reloading, and B's next edit
+no longer reads an empty field as an instruction to delete.
+
+Option B was **not** implemented. It is still a reasonable hardening — making
+`persistPhoto` delete only on an explicit removal rather than inferring it from
+an empty value — and it would defend against any *future* path that leaves the
+field empty for a reason nobody has thought of yet. Worth doing if another one
+of these ever turns up; not worth it for this one alone.
+
+### Coverage
+
+Five assertions in `verify-interactions.js`, covering what tab B sees as well as
+what survives its edit. Proven able to fail against two mutations of the fix —
+never calling it, and calling it but reattaching nothing — each caught with
+three failures.
 
 ---
 
