@@ -210,6 +210,14 @@ CSS transition or animation inherits it automatically. Don't add a per-rule one.
 there" from "created over here", so a note deleted in one tab can be resurrected
 by another. Known and accepted; don't be surprised by it.
 
+**The cross-tab merge does not cover photos at all**, because they are no longer
+in the localStorage payload it merges. A photo attached in one tab is invisible
+to another until that tab reloads — and worse, editing that note in the second
+tab *deletes* the photo, because `persistPhoto` reads an empty in-memory `photo`
+as "there should be none". Confirmed, not fixed, written up with options in
+**`STRESS-FINDINGS.md`**. Anything new that lives outside the merged payload
+needs the same question asked of it.
+
 **Timeline's empty copy must point at Ideas.** `verify-timeline.js` asserts the
 intent, not the string — the Timeline fills itself from elsewhere, so "go
 capture something" is the useful prompt.
@@ -308,6 +316,14 @@ Two traps that have bitten repeatedly:
 
 ## 9. Open items
 
+- **A photo added in one tab is deleted by an edit in another.** Confirmed by
+  direct probe, **not fixed** — see §5 and `STRESS-FINDINGS.md`, which has the
+  reproduction and three options. Moderate severity: silent, but needs two tabs
+  open at once. The recommended fix is to reattach photos from IndexedDB after a
+  cross-tab merge, which also fixes the display half of the problem.
+- **`.graph-cold` still has square corners.** Cosmetic, one line, uses the
+  existing `--radius` token. Missed because it renders only when the graph is
+  too sparse to draw, so the screenshot pass never reached it.
 - **Sticky tab bar — a product decision, not made.** `#tabs` is
   `position: relative`, so reaching it means scrolling to the top; by the time
   a tab is tapped there is no offset left to preserve. Scroll restoration
