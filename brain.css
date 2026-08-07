@@ -3078,3 +3078,90 @@ a {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
 }
+
+/* ---------- Goals tab ---------- */
+
+/* The flame gets a box of its own so it reads as a marker rather than a stray
+   glyph. --border as the fill works in both themes: it is translucent ink on
+   bone in light, translucent bone on ink in dark, so it sits a shade off the
+   card either way rather than needing two values. */
+.streak-card__flame {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: var(--radius);
+  background: var(--border);
+  font-size: 1.1rem;
+}
+
+/* Number, label and best on their own lines. baseline alignment was what kept
+   them on one line before, so the card aligns to the top now. */
+.streak-card {
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.streak-card__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.streak-card__value {
+  line-height: 1.05;
+}
+
+.streak-card__label {
+  margin-top: 0.15rem;
+}
+
+.streak-card__best {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray);
+  margin-top: 0.2rem;
+}
+
+/* A caption under the number, so the field says what it is once the placeholder
+   has been typed over — which is exactly when a placeholder stops helping. */
+.goal-form__target-field {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+}
+
+.goal-form__caption {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--gray);
+  margin-top: -0.5rem;
+  padding-left: 0.1rem;
+}
+
+/* Two streak cards side by side leave each one 170px, and after padding and the
+   flame the label gets 84 of the ~105 it needs — so it wraps. Measured, not
+   guessed. Shaving the padding enough to fit would leave the card cramped, so
+   the flame moves above the text instead and the label gets the full width. */
+@media (max-width: 480px) {
+  .streak-card {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+/* Empty-state glyph. Sized off the title beneath it rather than a fixed px, so
+   it tracks the type if that ever changes. */
+.empty__glyph {
+  display: block;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--gray);
+  margin-bottom: 0.6rem;
+}

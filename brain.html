@@ -201,7 +201,10 @@
       <form id="goal-form">
         <div class="goal-form__row">
           <input id="goal-title" class="capture__title" type="text" placeholder="Post 12 reels" required autocomplete="off">
-          <input id="goal-target" class="capture__title goal-form__target" type="number" min="1" step="1" placeholder="12" required>
+          <span class="goal-form__target-field">
+            <input id="goal-target" class="capture__title goal-form__target" type="number" min="1" step="1" placeholder="12" required aria-describedby="goal-target-caption">
+            <span id="goal-target-caption" class="goal-form__caption">TARGET</span>
+          </span>
         </div>
         <div class="capture__actions">
           <button class="btn" type="submit">SET GOAL</button>
