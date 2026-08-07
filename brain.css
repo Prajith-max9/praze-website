@@ -2910,3 +2910,64 @@ a {
 .dash-row .dash-bar {
   margin-top: 0.45rem;
 }
+
+/* ---------- Ideas tab polish ---------- */
+
+/* Input with a leading glyph. One pattern, used by the tags field and the
+   search box rather than solved twice. The glyph never takes the tap:
+   pointer-events: none means a finger aimed at it lands on the input. */
+.field-icon {
+  position: relative;
+  display: block;
+}
+
+.field-icon > .icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray);
+  pointer-events: none;
+}
+
+.field-icon > input {
+  padding-left: 2.5rem;
+}
+
+/* The section heading carries the same glyph treatment as the dashboard card
+   labels — scoped, because .label also heads the graph and dump panels which
+   have their own layout. */
+.capture .label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.capture .label .icon {
+  flex: none;
+  opacity: 0.85;
+}
+
+/* A note title reads as a document. inline-flex on the h2 would break the
+   wrapping of a long title, so the glyph stays inline and is nudged onto the
+   baseline instead. */
+.note__title .icon {
+  color: var(--gray);
+  margin-right: 0.4rem;
+  vertical-align: -0.12em;
+}
+
+/* CAPTURE is deliberately the one lime primary button in the app. Capture is
+   the thing this app exists for, and it is the only action worth pulling the
+   eye on its own tab. Every other primary button — SAVE ENTRY, SAVE CLIP, SET
+   GOAL, ADD — stays bone: this is an exception on purpose, not the start of a
+   design-system change, so do not propagate it by "tidying". */
+#capture-form .btn {
+  background: var(--lime);
+  color: var(--ink);
+}
+
+#capture-form .btn:hover {
+  background: var(--lime);
+  opacity: 0.88;
+}
