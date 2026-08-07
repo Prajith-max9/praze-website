@@ -72,7 +72,7 @@ fails in the other — or worse, pins a value the rest of the app has moved off.
 | `verify-polish.js` | Relative timestamps, clamped previews and their toggle, copy, active-tab feedback, destructive-action presentation, offline badge, filter/scroll restore — and an assertion that none of it wrote to the store |
 | `verify-tap-targets.js` | Every control has a 44px **effective** tap area across all views |
 | `verify-s1.js` | **Storage honesty.** Run after touching any save path. Fakes a full quota and checks every write path refuses to claim success, keeps what was typed, and leaves the stored payload byte-identical |
-| `verify-photos.js` | The `PHOTO_URL_RE` security boundary — a hostile `photo` value from an imported store must never reach an `<img src>` — plus compression to jpeg at 800px |
+| `verify-photos.js` | The `PHOTO_URL_RE` security boundary — a hostile `photo` value must never reach an `<img src>`, from localStorage **or** IndexedDB — plus compression to jpeg at 800px, the one-way migration into IndexedDB, and export round-tripping |
 
 ### Two things those suites learned the hard way
 

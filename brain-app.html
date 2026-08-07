@@ -333,7 +333,7 @@
 </div>
 
 <footer class="brain-footer">
-  <p>Notes are stored only in this browser (localStorage). No account, no server, no sync — export regularly to keep a backup.</p>
+  <p>Notes are stored only in this browser (localStorage, and photos in IndexedDB). No account, no server, no sync — export regularly to keep a backup.</p>
 </footer>
 
 <script>
@@ -1405,6 +1405,106 @@ if (u.protocol === 'http:' || u.protocol === 'https:') return u.href;
 } catch (e) {}
 return null;
 }
+var PHOTO_DB_NAME = 'praze.brain.photos';
+var PHOTO_DB_VERSION = 1;
+var PHOTO_STORE_NAME = 'photos';
+var photosInIdb = false;
+var photoDbPromise = null;
+function photoDb() {
+if (photoDbPromise) return photoDbPromise;
+photoDbPromise = new Promise(function (resolve, reject) {
+if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+var req;
+try { req = indexedDB.open(PHOTO_DB_NAME, PHOTO_DB_VERSION); }
+catch (e) { reject(e); return; }
+req.onupgradeneeded = function () {
+var db = req.result;
+if (!db.objectStoreNames.contains(PHOTO_STORE_NAME)) {
+db.createObjectStore(PHOTO_STORE_NAME);
+}
+};
+req.onsuccess = function () { resolve(req.result); };
+req.onerror = function () { reject(req.error || new Error('IndexedDB open failed')); };
+req.onblocked = function () { reject(new Error('IndexedDB blocked')); };
+});
+return photoDbPromise;
+}
+function photoWrite(fn) {
+return photoDb().then(function (db) {
+return new Promise(function (resolve, reject) {
+var tx = db.transaction(PHOTO_STORE_NAME, 'readwrite');
+fn(tx.objectStore(PHOTO_STORE_NAME));
+tx.oncomplete = function () { resolve(true); };
+tx.onerror = function () { reject(tx.error || new Error('photo write failed')); };
+tx.onabort = function () { reject(tx.error || new Error('photo write aborted')); };
+});
+});
+}
+function putPhoto(id, dataUrl) {
+return photoWrite(function (os) { os.put(dataUrl, id); });
+}
+function deletePhoto(id) {
+return photoWrite(function (os) { os.delete(id); });
+}
+function readAllPhotos() {
+return photoDb().then(function (db) {
+return new Promise(function (resolve, reject) {
+var tx = db.transaction(PHOTO_STORE_NAME, 'readonly');
+var req = tx.objectStore(PHOTO_STORE_NAME).openCursor();
+var out = {};
+req.onsuccess = function () {
+var cursor = req.result;
+if (!cursor) return;
+out[cursor.key] = cursor.value;
+cursor.continue();
+};
+tx.oncomplete = function () { resolve(out); };
+tx.onerror = function () { reject(tx.error || new Error('photo read failed')); };
+});
+});
+}
+function initPhotoStorage() {
+return readAllPhotos().then(function (stored) {
+var writes = [];
+store.notes.forEach(function (n) {
+if (n.photo) {
+if (stored[n.id] !== n.photo) writes.push(putPhoto(n.id, n.photo));
+} else if (stored[n.id]) {
+n.photo = sanitizePhoto(stored[n.id]);
+}
+});
+return Promise.all(writes).then(function () {
+return { stored: stored, moved: writes.length };
+});
+}).then(function (r) {
+var stored = r.stored;
+photosInIdb = true;
+if (r.moved) saveStore();
+var live = {};
+store.notes.forEach(function (n) { live[n.id] = true; });
+Object.keys(stored).forEach(function (id) {
+if (!live[id]) deletePhoto(id).catch(function () {});
+});
+render();
+}).catch(function () {
+photosInIdb = false;
+});
+}
+function persistPhoto(noteId) {
+if (!photosInIdb) return;
+var note = notesById()[noteId];
+if (!note) return;
+var op = note.photo ? putPhoto(noteId, note.photo) : deletePhoto(noteId);
+op.catch(function () {
+var live = notesById()[noteId];
+if (live && live.photo) {
+live.photo = '';
+saveStore();
+render();
+}
+showBanner('The entry saved, but its photo could not be stored.', 'error', true);
+});
+}
 function migrateStore(store, rawString) {
 if (store.schemaVersion === SCHEMA_VERSION) return store;
 try {
@@ -1581,6 +1681,11 @@ render();
 if (weHoldMore) saveStore();
 }
 function omitEmptyPhoto(key, value) {
+if (key !== 'photo') return value;
+if (photosInIdb) return undefined;
+return value === '' ? undefined : value;
+}
+function exportReplacer(key, value) {
 return key === 'photo' && value === '' ? undefined : value;
 }
 function serializeStore(s) {
@@ -3630,13 +3735,15 @@ stopDictation();
 var body = els.diaryBody.value.trim();
 if (isBlank(body)) return;
 var prevEligible = eligibleNoteCount();
-store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary', '', state.pendingPhoto));
+var entry = createNote(formatDate(Date.now()), body, '', 'diary', '', state.pendingPhoto);
+store.notes.push(entry);
 if (!saveStore()) {
 store.notes.pop();
 saveDiaryDraft();
 render();
 return;
 }
+persistPhoto(entry.id);
 clearDiaryDraft();
 els.diaryForm.reset();
 els.diaryBody.style.height = '';
@@ -4128,6 +4235,7 @@ note.updatedAt = Date.now();
 if (saveStore()) {
 state.editingId = null;
 state.editPhoto = undefined;
+persistPhoto(note.id);
 } else {
 note.photo = prevPhoto;
 }
@@ -4176,7 +4284,7 @@ notes: store.notes,
 goals: store.goals,
 todos: store.todos
 };
-var blob = new Blob([JSON.stringify(payload, omitEmptyPhoto, 2)], { type: 'application/json' });
+var blob = new Blob([JSON.stringify(payload, exportReplacer, 2)], { type: 'application/json' });
 var url = URL.createObjectURL(blob);
 var a = document.createElement('a');
 var d = new Date();
@@ -4207,9 +4315,11 @@ return;
 var byId = {};
 store.notes.forEach(function (n) { byId[n.id] = n; });
 var added = 0, updated = 0;
+var photoIds = [];
 data.notes.forEach(function (raw) {
 var incoming = sanitizeNote(raw);
 if (!incoming) return;
+if (incoming.photo) photoIds.push(incoming.id);
 var existing = byId[incoming.id];
 if (!existing) {
 byId[incoming.id] = incoming;
@@ -4271,6 +4381,7 @@ current.updatedAt = incoming.updatedAt;
 });
 }
 var imported = saveStore();
+if (imported) photoIds.forEach(persistPhoto);
 scheduleTodoReminders();
 render();
 if (imported) {
@@ -5120,6 +5231,7 @@ setupDictation();
 setupOfflineBadge();
 render();
 restoreDraft();
+initPhotoStorage();
 }
 function setupOfflineBadge() {
 var badge = document.getElementById('offline-badge');

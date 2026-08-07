@@ -253,6 +253,155 @@
     return null;
   }
 
+  /* ---------- Photo storage (IndexedDB) ----------
+
+     Photos live apart from the rest of the store because they are the only
+     thing in this app big enough to matter. A compressed 800px JPEG is ~70-200KB
+     as a base64 data URL; a few dozen of them fill a 5-10MB localStorage quota
+     on their own, which is what makes the storage-full path in §5 fire at all.
+     IndexedDB has orders of magnitude more room and stores them out of the one
+     JSON blob everything else shares.
+
+     In memory nothing changes: a note still carries `photo` as a data URL, so
+     every render path, PHOTO_URL_RE, sanitizePhoto and the compression pipeline
+     are untouched. Only where it is *persisted* moves.
+
+     `photosInIdb` is the safety interlock. It stays false until photos are
+     confirmed written to IndexedDB, and the store serializer only drops photos
+     once it is true — so a browser that blocks IndexedDB (private mode, an
+     older WebView, a locked-down profile) keeps working exactly as it does
+     today, with photos inline, rather than silently discarding them. */
+
+  var PHOTO_DB_NAME = 'praze.brain.photos';
+  var PHOTO_DB_VERSION = 1;
+  var PHOTO_STORE_NAME = 'photos';
+  var photosInIdb = false;
+  var photoDbPromise = null;
+
+  function photoDb() {
+    if (photoDbPromise) return photoDbPromise;
+    photoDbPromise = new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+      var req;
+      // Firefox in private mode throws here rather than firing onerror
+      try { req = indexedDB.open(PHOTO_DB_NAME, PHOTO_DB_VERSION); }
+      catch (e) { reject(e); return; }
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains(PHOTO_STORE_NAME)) {
+          db.createObjectStore(PHOTO_STORE_NAME);
+        }
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error || new Error('IndexedDB open failed')); };
+      req.onblocked = function () { reject(new Error('IndexedDB blocked')); };
+    });
+    return photoDbPromise;
+  }
+
+  // Resolve on transaction complete, not on request success: a quota failure
+  // surfaces when the transaction tries to commit, so resolving any earlier
+  // would report a write that never landed — the S-1 rule, one layer down.
+  function photoWrite(fn) {
+    return photoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(PHOTO_STORE_NAME, 'readwrite');
+        fn(tx.objectStore(PHOTO_STORE_NAME));
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { reject(tx.error || new Error('photo write failed')); };
+        tx.onabort = function () { reject(tx.error || new Error('photo write aborted')); };
+      });
+    });
+  }
+
+  function putPhoto(id, dataUrl) {
+    return photoWrite(function (os) { os.put(dataUrl, id); });
+  }
+
+  function deletePhoto(id) {
+    return photoWrite(function (os) { os.delete(id); });
+  }
+
+  function readAllPhotos() {
+    return photoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(PHOTO_STORE_NAME, 'readonly');
+        var req = tx.objectStore(PHOTO_STORE_NAME).openCursor();
+        var out = {};
+        req.onsuccess = function () {
+          var cursor = req.result;
+          if (!cursor) return;
+          out[cursor.key] = cursor.value;
+          cursor.continue();
+        };
+        tx.oncomplete = function () { resolve(out); };
+        tx.onerror = function () { reject(tx.error || new Error('photo read failed')); };
+      });
+    });
+  }
+
+  /* Boot: reunite notes with their photos, move any that are still inline, and
+     only then let the serializer stop writing them to localStorage. Ordering is
+     the whole point — localStorage keeps its copy until IndexedDB has one. */
+  function initPhotoStorage() {
+    return readAllPhotos().then(function (stored) {
+      var writes = [];
+      store.notes.forEach(function (n) {
+        if (n.photo) {
+          // still inline from before this change, or from an import
+          if (stored[n.id] !== n.photo) writes.push(putPhoto(n.id, n.photo));
+        } else if (stored[n.id]) {
+          // the boundary applies on the way out of IndexedDB too: this store is
+          // as user-editable as localStorage is, via devtools or another script
+          n.photo = sanitizePhoto(stored[n.id]);
+        }
+      });
+      return Promise.all(writes).then(function () {
+        return { stored: stored, moved: writes.length };
+      });
+    }).then(function (r) {
+      var stored = r.stored;
+      photosInIdb = true;
+      // Only rewrite localStorage when something actually came out of it. With
+      // no inline photos the payload is byte-identical either way, so writing
+      // anyway would mean a pointless save on every single app open — one that
+      // can fail on a full quota, and that bumps `rev` and throws away the
+      // TF-IDF cache keyed on it.
+      if (r.moved) saveStore();
+      // a photo whose note is gone is unreachable; undo state does not survive
+      // a reload, so nothing can want these back by now
+      var live = {};
+      store.notes.forEach(function (n) { live[n.id] = true; });
+      Object.keys(stored).forEach(function (id) {
+        if (!live[id]) deletePhoto(id).catch(function () {});
+      });
+      render();
+    }).catch(function () {
+      // IndexedDB unavailable: photos stay in localStorage exactly as before
+      photosInIdb = false;
+    });
+  }
+
+  /* Persist one note's photo after the note itself has been saved. If the write
+     fails the photo is dropped from memory as well, because a note holding a
+     photo that storage does not have is the same lie S-1 exists to prevent —
+     just in the other direction. */
+  function persistPhoto(noteId) {
+    if (!photosInIdb) return;
+    var note = notesById()[noteId];
+    if (!note) return;
+    var op = note.photo ? putPhoto(noteId, note.photo) : deletePhoto(noteId);
+    op.catch(function () {
+      var live = notesById()[noteId];
+      if (live && live.photo) {
+        live.photo = '';
+        saveStore();
+        render();
+      }
+      showBanner('The entry saved, but its photo could not be stored.', 'error', true);
+    });
+  }
+
   /* ---------- Storage ---------- */
 
   function migrateStore(store, rawString) {
@@ -491,7 +640,23 @@
   // write after this upgrade could be *larger* than what it replaces, and a
   // delete would stop being guaranteed to free space on a full store. Notes
   // without a photo therefore serialize exactly as they did before.
+  /* Store serializer. Once photos live in IndexedDB they leave the localStorage
+     payload entirely — that is the point of the change. Until then the original
+     rule still applies: an empty photo is omitted rather than written as "",
+     because adding bytes to every note could make the first write after an
+     upgrade larger than what it replaced. */
   function omitEmptyPhoto(key, value) {
+    if (key !== 'photo') return value;
+    if (photosInIdb) return undefined;
+    return value === '' ? undefined : value;
+  }
+
+  /* Export serializer — deliberately NOT the one above. An export keeps photos
+     inline, so the file format is byte-identical to what this app has always
+     produced: an export written before this change still imports, and one
+     written after it still opens in an older build. A separate sidecar file or
+     an archive would have broken both directions for no gain. */
+  function exportReplacer(key, value) {
     return key === 'photo' && value === '' ? undefined : value;
   }
 
@@ -3061,7 +3226,8 @@
     var body = els.diaryBody.value.trim();
     if (isBlank(body)) return;
     var prevEligible = eligibleNoteCount();
-    store.notes.push(createNote(formatDate(Date.now()), body, '', 'diary', '', state.pendingPhoto));
+    var entry = createNote(formatDate(Date.now()), body, '', 'diary', '', state.pendingPhoto);
+    store.notes.push(entry);
     if (!saveStore()) {
       // Nothing was written, so the entry must not stay in memory pretending
       // otherwise. Rolling it back also matters for photos specifically: a
@@ -3074,6 +3240,7 @@
       render();
       return;
     }
+    persistPhoto(entry.id); // the note landed; its photo follows, out of band
     clearDiaryDraft();
     els.diaryForm.reset();
     els.diaryBody.style.height = '';
@@ -3627,6 +3794,7 @@
         if (saveStore()) {
           state.editingId = null;
           state.editPhoto = undefined;
+          persistPhoto(note.id); // covers add, replace and remove alike
         } else {
           // put the old photo back so the in-memory store stays as saveable as
           // it was — a newly added one would otherwise block every later write
@@ -3693,7 +3861,7 @@
       goals: store.goals,
       todos: store.todos
     };
-    var blob = new Blob([JSON.stringify(payload, omitEmptyPhoto, 2)], { type: 'application/json' });
+    var blob = new Blob([JSON.stringify(payload, exportReplacer, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     var d = new Date();
@@ -3725,9 +3893,13 @@
       var byId = {};
       store.notes.forEach(function (n) { byId[n.id] = n; });
       var added = 0, updated = 0;
+      // photos arrive inline in the file and have to be moved into IndexedDB,
+      // collected here so they are only written once the import itself saves
+      var photoIds = [];
       data.notes.forEach(function (raw) {
         var incoming = sanitizeNote(raw);
         if (!incoming) return;
+        if (incoming.photo) photoIds.push(incoming.id);
         var existing = byId[incoming.id];
         if (!existing) {
           byId[incoming.id] = incoming;
@@ -3791,6 +3963,7 @@
         });
       }
       var imported = saveStore();
+      if (imported) photoIds.forEach(persistPhoto);
       scheduleTodoReminders();
       render();
       if (imported) {
@@ -4861,6 +5034,10 @@
     setupOfflineBadge();
     render();
     restoreDraft();
+    // async and deliberately not awaited: the app is fully usable before photos
+    // arrive, and blocking first paint on a database open would be a worse trade
+    // than a diary thumbnail appearing a frame late
+    initPhotoStorage();
   }
 
   /* Read-only: reflects navigator.onLine, stores nothing, polls nothing.

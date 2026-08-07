@@ -80,7 +80,14 @@ const SEED = (fixture) => {
   await page.reload();                       // reload, never hash-nav
   await page.evaluate(() => { location.hash = '#diary'; });
   await page.waitForSelector('.note--diary');
-  await page.waitForTimeout(500);
+
+  // The fixture seeds photos inline in localStorage, which is exactly the shape
+  // an existing user's store has — so simply booting exercises the migration.
+  // It is async, so wait for it to finish rather than racing it.
+  await page.waitForFunction(
+    () => !(localStorage.getItem('praze.brain.v1') || '').includes('base64'),
+    { timeout: 8000 });
+  await page.waitForTimeout(300);
 
   console.log('\nDiary photos @ ' + PHONE.width + 'x' + PHONE.height);
 
@@ -118,6 +125,107 @@ const SEED = (fixture) => {
   // rather than asserted; what matters is that nothing reached the DOM
   console.log('        (store on disk is ' + inMemory + ' until the next write)');
 
+  /* ---------- 3b. photos moved to IndexedDB, and nothing was lost ---------- */
+  const idb = () => page.evaluate(() => new Promise((resolve, reject) => {
+    const req = indexedDB.open('praze.brain.photos', 1);
+    req.onsuccess = () => {
+      const db = req.result;
+      const tx = db.transaction('photos', 'readonly');
+      const cur = tx.objectStore('photos').openCursor();
+      const out = {};
+      cur.onsuccess = () => { const c = cur.result; if (!c) return; out[c.key] = c.value; c.continue(); };
+      tx.oncomplete = () => resolve(out);
+      tx.onerror = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
+  }));
+
+  const stored = await idb();
+  check('the legitimate photo is now in IndexedDB', stored.good === GOOD_JPEG,
+    stored.good ? stored.good.slice(0, 30) : String(stored.good));
+  check('localStorage no longer carries any photo payload',
+    await page.evaluate(() => !(localStorage.getItem('praze.brain.v1') || '').includes('base64')));
+
+  // migration must move, not copy: the whole point is the quota
+  const sizes = await page.evaluate(() => ({
+    store: (localStorage.getItem('praze.brain.v1') || '').length
+  }));
+  check('the localStorage store is small now', sizes.store < 4000, sizes.store + ' chars');
+
+  // and the hostile values must not have been carried across either
+  const hostileInIdb = Object.keys(stored).filter(k => k.indexOf('bad-') === 0);
+  check('hostile photos were not migrated into IndexedDB',
+    hostileInIdb.length === 0, JSON.stringify(hostileInIdb));
+
+  // survives a reload — this is the actual "no data loss" assertion
+  await page.reload();
+  await page.evaluate(() => { location.hash = '#diary'; });
+  await page.waitForSelector('.note--diary');
+  await page.waitForTimeout(600);
+  check('the photo still renders after a reload, from IndexedDB',
+    await page.evaluate(v => [...document.querySelectorAll('img')]
+      .some(i => (i.getAttribute('src') || '') === v), GOOD_JPEG));
+
+  /* ---------- 3c. the boundary applies on the way OUT of IndexedDB ----------
+     IndexedDB is exactly as user-editable as localStorage was, so a hostile
+     value written directly into it must be refused on read like any other. */
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const req = indexedDB.open('praze.brain.photos', 1);
+    req.onsuccess = () => {
+      const tx = req.result.transaction('photos', 'readwrite');
+      tx.objectStore('photos').put('https://evil.example/from-idb.png', 'good');
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    };
+    req.onerror = () => reject(req.error);
+  }));
+  await page.reload();
+  await page.evaluate(() => { location.hash = '#diary'; });
+  await page.waitForSelector('.note--diary');
+  await page.waitForTimeout(600);
+  check('a hostile value injected into IndexedDB is refused on read',
+    await page.evaluate(() => ![...document.querySelectorAll('img')]
+      .some(i => (i.getAttribute('src') || '').indexOf('evil.example') !== -1)));
+  check('no off-origin request from the injected IndexedDB value',
+    offOrigin.length === 0, JSON.stringify(offOrigin.slice(0, 3)));
+
+  /* ---------- 3d. export still carries photos inline ----------
+     The format must stay byte-compatible: an export from before this change
+     still imports, and one from after it still opens in an older build. */
+  await page.evaluate(SEED, { hostile: {}, good: GOOD_JPEG });
+  await page.reload();
+  await page.evaluate(() => { location.hash = '#ideas'; });
+  // by visible text: .toolbar__btn also matches buttons inside the settings panel
+  await page.waitForFunction(() => [...document.querySelectorAll('button')]
+    .some(b => b.textContent.trim().toUpperCase() === 'EXPORT' && b.offsetParent),
+    { timeout: 10000 });
+  await page.waitForTimeout(800);            // let the migration finish first
+
+  // Capture what Export actually writes, by intercepting the blob it builds.
+  const exported = await page.evaluate(async () => {
+    let captured = null;
+    const realCreate = URL.createObjectURL;
+    URL.createObjectURL = function (blob) { captured = blob; return 'blob:stub'; };
+    const btn = [...document.querySelectorAll('button')]
+      .find(b => b.textContent.trim().toUpperCase() === 'EXPORT');
+    if (!btn) { URL.createObjectURL = realCreate; return null; }
+    btn.click();
+    URL.createObjectURL = realCreate;
+    return captured ? await captured.text() : null;
+  });
+
+  check('Export produced a payload', !!exported, String(exported).slice(0, 40));
+  if (exported) {
+    check('the export still carries the photo inline, from IndexedDB',
+      exported.indexOf(GOOD_JPEG.slice(0, 60)) !== -1);
+    const parsed = JSON.parse(exported);
+    check('the exported file parses as the same shape as before',
+      parsed.schemaVersion === 2 && Array.isArray(parsed.notes),
+      JSON.stringify(Object.keys(parsed)));
+    check('the exported note carries photo as a plain data URL, not a reference',
+      parsed.notes.some(n => typeof n.photo === 'string' && n.photo.indexOf('data:image/jpeg') === 0));
+  }
+
   /* ---------- 4. photos are compressed on the way in ----------
      A raw phone photo would eat the whole quota. Build a deliberately large PNG
      in the page, feed it through the real file input, and check what gets
@@ -134,6 +242,9 @@ const SEED = (fixture) => {
     return c.toDataURL('image/png').split(',')[1];
   });
 
+  // the export check above left us on Ideas; the photo picker lives on Diary
+  await page.evaluate(() => { location.hash = '#diary'; });
+  await page.waitForSelector('#diary-form');
   await page.setInputFiles('#diary-photo-file', {
     name: 'huge.png', mimeType: 'image/png', buffer: Buffer.from(bigPng, 'base64')
   });

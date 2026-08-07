@@ -74,7 +74,9 @@ One key holds everything: **`praze.brain.v1`**.
     id, title, body, tags: [], pinned,
     kind: 'idea' | 'diary' | 'clip',
     url,                   // clips only
-    photo,                 // diary only, compressed JPEG data URL — see §5
+    photo,                 // diary only, compressed JPEG data URL — IN MEMORY
+                           // ONLY. Persisted to IndexedDB, not to this key.
+                           // See §5 and the note below.
     createdAt, updatedAt
   }],
   goals: [{ id, title, target, progress, createdAt, completedAt }],
@@ -84,6 +86,31 @@ One key holds everything: **`praze.brain.v1`**.
 
 `todos` was added **without a schema bump** — every read path defaults a missing
 key to `[]`. Do the same for anything you add; a bump would strand old exports.
+
+### Photos live in IndexedDB, not in that key
+
+A compressed 800px JPEG is ~70–200 KB as a base64 data URL. A few dozen fill a
+5–10 MB localStorage quota on their own, which is what made the storage-full
+path fire at all. They now live in **`praze.brain.photos`** (IndexedDB), object
+store `photos`, keyed by note id.
+
+Three things about that are worth knowing before you touch it:
+
+- **In memory a note still carries `photo` as a data URL.** Nothing in the
+  render path, `PHOTO_URL_RE`, `sanitizePhoto` or the compression pipeline
+  changed. Only where it is persisted moved.
+- **`photosInIdb` is an interlock, not a feature flag.** It stays false until
+  photos are confirmed written to IndexedDB, and the store serializer only drops
+  `photo` once it is true. A browser that blocks IndexedDB keeps photos inline
+  exactly as before, rather than silently discarding them.
+- **Exports still inline photos**, using a separate replacer from the store
+  serializer. The export format is byte-identical to what it always was: an
+  export written before this change still imports, and one written after it
+  still opens in an older build. Don't "tidy" the two replacers into one.
+
+Migration is on boot and one-way: inline photos are written to IndexedDB first,
+and only then is localStorage rewritten without them. Photos whose note no
+longer exists are garbage-collected at the same point.
 
 ### Other keys (UI state — never exported, never in the store)
 
@@ -137,7 +164,13 @@ callout to someone else's server. SVG is refused — it's scriptable.
 
 **Photos are compressed before storage**: canvas → max 800px longest side →
 JPEG. A raw phone photo would eat the whole quota. `createImageBitmap` is used
-where available so EXIF orientation is applied.
+where available so EXIF orientation is applied. They are persisted to IndexedDB
+rather than to the main store — see §4.
+
+**A photo that could not be written is dropped from memory too.** `persistPhoto`
+runs after the note itself has saved; if the IndexedDB write fails it clears
+`note.photo` and re-saves, so a note never holds a photo that storage does not.
+That is the same rule as the delete rollback above, pointing the other way.
 
 **Dictation: the engine misbehaves in two distinct ways.** Both are real,
 confirmed from an on-device trace, and both are handled in `makeRecognizer`:
