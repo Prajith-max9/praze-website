@@ -73,6 +73,7 @@ fails in the other — or worse, pins a value the rest of the app has moved off.
 | `verify-tap-targets.js` | Every control has a 44px **effective** tap area across all views |
 | `verify-s1.js` | **Storage honesty.** Run after touching any save path. Fakes a full quota and checks every write path refuses to claim success, keeps what was typed, and leaves the stored payload byte-identical |
 | `verify-back.js` | The back-button layer stack: each of the nine layers closes topmost-first, the spare history entry never leaks however deep or however repeated, closing by UI does not undo tab navigation, and normal hash routing and forward navigation still work |
+| `verify-interactions.js` | The seams between features: IndexedDB unavailable vs. failing, importing a pre-migration export, a layer open when the page is killed, and dictation under a tracked layer |
 | `verify-photos.js` | The `PHOTO_URL_RE` security boundary — a hostile `photo` value must never reach an `<img src>`, from localStorage **or** IndexedDB — plus compression to jpeg at 800px, the one-way migration into IndexedDB, and export round-tripping |
 
 ### Two things those suites learned the hard way
@@ -103,6 +104,15 @@ The fix was a `toTip()` helper that forces a real hash navigation first, so
 pushes actually extend the stack. If you assert on `history.length`, make sure
 you know where the cursor is, and pair it with a behavioural check — walking
 back twice catches a stranded entry that counting can miss.
+
+`verify-interactions.js` then did the same thing in a different costume. Its
+IndexedDB-interlock check measured the store immediately after boot — but a
+broken interlock only strips photos on the *next* write, so a deliberately
+broken build passed. Fixed by provoking an unrelated save and looking again.
+
+**Both misses share a shape: the assertion ran before the damage could happen.**
+When you assert that something was *not* destroyed, make sure you have actually
+reached the moment it would have been.
 
 ### Trust an assertion only after you have seen it fail
 
