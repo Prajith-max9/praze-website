@@ -88,19 +88,11 @@
 
   <!-- DASHBOARD -->
   <section id="view-dashboard" class="view" hidden>
-    <header class="view-head">
-      <h2 class="view-head__title">Home</h2>
-      <p class="view-head__sub">What you’ve kept, brought back up.</p>
-    </header>
     <div id="dash" class="dash"></div>
   </section>
 
   <!-- ASK -->
   <section id="view-ask" class="view" hidden>
-    <header class="view-head">
-      <h2 class="view-head__title">Ask</h2>
-      <p class="view-head__sub">Put a question to your own notes.</p>
-    </header>
     <section class="capture">
       <p class="label">ASK YOUR BRAIN</p>
       <form id="ask-form">
@@ -116,10 +108,6 @@
 
   <!-- IDEAS -->
   <section id="view-ideas" class="view">
-    <header class="view-head">
-      <h2 class="view-head__title">Ideas</h2>
-      <p class="view-head__sub">Catch it before it’s gone.</p>
-    </header>
     <section class="capture">
       <p class="label"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20v-4L16 4l4 4L8 20z"/><path d="M14 6l4 4"/></svg> CAPTURE</p>
       <form id="capture-form">
@@ -158,10 +146,6 @@
 
   <!-- DIARY -->
   <section id="view-diary" class="view" hidden>
-    <header class="view-head">
-      <h2 class="view-head__title">Diary</h2>
-      <p class="view-head__sub">A record of how the days actually went.</p>
-    </header>
     <section class="capture">
       <p class="label">DIARY <span id="diary-streak" class="capture__streak"></span></p>
       <form id="diary-form">
@@ -186,10 +170,7 @@
 
   <!-- TIMELINE -->
   <section id="view-timeline" class="view" hidden>
-    <header class="view-head">
-      <h2 class="view-head__title">Timeline</h2>
-      <p class="view-head__sub">Everything you’ve written, in the order it happened.</p>
-    </header>
+    <p class="label">TIMELINE</p>
     <div id="timeline-filters" class="timeline-filters"></div>
     <ol id="timeline-list" class="timeline-list"></ol>
     <div id="timeline-sentinel" hidden></div>
@@ -197,10 +178,6 @@
 
   <!-- CLIPS -->
   <section id="view-clips" class="view" hidden>
-    <header class="view-head">
-      <h2 class="view-head__title">Clips</h2>
-      <p class="view-head__sub">Video you saved, and why you saved it.</p>
-    </header>
     <section class="capture">
       <p class="label">SAVE A CLIP</p>
       <form id="clip-form">
@@ -217,10 +194,6 @@
 
   <!-- GOALS -->
   <section id="view-goals" class="view" hidden>
-    <header class="view-head">
-      <h2 class="view-head__title">Goals</h2>
-      <p class="view-head__sub">Intentions with a number attached.</p>
-    </header>
     <div id="streaks" class="streaks"></div>
     <section class="capture">
       <p class="label">SET A GOAL</p>
@@ -243,10 +216,6 @@
 
   <!-- TODO -->
   <section id="view-todos" class="view" hidden>
-    <header class="view-head">
-      <h2 class="view-head__title">Todo</h2>
-      <p class="view-head__sub">The things you don’t want to drop.</p>
-    </header>
     <section class="capture">
       <p class="label">TODO <span id="todo-count" class="capture__streak"></span></p>
       <form id="todo-form">
@@ -267,10 +236,6 @@
 
   <!-- GRAPH -->
   <section id="view-graph" class="view view--graph" hidden>
-    <header class="view-head">
-      <h2 class="view-head__title">Graph</h2>
-      <p class="view-head__sub">How the things you’ve written connect.</p>
-    </header>
     <p class="label">THE WEB <span class="graph-legend"><svg class="icon icon--fill" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6"/></svg> idea &nbsp; <span class="graph-legend__diary"><svg class="icon icon--fill" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6"/></svg></span> diary &nbsp; <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor"/></svg> clip &nbsp; — [[link]] &nbsp; &#183;&#183;&#183; similar</span></p>
     <div class="graph-wrap">
       <canvas id="graph-canvas"></canvas>
