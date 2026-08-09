@@ -11,7 +11,8 @@ anything; most of it is knowledge that cost a real bug to learn.
 A private, offline-first personal knowledge app: notes, a diary, saved video
 clips, todos, goals, and a force-directed graph of how the notes connect. It
 runs entirely in the browser. There is **no backend, no account, no sync** —
-every byte lives in that browser's `localStorage`.
+everything lives in that browser: the store in `localStorage`, diary photos in
+IndexedDB (§4).
 
 - **Repo**: `prajith-max9/praze-website`, default branch `main`
 - **Live**: <https://prajith-max9.github.io/praze-website/brain.html>
@@ -21,9 +22,19 @@ every byte lives in that browser's `localStorage`.
   running the live site, not a separate build — so a deploy reaches the app.
   `BUILD-APK.md` describes the PWABuilder web route; **§11 describes the local
   Bubblewrap build**, which now works and is the reproducible one.
-- **Working branch**: `claude/second-brain-master-plan-hst2eu` — its PR (#21)
-  was **merged into `main` on 2026-08-05**, so per §8 start new work from `main`
-  rather than stacking on merged history.
+- **Working model**: short-lived `claude/*` branches cut from `main`, one PR
+  each, merged and deleted. There is **no long-lived working branch** — `main`
+  is the only thing that matters, and Pages deploys from it.
+- **Don't trust this file for current state.** Branch names, PR numbers and
+  "most recent change" go stale the moment they are written, and an earlier
+  version of this section sent readers to a branch that had been merged and
+  deleted weeks before. Ask git instead:
+
+  ```bash
+  git log --oneline -10          # what actually landed, and when
+  gh pr list --state merged -L 5 # recent PRs, with their descriptions
+  git status                     # anything in flight
+  ```
 - `index.html` is an unrelated public landing page for the "PRAZE" brand. It
   shares `styles.css` with the app. Don't break it.
 
@@ -302,8 +313,8 @@ Two traps that have bitten repeatedly:
 
 ## 8. Workflow
 
-1. Work on `claude/second-brain-master-plan-hst2eu`. If its PR is already
-   merged, restart it from `main` rather than stacking on merged history.
+1. Cut a short-lived `claude/<what-it-does>` branch from an up-to-date `main`.
+   One branch per change; never continue a branch whose PR already merged.
 2. Commit one logical change at a time.
 3. `node build-brain-app.js` and commit the bundle.
 4. `cd test && node runall.js`. If you touched something the suites do not
