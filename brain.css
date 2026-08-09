@@ -2990,17 +2990,6 @@ a {
 
 /* ---------- Diary tab ---------- */
 
-/* The prompt moves out of the placeholder and above the field, so it survives
-   the first keystroke instead of vanishing the moment you start writing. The
-   placeholder underneath goes quiet rather than repeating it. Same voice as the
-   dashboard prompt, and the same treatment. */
-.capture__prompt {
-  font-family: var(--body);
-  font-size: 0.95rem;
-  color: var(--gray);
-  margin-bottom: 0.6rem;
-}
-
 /* The three actions read as one row. Deliberately NOT equal thirds with stacked
    sublabels: every other tab lays its primary action out at natural width with
    the keyboard hint as a separate quiet span, and matching that matters more
