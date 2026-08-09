@@ -3165,3 +3165,60 @@ a {
   color: var(--gray);
   margin-bottom: 0.6rem;
 }
+
+/* ---------- Wide viewports ----------
+
+   Everything here is min-width only, so the phone layout cannot be reached by
+   it. That is verified rather than assumed: a geometry snapshot of all nine
+   tabs at 390x844 is identical before and after this section existed.
+
+   The column was pinned left — .brain had a max-width and no auto margin — so
+   at 1440px all 644px of slack piled up on one side and read as a bug. */
+
+.brain,
+.brain-footer {
+  margin-inline: auto;
+}
+
+/* Three tabs earn more room; the rest keep the 860px measure on purpose. A
+   text input or a list row stretched across 1400px is worse to use, not
+   better, and those tabs are a separate decision.
+
+   Widening is driven by :has() rather than a class toggled from JS, because
+   the app has no view-level hook on the container and this needs none. A
+   browser without :has() keeps the old width — a fine thing to degrade to.
+   The footer is matched to the container so their edges stay aligned. */
+
+@media (min-width: 1100px) {
+  /* The graph is a spatial view. Its canvas is already width:100%/height:60vh,
+     so giving the container room IS the entire change — nothing about the
+     graph itself is touched. */
+  body:has(#view-graph:not([hidden])) .brain,
+  body:has(#view-graph:not([hidden])) .brain-footer {
+    max-width: 1600px;
+  }
+
+  /* Card grids. Three columns inside 860px would be pointless — ~244px each —
+     so the container has to grow with them, otherwise the reflow makes the
+     cards worse rather than better. */
+  body:has(#view-dashboard:not([hidden])) .brain,
+  body:has(#view-dashboard:not([hidden])) .brain-footer,
+  body:has(#view-clips:not([hidden])) .brain,
+  body:has(#view-clips:not([hidden])) .brain-footer {
+    max-width: 1200px;
+  }
+
+  /* The hero card already spans the full row from the 640px rules. */
+  .dash {
+    grid-template-columns: repeat(3, 1fr);
+    /* Cards size to their content instead of stretching to the tallest in the
+       row. Three columns makes this visible in a way two did not: one long
+       ECHOES list would otherwise leave two half-empty cards beside it.
+       Scoped here rather than on .dash so the two-column layout is untouched. */
+    align-items: start;
+  }
+
+  .clip-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
