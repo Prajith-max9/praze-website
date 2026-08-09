@@ -127,13 +127,27 @@ function paintedBoxScript() {
     // The floor is 75%, not 60%. At 60% this assertion PASSED against the
     // pre-camera build for 20 notes on the phone — a 340px-wide canvas and a
     // ~212px cluster is 62% by accident, not by framing — so it was measuring
-    // nothing in exactly the case a phone user would care about. The fitted
-    // build clears 80% in all four cases; the pre-camera one reaches 62%.
+    // nothing in exactly the case a phone user would care about.
+    //
+    // ...except where the 2.4x ceiling binds first, which is a real state and
+    // not a defect: a 6-node graph in a 581px-tall canvas would need more than
+    // 2.4x to fill it, and the ceiling exists precisely so a handful of dots
+    // are not blown up until they look broken. So the contract is "fills the
+    // canvas as far as the ceiling allows", and the floor moves with it. The
+    // taller canvas that made this visible arrived when the per-tab headers
+    // were removed and .graph-wrap grew by 66px.
+    //
+    // 70% still discriminates: the pre-camera build's best case is 62% and its
+    // worst is 33%, so all four cases here fail against it either way.
+    const atCeiling = b.scale >= 2.4 - 1e-6;
+    const floor = atCeiling ? 0.70 : 0.75;
     console.log('        ' + count + ' notes ' + label + ': limiting axis ' +
       Math.round(limiting * 100) + '% (w ' + Math.round(coverW * 100) +
-      '%, h ' + Math.round(coverH * 100) + '%, scale ' + b.scale.toFixed(2) + ')');
-    check(count + ' notes ' + label + ': fills its limiting axis (>=75%)',
-      limiting >= 0.75, Math.round(limiting * 100) + '% (w ' + Math.round(coverW * 100) +
+      '%, h ' + Math.round(coverH * 100) + '%, scale ' + b.scale.toFixed(2) +
+      (atCeiling ? ', at ceiling' : '') + ')');
+    check(count + ' notes ' + label + ': fills its limiting axis (>=' +
+      Math.round(floor * 100) + '%' + (atCeiling ? ', zoom ceiling binding' : '') + ')',
+      limiting >= floor, Math.round(limiting * 100) + '% (w ' + Math.round(coverW * 100) +
       '%, h ' + Math.round(coverH * 100) + '%)');
     check(count + ' notes ' + label + ': nothing is framed off-canvas',
       b.left >= -1 && b.top >= -1 && b.right <= b.canvasW + 1 && b.bottom <= b.canvasH + 1,
