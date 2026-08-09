@@ -37,6 +37,50 @@ node screenshot.js dashboard dash    # look at it, light and dark
 
 Screenshots are gitignored — they are for looking at, not for asserting on.
 
+## geometry.js — proving a change did not reach the phone
+
+```bash
+node geometry.js snap before.txt                  # this checkout
+# ...make the change...
+node geometry.js snap after.txt
+node geometry.js diff before.txt after.txt        # identical hash = layout untouched
+
+node geometry.js snap old.txt --root ../worktree   # some other checkout
+node geometry.js snap wide.txt --viewport 1440x900
+```
+
+Walks every **painted** element across all nine tabs at a fixed viewport and
+hashes tag/id/class/rect. Two identical hashes mean the layout is byte-for-byte
+the same, which is how a `min-width` rule gets shown not to touch the phone
+rather than merely argued to.
+
+It is a tool, not a suite — the name is deliberately not `verify-*.js` so
+`runall.js` skips it, and it says nothing on its own. Snapshots are gitignored.
+
+Three things it has learned:
+
+- **Run it twice against unchanged code first.** A comparison is worthless until
+  you know the tool is deterministic. That is why the store is seeded with a
+  fixed clock: relative timestamps and streak counters both read the current
+  time, and a snapshot that drifts proves nothing.
+- **Painted is not the same as laid out.** A closed `<details>` keeps a layout
+  box for its contents — Chromium uses `content-visibility` rather than
+  `display: none` so find-in-page still reaches them — so
+  `getBoundingClientRect` cheerfully reports 342×84 for text nobody can see.
+  That inflated the counts in one comparison by exactly nine elements, one
+  footer note per tab. `checkVisibility()` is the general fix and covers
+  `visibility` and `display` at the same time.
+- **Horizontal and vertical differences are not the same news.** A density pass
+  is allowed to move things down; it is not allowed to change where content
+  sits across the page. `diff` separates the two, which turns "the hash
+  changed" into something you can act on.
+
+This file has been written from scratch three times, because the first two
+versions lived in a session scratchpad thrown away with the session — the same
+way the original 32 suites were lost. It is the only thing that can
+substantiate "the phone is untouched", and that claim has now been made in
+three separate PRs. It lives in git now.
+
 ## Writing a suite
 
 Name it `verify-*.js` and `runall.js` picks it up. Use `lib/harness.js` for the

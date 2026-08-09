@@ -23,13 +23,18 @@ const TYPES = {
 };
 
 /* A static server over the repo root. Suites need a real http origin: the app
-   keys everything off localStorage, and file:// gives an opaque origin. */
-function serve(port) {
+   keys everything off localStorage, and file:// gives an opaque origin.
+
+   `root` is optional and defaults to this repo. geometry.js passes a different
+   one so a snapshot can be taken of another checkout — a git worktree at some
+   earlier commit — without a second copy of this file. */
+function serve(port, root) {
+  const base = root ? path.resolve(root) : ROOT;
   const server = http.createServer((req, res) => {
     const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'brain.html';
-    const file = path.join(ROOT, rel);
-    // never serve outside the repo, however the path was spelled
-    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    const file = path.join(base, rel);
+    // never serve outside the served root, however the path was spelled
+    if (!file.startsWith(base) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404); res.end('not found'); return;
     }
     res.writeHead(200, {
