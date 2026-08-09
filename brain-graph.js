@@ -30,6 +30,43 @@ window.BrainGraph = (function () {
                              // can't blow a graph apart
   var MIN_SCALE = 0.4;
   var MAX_SCALE = 3;
+
+  // Fit-to-content. The layout's equilibrium size is in absolute pixels — the
+  // repulsion and rest-length constants below have no idea how big the canvas
+  // is — so the cluster settles at roughly the same physical size whatever room
+  // it is given, and a bigger canvas only ever means more empty canvas.
+  // Measured before this existed, at 1440x900: 20 notes spanned 165px of a
+  // 538px-tall canvas (31%), and 168px of a 718px one (23%) — i.e. more height
+  // made it worse. The camera closes that gap. The physics are untouched.
+  var FIT_PAD = 0.88;        // margin, so nodes never sit flush to the edge
+  var FIT_MAX_SCALE = 2.4;   // below MAX_SCALE on purpose: a fit should only
+                             // land somewhere the user could have pinched to
+  var FIT_MIN_NODES = 5;     // below this the graph is sparse, not small. Two
+                             // dots blown up to fill 1300px reads as broken,
+                             // and .graph-cold already explains the sparseness.
+  // The camera eases towards the fit every frame rather than being set once the
+  // layout settles. Measured: 8 notes settle in ~1.4s, but 40 and 80 notes were
+  // still moving after 12s — a fit that waits for rest would never reach the
+  // graphs with the most notes, which are the ones with the least room to
+  // waste. Following the layout also means the graph is framed while it forms
+  // instead of snapping at the end.
+  var FIT_EASE = 0.12;
+  var CAM_EPS = 0.002;       // camera close enough to its target to stop
+  // The frame follows the envelope of where the graph has been, not where it is
+  // this instant. A large graph never truly rests — at 80 notes the raw fit
+  // target swung 79% as nodes churned against the world bounds, which the
+  // camera turned into a visible pulse (7.6% zoom change in a single frame).
+  // The envelope grows immediately, so nothing ever clips, and shrinks slowly,
+  // so the frame stays still while still following a layout that really is
+  // contracting. Measured after: 0.3% worst-case per frame at the same 80.
+  var ENV_DECAY = 0.004;
+
+  // Canvas animation, so the global prefers-reduced-motion override in
+  // brain.css cannot reach it — checked here instead. Read per fit rather than
+  // cached, so changing the OS setting mid-session is honoured.
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
   // Average movement per node per frame below which the layout counts as
   // settled. Well under a pixel, so the loop only stops once nothing on screen
   // is visibly moving.
@@ -52,6 +89,10 @@ window.BrainGraph = (function () {
       scale: state ? state.scale : 1,
       ox: state ? state.ox : 0,
       oy: state ? state.oy : 0,
+      // the framing the graph is easing towards, and whether it still owns the
+      // camera at all (a pan, zoom or node drag hands it to the user)
+      fit: state ? state.fit : null,
+      autoFit: !!(state && state.autoFit),
       // screen position of the first node, for tests
       sample: state && state.nodes.length
         ? { x: state.nodes[0].x * state.scale + state.ox, y: state.nodes[0].y * state.scale + state.oy }
@@ -111,8 +152,12 @@ window.BrainGraph = (function () {
       onNodeClick: onNodeClick, getNoteInfo: getNoteInfo,
       raf: null, cooling: 1,
       scale: 1, ox: 0, oy: 0,
+      // The camera target, and whether the graph is still framing itself. Any
+      // pan, zoom or node drag hands the camera to the user and clears
+      // autoFit; double-click gives it back.
+      fit: { scale: 1, ox: 0, oy: 0 }, autoFit: true, env: null,
       dragging: null, panning: null, downAt: null,
-      pointers: {}, pinch: null, camAnim: null,
+      pointers: {}, pinch: null,
       hover: null, tooltip: tooltip, listeners: [],
       settings: Object.assign({}, DEFAULT_SETTINGS, settings || {})
     };
@@ -165,8 +210,69 @@ window.BrainGraph = (function () {
       return null;
     }
 
+    /* --- fit-to-content --- */
+
+    // The box the drawing actually occupies in world coords: node circles plus
+    // the labels centred above them. Measuring circles alone would frame the
+    // graph so that the labels — the widest thing on screen, and the part that
+    // was already overlapping — clip against the edges.
+    function contentBox() {
+      var showAllLabels = nodes.length <= LABEL_LIMIT;
+      var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        var r = radius(n);
+        var halfW = showAllLabels ? Math.max(r, n.halfLabel) : r;
+        // draw() puts the baseline at y - r - 6 in an 11px font
+        var top = showAllLabels ? n.y - r - 17 : n.y - r;
+        if (n.x - halfW < x0) x0 = n.x - halfW;
+        if (n.x + halfW > x1) x1 = n.x + halfW;
+        if (top < y0) y0 = top;
+        if (n.y + r > y1) y1 = n.y + r;
+      }
+      return { x0: x0, y0: y0, x1: x1, y1: y1 };
+    }
+
+    // contentBox() smoothed: each edge jumps outwards the moment the content
+    // reaches it, and creeps inwards when it retreats.
+    //
+    // The smoothing exists to reject churn, so a layout at rest skips it
+    // entirely and the envelope collapses onto the real box. Without that, a
+    // small graph — which settles in about a second — spent a further six
+    // seconds creeping inwards, keeping the rAF loop alive for the whole crawl.
+    function frameBox(settled) {
+      var b = contentBox();
+      var e = state.env;
+      if (!e || settled) {
+        state.env = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 };
+        return state.env;
+      }
+      e.x0 = b.x0 < e.x0 ? b.x0 : e.x0 + (b.x0 - e.x0) * ENV_DECAY;
+      e.y0 = b.y0 < e.y0 ? b.y0 : e.y0 + (b.y0 - e.y0) * ENV_DECAY;
+      e.x1 = b.x1 > e.x1 ? b.x1 : e.x1 + (b.x1 - e.x1) * ENV_DECAY;
+      e.y1 = b.y1 > e.y1 ? b.y1 : e.y1 + (b.y1 - e.y1) * ENV_DECAY;
+      return e;
+    }
+
+    // The camera that centres the content and scales it to fill, or null when
+    // the graph is too sparse to be worth framing.
+    function computeFit(settled) {
+      if (nodes.length < FIT_MIN_NODES) return null;
+      var b = frameBox(settled);
+      var bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+      if (!(bw > 0) || !(bh > 0)) return null;
+      var s = Math.min(state.W / bw, state.H / bh) * FIT_PAD;
+      s = Math.max(MIN_SCALE, Math.min(FIT_MAX_SCALE, s));
+      return {
+        scale: s,
+        ox: state.W / 2 - ((b.x0 + b.x1) / 2) * s,
+        oy: state.H / 2 - ((b.y0 + b.y1) / 2) * s
+      };
+    }
+
     // zoom about a screen point: the world point under it stays put
     function zoomAt(screen, factor) {
+      state.autoFit = false;   // the camera is the user's from here
       var newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, state.scale * factor));
       var wx = (screen.x - state.ox) / state.scale;
       var wy = (screen.y - state.oy) / state.scale;
@@ -350,22 +456,34 @@ window.BrainGraph = (function () {
       });
     }
 
-    function stepCamAnim() {
-      var a = state.camAnim;
-      if (!a) return;
-      var p = Math.min(1, (performance.now() - a.t0) / 250);
-      var ease = p * (2 - p);
-      state.scale = a.fromS + (1 - a.fromS) * ease;
-      state.ox = a.fromOx * (1 - ease);
-      state.oy = a.fromOy * (1 - ease);
-      if (p >= 1) state.camAnim = null;
+    // Moves the camera a step towards the framing the current layout wants.
+    // Returns true while it still has ground to cover, so the loop knows not to
+    // stop mid-move. A no-op once the user has taken the camera, and for a
+    // graph too sparse to frame.
+    function stepCamera(settled) {
+      if (!state.autoFit) return false;
+      var f = computeFit(settled);
+      if (!f) return false;
+      state.fit = f;
+      // Scale is what the eye reads first, so converge on it: the offsets are
+      // derived from it and settle with it.
+      var near = Math.abs(state.scale - f.scale) <= CAM_EPS * f.scale &&
+                 Math.abs(state.ox - f.ox) <= 0.5 && Math.abs(state.oy - f.oy) <= 0.5;
+      if (near || reducedMotion()) {
+        state.scale = f.scale; state.ox = f.ox; state.oy = f.oy;
+        return false;
+      }
+      state.scale += (f.scale - state.scale) * FIT_EASE;
+      state.ox += (f.ox - state.ox) * FIT_EASE;
+      state.oy += (f.oy - state.oy) * FIT_EASE;
+      return true;
     }
 
     function loop() {
-      stepCamAnim();
       var moved = step();
+      var moving = stepCamera(moved <= SETTLE_PER_NODE && !state.dragging);
       draw();
-      if (moved > SETTLE_PER_NODE || state.dragging || state.panning || state.camAnim) {
+      if (moved > SETTLE_PER_NODE || state.dragging || state.panning || moving) {
         state.raf = requestAnimationFrame(loop);
       } else {
         state.raf = null;
@@ -450,11 +568,16 @@ window.BrainGraph = (function () {
 
       var n = pick(toWorld(raw));
       if (n) {
+        // Dragging a node moves the layout under the camera. Re-framing while
+        // that happens would slide the graph out from under the finger doing
+        // the dragging, so the camera stops following here too.
+        state.autoFit = false;
         state.dragging = n;
         state.downAt = { x: raw.x, y: raw.y, node: n };
         hideTooltip();
         wake();
       } else {
+        state.autoFit = false;
         state.panning = { x: raw.x, y: raw.y, ox: state.ox, oy: state.oy };
         hideTooltip();
         wake();
@@ -538,10 +661,14 @@ window.BrainGraph = (function () {
       zoomAt(rawPos(e), Math.exp(-e.deltaY * k));
     }, { passive: false });
 
+    // Reset view: hand the camera back to the graph. It eases to the framing
+    // from wherever the user left it, which is the same motion the graph makes
+    // on arrival — rather than snapping to an identity transform that would
+    // put the layout back in the middle of an empty canvas.
     on(canvas, 'dblclick', function (e) {
       if (!state) return;
       if (pick(toWorld(rawPos(e)))) return; // dblclick on a node: nothing new
-      state.camAnim = { t0: performance.now(), fromS: state.scale, fromOx: state.ox, fromOy: state.oy };
+      state.autoFit = true;
       wake();
     });
 
