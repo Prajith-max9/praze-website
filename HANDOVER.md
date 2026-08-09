@@ -218,8 +218,31 @@ or the rAF loop keeps running and eats battery. `window.__brainDebug.nodes` is a
 CSS transition or animation inherits it automatically. Don't add a per-rule one.
 
 **Cross-tab merge is a union, not a CRDT.** It cannot distinguish "deleted over
-there" from "created over here", so a note deleted in one tab can be resurrected
-by another. Known and accepted; don't be surprised by it.
+there" from "created over here", so anything deleted in one tab is resurrected
+by another — **on disk, not just on screen**. Reproduced, not theoretical:
+reported as "the diary entry flashes away and comes back, laptop only", and the
+mechanism is that tab B's merge keeps the item it still holds, sets
+`weHoldMore`, and writes it back for tab A to merge in.
+
+It hits notes, todos, clips and goals alike — one `mergeStores` for all of them;
+the diary was just what was being deleted. The second tab needs neither focus
+nor the same view: a backgrounded tab on Home does it. "Laptop only" really
+means "more than one tab only" — and the TWA shares Chrome's storage for the
+origin, so phone Chrome plus the TWA counts as two.
+
+**The symptom fits the S-1 rollback and that is the wrong answer.** `saveStore()`
+is synchronous with no render between the note being removed and spliced back,
+so that path cannot paint an intermediate state at all; instrumented, `setItem`
+returned cleanly. Nothing throws, so the console is silent too.
+
+Alongside it: the banner says "Note deleted." and offers Undo even when a merge
+is about to reverse it. Separable from the resurrection, and cheaper to fix.
+
+**Decided: left unfixed.** Low impact under normal single-tab use, and every fix
+is larger than the problem — *tombstones* (correct; needs a schema addition and
+pruning), *rev-based last-write-wins* (cheaper; loses concurrent edits),
+*single-writer lock* (simplest; most restrictive). So: **don't run Second Brain
+in two tabs at once.** A real constraint, not a preference.
 
 **The cross-tab merge does not cover photos**, because they are no longer in the
 localStorage payload it merges. Left alone, that meant a photo attached in one
