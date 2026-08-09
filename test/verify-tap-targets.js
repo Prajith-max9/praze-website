@@ -44,7 +44,11 @@ const PROBE = (view) => {
   const nb = document.querySelector('.navbar');
   const navBottom = nb ? nb.getBoundingClientRect().bottom : 0;
   const out = [];
-  document.querySelectorAll('button, a[href], [role="button"]').forEach(el => {
+  // `summary` is here because the footer's storage note became a <details>.
+  // It is a control the user taps, so the 44px rule applies to it, but it
+  // matches none of the other three selectors — a native summary carries its
+  // role implicitly and has no role attribute to find it by.
+  document.querySelectorAll('button, a[href], [role="button"], summary').forEach(el => {
     const r = el.getBoundingClientRect();
     if (!r.width || !r.height || el.hidden || el.closest('[hidden]')) return;
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
