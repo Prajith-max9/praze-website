@@ -3179,12 +3179,27 @@ a {
    The footer is matched to the container so their edges stay aligned. */
 
 @media (min-width: 1100px) {
-  /* The graph is a spatial view. Its canvas is already width:100%/height:60vh,
-     so giving the container room IS the entire change — nothing about the
-     graph itself is touched. */
+  /* The graph is a spatial view, so it gets the width. Note that giving the
+     container room was NOT the whole change it was described as: the canvas
+     grew and the graph did not, because the layout's size is set in absolute
+     pixels. brain-graph.js now frames the content to the canvas, which is what
+     actually makes the extra room count — here and at every other width. */
   body:has(#view-graph:not([hidden])) .brain,
   body:has(#view-graph:not([hidden])) .brain-footer {
     max-width: 1600px;
+  }
+
+  /* Height, now that height buys graph rather than empty canvas. 60vh was less
+     conservative than it looks — at a 900px-tall laptop it lands exactly at the
+     footer — but it is a fixed fraction, so it leaves 120px unused at 1200px
+     tall and overshoots into a scrollbar on a short one. Everything on this tab
+     other than the canvas (header, tabs, legend, footer, margins) measures
+     360px at this breakpoint, so filling to the footer is 100vh - 360px. That
+     keeps the footer disclaimer and the .graph-cold strip on screen without
+     scrolling at every height, rather than only at 900. min-height: 320px from
+     the base rule still floors it. */
+  .graph-wrap {
+    height: calc(100vh - 360px);
   }
 
   /* Card grids. Three columns inside 860px would be pointless — ~244px each —

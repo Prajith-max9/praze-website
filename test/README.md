@@ -75,6 +75,7 @@ fails in the other — or worse, pins a value the rest of the app has moved off.
 | `verify-back.js` | The back-button layer stack: each of the nine layers closes topmost-first, the spare history entry never leaks however deep or however repeated, closing by UI does not undo tab navigation, and normal hash routing and forward navigation still work |
 | `verify-interactions.js` | The seams between features: IndexedDB unavailable vs. failing, importing a pre-migration export, a layer open when the page is killed, and dictation under a tracked layer |
 | `verify-photos.js` | The `PHOTO_URL_RE` security boundary — a hostile `photo` value must never reach an `<img src>`, from localStorage **or** IndexedDB — plus compression to jpeg at 800px, the one-way migration into IndexedDB, and export round-tripping |
+| `verify-graph-fit.js` | The graph frames itself to its canvas: sparse graphs (<5 notes) are left at 1x, larger ones fill their limiting axis without clipping or exceeding the zoom ceiling, the rAF loop still comes to rest, and pan/zoom/drag hand the camera to the user while double-click hands it back |
 
 ### Two things those suites learned the hard way
 
@@ -126,3 +127,10 @@ itself") passes either way, because disk was always correct at that moment. Only
 the second half, after an unrelated successful write, actually catches it. A
 plausible-looking assertion that cannot fail is worse than none — it reads as
 coverage.
+
+`verify-graph-fit.js` then paid for the habit a third time. Its coverage floor
+started at 60%, and against the pre-camera build that assertion **passed** for
+20 notes on the phone: a 340px-wide canvas and a ~212px cluster is 62% by
+coincidence, not by framing. The one case a phone user would most notice was the
+one being waved through. Raised to 75%, where the fitted build sits at 79–88%
+and the old one at 33–62%, so all four cases now discriminate.
