@@ -3287,4 +3287,63 @@ a {
   .clip-list {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  /* Spacing proportion. Measured at 1440 before this: the gaps BETWEEN
+     top-level sections were 32px while the padding INSIDE a card was 24px, so
+     the space separating two things outweighed the space binding a card to its
+     own contents. That reads as a page of loose fragments rather than as a
+     stack of blocks, and it is the wrong way round.
+
+     So gaps come down to 20px and card padding goes up to 28px. Nothing here
+     changes what sits where — only how much air is around it — and it is all
+     behind min-width, so the phone keeps the spacing it was tuned with.
+
+     The 32px gaps came from margin-bottom: 2rem on .capture, .streaks,
+     .goal-list and .todo-done; .tag-rail and .todo-list sat at 28 and 24. The
+     rule is simply that no top-level gap exceeds 20px at this width. .toolbar
+     and .wins are already below it and are left alone — this reduces gaps, it
+     does not standardise them upwards. */
+  .capture,
+  .streaks,
+  .goal-list,
+  .todo-done,
+  .tag-rail,
+  .todo-list {
+    margin-bottom: 1.25rem;
+  }
+
+  /* Content cards only. .empty is deliberately NOT in this list: its padding
+     was cut from 3rem to 1.5rem in #34 precisely because those boxes were
+     mostly air, and putting it back here would quietly undo that. An empty
+     state is a placeholder, not a card. */
+  .capture,
+  .dash-card,
+  .note,
+  .clip {
+    padding: 1.75rem;
+  }
+}
+
+/* Very wide screens. The containers above were sized for a laptop, and past
+   about 1600px they start to read as narrow again: measured at 1920, Home and
+   Clips used 56% of the width and the graph 77%. One more step, no reflow —
+   the card grids keep three columns, since a fourth would make each card
+   narrower than it is at 1440 and that is not an improvement.
+
+   Only the three tabs batch 1 widened are here. The rest keep the 860px
+   measure on purpose: a text field or a list row stretched across 1400px is
+   worse to use, not better, and giving them the width is not the fix for the
+   space around them — that is a layout question, not a max-width one. */
+@media (min-width: 1600px) {
+  body:has(#view-dashboard:not([hidden])) .brain,
+  body:has(#view-dashboard:not([hidden])) .brain-footer,
+  body:has(#view-clips:not([hidden])) .brain,
+  body:has(#view-clips:not([hidden])) .brain-footer {
+    max-width: 1440px;
+  }
+
+  body:has(#view-graph:not([hidden])) .brain,
+  body:has(#view-graph:not([hidden])) .brain-footer {
+    max-width: 1800px;
+  }
 }
