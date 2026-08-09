@@ -563,6 +563,49 @@ body {
   gap: 0.75rem;
 }
 
+/* The delete confirmation. Its own row under the actions rather than a swap of
+   them, so that whatever opened it stays exactly where it was and nothing new
+   can appear under the pointer. See the note above deleteOrActions() in
+   brain.js for what that swap cost, and verify-confirm-geometry.js for the
+   rule it now has to satisfy.
+
+   Left-aligned on purpose. The actions sit right, so putting the question at
+   the other end of the card makes it read as a new thing to answer rather than
+   as the same row rearranged. */
+/* Opening the confirm makes its card taller, and Chromium's scroll anchoring
+   answers that by scrolling the page to hold some other element still —
+   measured at 73px on a phone-width clip. The card the user just clicked jumps
+   out from under the pointer, which puts a confirm button where the trigger
+   was and reintroduces the exact bug the strip exists to prevent.
+
+   Suppressed only while a confirm is open, not globally: .clip__thumb reserves
+   no height, so a YouTube thumbnail resolving above the viewport genuinely does
+   shift content, and anchoring is what stops that jump. Turning it off
+   everywhere would trade one jump for another. A browser without :has() keeps
+   anchoring and behaves as it does today — the same thing the wide-viewport
+   rules degrade to. */
+body:has(.confirm-strip) {
+  overflow-anchor: none;
+}
+
+.confirm-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.confirm-strip__q {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+
 /* The row of actions under a card. These read as quiet text, and must keep
    reading that way — so the type size is untouched and only the box around it
    grows to a thumb-sized target. */
@@ -1132,6 +1175,7 @@ body {
   align-items: center;
   gap: 0.75rem;
 }
+
 
 .goal__plus {
   font-weight: 700;
