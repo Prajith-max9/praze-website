@@ -631,11 +631,46 @@ body {
   font-size: 0.8rem;
 }
 
+/* Page headers — one per tab, so no tab opens straight into its content with
+   nothing telling you where you are.
+
+   Deliberately built from sizes the app already uses rather than a new scale:
+   the title is .empty__title's 1.1rem display, the subtitle is .empty__text's
+   0.8rem mono grey. This adds framing without touching the type system.
+
+   font-weight is pinned because these are h2s and the UA would otherwise ask
+   for bold — Archivo Black ships one weight, so the browser would synthesise
+   it and the headers would render heavier than every other display face in
+   the app. */
+.view-head {
+  margin-bottom: 1.5rem;
+}
+
+.view-head__title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.1rem;
+  line-height: 1.2;
+  margin-bottom: 0.3rem;
+}
+
+.view-head__sub {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--gray);
+  max-width: 48ch;
+}
+
 /* Empty states */
 
+/* 3rem of vertical padding made these read as major blocks rather than as the
+   placeholders they are — the box was mostly air. The border, the dashed
+   treatment and the copy are all deliberate and unchanged; only the padding
+   moved. */
 .empty {
   border: 1px dashed var(--border);
-  padding: 3rem 1.5rem;
+  padding: 1.5rem 1.5rem;
   text-align: center;
 }
 
@@ -682,7 +717,7 @@ body {
 /* Footer + noscript */
 
 .brain-footer {
-  padding: 0 1.5rem 2.5rem;
+  padding: 0 1.5rem 1.5rem;
   max-width: 760px;
 }
 
@@ -692,6 +727,57 @@ body {
   font-size: 0.7rem;
   color: var(--gray);
   line-height: 1.7;
+}
+
+/* The storage disclaimer is important information, but it is a footnote and
+   was reading as a content block. Default state is one muted line; the full
+   sentence is one tap away and unchanged.
+
+   The summary carries more padding than its type needs because it is a
+   control, and the 44px rule from Polish §6 applies to it exactly as it does
+   to a button. The footer's own bottom padding pays for that, so the block is
+   lighter overall rather than the same weight rearranged. */
+.storage-note__line {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gray);
+  opacity: 0.7;
+  line-height: 1.5;
+  /* 0.9rem, not 0.8: at 0.8 the summary measured 41px and Polish §6 asks for
+     44. verify-tap-targets.js probes it now, so this cannot drift back. */
+  padding: 0.9rem 0;
+  cursor: pointer;
+  list-style: none;             /* Firefox draws a marker without this */
+}
+
+.storage-note__line::-webkit-details-marker {
+  display: none;
+}
+
+/* An affordance is needed — a muted line of caps does not otherwise read as
+   openable. A character rather than a rotating glyph, so there is no animation
+   to exempt from prefers-reduced-motion. */
+.storage-note__line::after {
+  content: ' +';
+  opacity: 0.7;
+}
+
+.storage-note[open] .storage-note__line {
+  opacity: 1;
+}
+
+.storage-note[open] .storage-note__line::after {
+  content: ' \2212';           /* minus, not a hyphen */
+}
+
+.storage-note__line:hover {
+  opacity: 1;
+}
+
+.storage-note p {
+  padding-bottom: 0.5rem;
 }
 
 .noscript {
@@ -3193,13 +3279,18 @@ a {
      conservative than it looks — at a 900px-tall laptop it lands exactly at the
      footer — but it is a fixed fraction, so it leaves 120px unused at 1200px
      tall and overshoots into a scrollbar on a short one. Everything on this tab
-     other than the canvas (header, tabs, legend, footer, margins) measures
-     360px at this breakpoint, so filling to the footer is 100vh - 360px. That
-     keeps the footer disclaimer and the .graph-cold strip on screen without
-     scrolling at every height, rather than only at 900. min-height: 320px from
-     the base rule still floors it. */
+     other than the canvas (navbar, tabs, page header, legend, footer, margins)
+     measures 385px at this breakpoint, so filling to the footer is
+     100vh - 385px. That keeps the footer note and the .graph-cold strip on
+     screen without scrolling at every height, rather than only at 900.
+     min-height: 320px from the base rule still floors it.
+
+     This number is measured, not guessed, and it moves when the chrome does:
+     it was 360px until the per-tab header arrived (+54px) and the footer note
+     shrank (-29px). Re-measure it rather than adjusting it by eye — verified
+     flat at 385 across 700/800/900/1080/1200px viewport heights. */
   .graph-wrap {
-    height: calc(100vh - 360px);
+    height: calc(100vh - 385px);
   }
 
   /* Card grids. Three columns inside 860px would be pointless — ~244px each —
