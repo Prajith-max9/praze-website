@@ -120,6 +120,7 @@ fails in the other — or worse, pins a value the rest of the app has moved off.
 | `verify-interactions.js` | The seams between features: IndexedDB unavailable vs. failing, importing a pre-migration export, a layer open when the page is killed, and dictation under a tracked layer |
 | `verify-photos.js` | The `PHOTO_URL_RE` security boundary — a hostile `photo` value must never reach an `<img src>`, from localStorage **or** IndexedDB — plus compression to jpeg at 800px, the one-way migration into IndexedDB, and export round-tripping |
 | `verify-graph-fit.js` | The graph frames itself to its canvas: sparse graphs (<5 notes) are left at 1x, larger ones fill their limiting axis without clipping or exceeding the zoom ceiling, the rAF loop still comes to rest, and pan/zoom/drag hand the camera to the user while double-click hands it back |
+| `verify-confirm-geometry.js` | **Where a confirm step lands.** After a destructive trigger opens an inline confirm, no *other* control may occupy the box the trigger just vacated — checked across every confirm in the app at phone, tablet and laptop widths |
 
 ### Two things those suites learned the hard way
 
@@ -137,6 +138,26 @@ meant for "Show more". Only `elementFromPoint` finds that.
 to be careful with: §10 of the handover records a green mock sitting alongside an
 engine that misbehaved in two distinct ways on a real device, so a suite there
 should claim wiring only, and say so.
+
+### Clicking by selector hides a whole class of bug
+
+Every delete test drives the confirm with `page.click('[data-action="delete-yes"]')`.
+Playwright re-finds that element wherever it moved to, so those tests can never
+observe a pointer that stays still — and for a long time one didn't need to
+move. The confirm swapped the action row in place, both rows were laid out from
+the same edge, and every `.note__action` carries `min-width: 44px`, so the last
+button of each landed in the same box: `Delete` at x 1012..1057, then `No` at
+1013..1057. Clicking Delete and clicking again without moving the mouse
+cancelled the deletion, silently, and it was reported as "delete doesn't work on
+my laptop". The goal row was worse — it put `Yes` there, so the same stray click
+deleted the goal.
+
+`verify-s1.js` proved the storage semantics of delete throughout, and they were
+always correct. Nothing modelled the pointer.
+
+So: when a control's job is to be *in a particular place*, drive it by
+coordinates and ask `elementFromPoint` what is actually there.
+`verify-confirm-geometry.js` does that; `verify-tap-targets.js` did it first.
 
 ### Measure position, not just count
 

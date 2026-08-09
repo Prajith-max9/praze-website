@@ -1317,16 +1317,40 @@
     }
   }
 
+  /* The action row no longer changes when a delete is pending — the confirm
+     arrives on its own strip underneath instead.
+
+     It used to swap in place, and that was the bug. Both versions were laid out
+     from the same edge and every .note__action carries min-width: 44px, so the
+     LAST control of each landed in the same box: Delete at x 1012..1057, then
+     No at 1013..1057. Clicking Delete and clicking again without moving the
+     mouse hit No and cancelled the deletion, silently, which read as "delete
+     doesn't work on my laptop". The goal row was worse — it put Yes there, so a
+     stray second click deleted the goal outright.
+
+     Insetting the confirm row was tried first and is not sound: on a narrow
+     card the row wraps to its own line, and every geometric argument about
+     which edge things align to stops holding. Leaving the trigger exactly where
+     it is needs no such argument. A second click in the same place re-opens the
+     same confirm, which is a no-op, and the only thing the pointer can reach by
+     accident is the thing it just asked for. Guarded by
+     verify-confirm-geometry.js. */
   function deleteOrActions(note, extraActions) {
-    if (state.confirmingDeleteId === note.id) {
-      return '<span class="note__date">Delete?</span>' +
-        '<button type="button" class="note__action note__action--danger" data-action="delete-yes">Yes</button>' +
-        '<button type="button" class="note__action" data-action="delete-no">No</button>';
-    }
     return (extraActions || '') +
       '<button type="button" class="note__action" data-action="note-copy">Copy</button>' +
       '<button type="button" class="note__action" data-action="edit">Edit</button>' +
       '<button type="button" class="note__action note__action--danger" data-action="delete-ask">Delete</button>';
+  }
+
+  /* The confirm itself. Its own row, below the actions, so it cannot land on
+     top of whatever opened it however the card happens to be laid out. */
+  function confirmStrip(note) {
+    if (state.confirmingDeleteId !== note.id) return '';
+    return '<div class="confirm-strip">' +
+      '<span class="confirm-strip__q">Delete this?</span>' +
+      '<button type="button" class="note__action note__action--danger" data-action="delete-yes">Yes</button>' +
+      '<button type="button" class="note__action" data-action="delete-no">No</button>' +
+      '</div>';
   }
 
   /* ---------- IDEAS view ---------- */
@@ -1383,7 +1407,7 @@
       '<div class="note__meta">' +
       '<span class="note__date">' + pinnedMark + stampHtml(note.createdAt, edited) + '</span>' +
       '<div class="note__actions">' + actionsHtml + '</div>' +
-      '</div></li>';
+      '</div>' + confirmStrip(note) + '</li>';
   }
 
   function renderEmptyState() {
@@ -1805,7 +1829,7 @@
       // which only matters once there is more than one entry in a day
       '<span class="note__date">' + moodHtml + stampHtml(note.createdAt) + '</span>' +
       '<div class="note__actions">' + deleteOrActions(note, aiBtn) + '</div>' +
-      '</div></li>';
+      '</div>' + confirmStrip(note) + '</li>';
   }
 
   function renderDiary() {
@@ -2172,7 +2196,7 @@
       '<div class="note__actions">' +
       (href ? '<a class="note__action clip__open" href="' + escapeHtml(href) + '" target="_blank" rel="noopener">Open ↗</a>' : '') +
       deleteOrActions(note) +
-      '</div></div></li>';
+      '</div>' + confirmStrip(note) + '</div></li>';
   }
 
   function renderClips() {
@@ -2262,14 +2286,22 @@
             '<div class="goal__head"><span class="goal__title">' + escapeHtml(g.title) + '</span>' +
             '<span class="goal__count">' + g.progress + ' / ' + g.target + '</span></div>' +
             '<div class="goal__bar"><div class="goal__fill" style="width:' + pct + '%"></div></div>' +
+            /* Same shape as the note cards: the actions stay put and the
+               confirm arrives underneath. This row was the worse of the two —
+               laid out from the left, it put Yes where Delete had been, so a
+               stray second click deleted the goal rather than cancelling. */
             '<div class="goal__actions">' +
+            '<button type="button" class="toolbar__btn goal__plus" data-action="goal-inc">+1</button>' +
+            '<button type="button" class="note__action note__action--danger" data-action="goal-del-ask">Delete</button>' +
+            '</div>' +
             (confirming
-              ? '<span class="note__date">Delete?</span>' +
+              ? '<div class="confirm-strip">' +
+                '<span class="confirm-strip__q">Delete this goal?</span>' +
                 '<button type="button" class="note__action note__action--danger" data-action="goal-del-yes">Yes</button>' +
-                '<button type="button" class="note__action" data-action="goal-del-no">No</button>'
-              : '<button type="button" class="toolbar__btn goal__plus" data-action="goal-inc">+1</button>' +
-                '<button type="button" class="note__action note__action--danger" data-action="goal-del-ask">Delete</button>') +
-            '</div></div>';
+                '<button type="button" class="note__action" data-action="goal-del-no">No</button>' +
+                '</div>'
+              : '') +
+            '</div>';
         }).join('')
       : '<div class="empty"><span class="empty__glyph">' + icon('target') + '</span>' +
         '<p class="empty__title">Set something you’re working toward.</p>' +
