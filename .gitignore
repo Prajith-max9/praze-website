@@ -1,0 +1,4 @@
+
+# Python bytecode from bundled skill scripts
+__pycache__/
+*.pyc
